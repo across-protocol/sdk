@@ -106,8 +106,9 @@ function _getEthersGasPriceEstimate(
   assert(!VIEM_CHAINS.includes(chainId), `Chain ID ${chainId} will use Viem gas price estimation`);
   const gasPriceFeeds = {
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BSC]: ethereum.legacy,
+    [CHAIN_IDs.BSC]: ethereum.eip1559,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
+    [CHAIN_IDs.MONAD]: ethereum.eip1559,
     [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,

@@ -1,16 +1,20 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.81",
+  "version": "4.3.104",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/across-protocol/sdk"
+  },
   "files": [
     "dist",
     "scripts",
     "src"
   ],
   "engines": {
-    "node": ">=20.19.2"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "build-bigint-buffer": "node scripts/build-bigint-buffer.js",
@@ -106,11 +110,12 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.83",
-    "@across-protocol/contracts": "^4.1.11",
+    "@across-protocol/constants": "^3.1.94",
+    "@across-protocol/contracts": "^4.1.14",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
+    "@nktkas/hyperliquid": "^0.25.9",
     "@pinata/sdk": "^2.1.0",
     "@solana-program/system": "^0.7.0",
     "@solana-program/token-2022": "^0.4.0",
@@ -134,7 +139,7 @@
     "viem": "^2.21.15"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.com/",
+    "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
   "jest": {

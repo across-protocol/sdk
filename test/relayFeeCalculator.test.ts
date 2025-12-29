@@ -184,7 +184,8 @@ describe("RelayFeeCalculator", () => {
       1000e6
     );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
-    assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas units
+    assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas fee in token units
+    assert.equal(relayerFeeDetails.gasUnits, "305572"); // consumed 305,572 gas units
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
     assert.equal(

@@ -86,6 +86,7 @@ export interface RelayerFeeDetails {
   tokenSymbol: string;
   gasFeePercent: string;
   gasFeeTotal: string;
+  gasUnits: string;
   gasDiscountPercent: number;
   auxNativeFeePercent: string;
   auxNativeFeeTotal: string;
@@ -515,6 +516,23 @@ export class RelayFeeCalculator {
 
     const tokenPrice = await this.resolveTokenPrice(outputTokenInfo, _tokenPrice, deposit);
 
+    const { tokenGasCost: _tokenGasCost, nativeGasCost: _nativeGasCost } =
+      tokenGasCost && gasUnits
+        ? { tokenGasCost, nativeGasCost: BigNumber.from(gasUnits) }
+        : await this.queries
+            .getGasCosts(deposit, relayerAddress, { gasPrice, gasUnits })
+            .then(({ tokenGasCost, nativeGasCost }) => ({ tokenGasCost, nativeGasCost }))
+            .catch((error) => {
+              this.logger.error({
+                at: "sdk/relayerFeeDetails",
+                message: "Error while fetching gas costs",
+                error,
+                simulateZeroFill,
+                deposit,
+              });
+              throw error;
+            });
+
     const gasFeePercent = await this.gasFeePercent(
       deposit,
       outputAmount,
@@ -523,8 +541,8 @@ export class RelayFeeCalculator {
       relayerAddress,
       tokenPrice,
       gasPrice,
-      gasUnits,
-      tokenGasCost
+      _nativeGasCost,
+      _tokenGasCost
     );
     const outToInDecimals = ConvertDecimals(outputTokenInfo.decimals, inputTokenInfo.decimals);
     const gasFeeTotal = gasFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
@@ -573,6 +591,7 @@ export class RelayFeeCalculator {
       tokenSymbol: inputTokenInfo.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
+      gasUnits: _nativeGasCost.toString(),
       gasDiscountPercent: this.gasDiscountPercent,
       auxNativeFeePercent: auxNativeFeePercent.toString(),
       auxNativeFeeTotal: auxNativeFeeTotal.toString(),

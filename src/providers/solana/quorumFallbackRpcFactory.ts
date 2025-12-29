@@ -61,13 +61,14 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             errors.push([factory.rpcFactory, (error as any)?.stack || error?.toString()]);
 
+            // If all fallback providers fail, then return the last received error.
             if (fallbackFactories.length === 0) {
               throw error;
             }
 
             // If one RPC provider reverted, others likely will too. Skip them.
             if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
-              throw error;
+              throw new Error(`RPC provider reverted for method ${method}`);
             }
 
             const currentFactory = factory.rpcFactory.clusterUrl;
@@ -200,7 +201,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
               errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
-              throw new Error("Fallback RPC call failed while trying to reach quorum", err);
+              throw new Error("Fallback RPC call failed while trying to reach quorum");
             });
         })
       );
