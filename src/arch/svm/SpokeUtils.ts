@@ -32,6 +32,7 @@ import {
   pipe,
   signTransactionMessageWithSigners,
   some,
+  compileTransaction,
   type TransactionSigner,
   type WritableAccount,
   type ReadonlyAccount,
@@ -1427,11 +1428,11 @@ export async function getCCTPDepositAccounts(
  * @returns Object containing a boolean if the input deposit requires a multipart fill, false otherwise and
  * the number of bytes in the serialized transaction.
  */
-export async function isSVMFillTooLarge(fillRelayTx: CompilableTransactionMessage): Promise<{
+export function isSVMFillTooLarge(fillRelayTx: CompilableTransactionMessage): {
   tooLarge: boolean;
   sizeBytes: number;
-}> {
-  const sizeBytes = await calculateFillSizeBytes(fillRelayTx);
+} {
+  const sizeBytes = calculateFillSizeBytes(fillRelayTx);
   return {
     tooLarge: sizeBytes > SOLANA_TX_SIZE_LIMIT,
     sizeBytes,
@@ -1455,8 +1456,8 @@ export function base64StrToByteSize(base64TxString: string): number {
  * @param fillTx The compilable fill relay transaction.
  * @returns The number of bytes in the serialized fillRelay transaction.
  */
-export async function calculateFillSizeBytes(fillTx: CompilableTransactionMessage): Promise<number> {
-  const signedTransaction = await signTransactionMessageWithSigners(fillTx);
+export function calculateFillSizeBytes(fillTx: CompilableTransactionMessage): number {
+  const signedTransaction = compileTransaction(fillTx);
   const serializedTx = getBase64EncodedWireTransaction(signedTransaction);
   return base64StrToByteSize(serializedTx);
 }

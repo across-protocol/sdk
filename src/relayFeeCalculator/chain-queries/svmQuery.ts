@@ -100,7 +100,7 @@ export class SvmQuery implements QueryInterface {
       repaymentAddress
     );
 
-    const fillTooLarge = await isSVMFillTooLarge(fillRelayTx);
+    const fillTooLarge = isSVMFillTooLarge(fillRelayTx);
     const [_computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
       fillTooLarge.tooLarge
         ? this.estimateComputeUnits(
