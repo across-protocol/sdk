@@ -1,4 +1,5 @@
 import { RpcTransport } from "@solana/rpc-spec";
+import { CompilableTransactionMessage, SolanaRpcApi } from "@solana/kit";
 import { isSolanaError, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../arch/svm";
 
 /**
@@ -12,6 +13,19 @@ export interface SolanaRateLimitTask {
   // or fail.
   resolve: (result: unknown) => void;
   reject: (err: unknown) => void;
+}
+
+// `simulateBundle` minimal response struct.
+export type SolanaBundleSimulation = {
+  result: {
+    unitsConsumed: number;
+    returnData: { programId: string; data: string };
+  };
+};
+
+// Minimal extension of a Solana RPC Api which also supports some JITO RPC endpoints.
+export interface JitoInterface extends SolanaRpcApi {
+  simulateBundle(transactions: CompilableTransactionMessage[]): SolanaBundleSimulation;
 }
 
 /**

@@ -32,10 +32,12 @@ import {
   pipe,
   signTransactionMessageWithSigners,
   some,
+  compileTransaction,
   type TransactionSigner,
   type WritableAccount,
   type ReadonlyAccount,
   type Commitment,
+  type CompilableTransactionMessage,
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
@@ -99,6 +101,8 @@ import {
  *        and choose 400 to ensure that the most slots get included in our ranges
  */
 export const SLOT_DURATION_MS = 400;
+
+export const SOLANA_TX_SIZE_LIMIT = 1232;
 
 type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   destinationChainId: number;
@@ -693,6 +697,8 @@ export async function getIPFillRelayTx(
     getEventAuthority(program),
   ]);
 
+  const recipientAtaEncodedAccount = await fetchEncodedAccount(solanaClient, recipientAta);
+
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
@@ -736,7 +742,7 @@ export async function getIPFillRelayTx(
     fillInput,
     { outputAmount: relayData.outputAmount.toBigInt(), recipient: toAddress(relayData.recipient) },
     mintInfo.data.decimals,
-    true,
+    !recipientAtaEncodedAccount.exists,
     remainingAccounts
   );
 }
@@ -1084,6 +1090,8 @@ async function fetchBatchFillStatusFromPdaAccounts(
  * Returns a set of instructions to execute to fill a relay via instruction params.
  * @param spokePool The program ID of the Solana spoke pool.
  * @param relayData The relay data to write to the instruction params PDA.
+ * @param repaymentChainId: The chain ID to take repayment.
+ * @param repaymentAddress: The address to receive repayment on the specified repayment chain.
  * @param signer The transaction signer and authority of the instruction params PDA.
  * @param maxWriteSize The maximum fragment size to write to instruction params.
  */
@@ -1411,6 +1419,47 @@ export async function getCCTPDepositAccounts(
     tokenMessengerMinterSenderAuthority,
     messageTransmitter,
   };
+}
+
+/**
+ * Returns true if the input deposit's corresponding relay data would result in a transaction size
+ * that is larger than the Solana transaction size limit.
+ * @param fillRelayTx The compilable fill relay transaction to check.
+ * @returns Object containing a boolean if the input deposit requires a multipart fill, false otherwise and
+ * the number of bytes in the serialized transaction.
+ */
+export function isSVMFillTooLarge(fillRelayTx: CompilableTransactionMessage): {
+  tooLarge: boolean;
+  sizeBytes: number;
+} {
+  const sizeBytes = calculateFillSizeBytes(fillRelayTx);
+  return {
+    tooLarge: sizeBytes > SOLANA_TX_SIZE_LIMIT,
+    sizeBytes,
+  };
+}
+
+/**
+ * Returns the byte size of a base64 transaction.
+ * @param base64TxString base64 serialized Solana transaction.
+ * @returns The number of bytes in the transaction.
+ */
+export function base64StrToByteSize(base64TxString: string): number {
+  // base64 string has 6 bits per character, so every 4 symbols represent 3 bytes
+  // However, we also need to account for padding: https://en.wikipedia.org/wiki/Base64#Padding
+  const paddingLen = base64TxString.endsWith("==") ? 2 : base64TxString.endsWith("=") ? 1 : 0;
+  return (base64TxString.length * 3) / 4 - paddingLen;
+}
+
+/**
+ * Returns the size of the fill relay transaction using the input relayData.
+ * @param fillTx The compilable fill relay transaction.
+ * @returns The number of bytes in the serialized fillRelay transaction.
+ */
+export function calculateFillSizeBytes(fillTx: CompilableTransactionMessage): number {
+  const signedTransaction = compileTransaction(fillTx);
+  const serializedTx = getBase64EncodedWireTransaction(signedTransaction);
+  return base64StrToByteSize(serializedTx);
 }
 
 /**
