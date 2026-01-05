@@ -93,14 +93,24 @@ export class SvmQuery implements QueryInterface {
     const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
 
     // For solana, we algorithmically estimate gas based on the size of the message.
-    const fillRelayTx = await this.getFillRelayTx(
+    const _fillRelayTx = await this.getFillRelayTx(
       { ...relayData, recipient, outputToken, exclusiveRelayer },
       SolanaVoidSigner(relayer.toBase58()),
       repaymentChainId,
       repaymentAddress
     );
 
-    const fillTooLarge = isSVMFillTooLarge(fillRelayTx);
+    const fillTooLarge = isSVMFillTooLarge(_fillRelayTx);
+    // If the fill is too large, we need to construct a dummy fill relay transaction which estimates the priority fee of the fillRelay instruction call. To guarantee
+    // that the transaction won't be too large, we overwrite the message with empty bytes.
+    const fillRelayTx = fillTooLarge.tooLarge
+      ? await this.getFillRelayTx(
+          { ...relayData, recipient, outputToken, exclusiveRelayer, message: "0x" },
+          SolanaVoidSigner(relayer.toBase58()),
+          repaymentChainId,
+          repaymentAddress
+        )
+      : _fillRelayTx;
     const [_computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
       fillTooLarge.tooLarge
         ? this.estimateComputeUnits(
