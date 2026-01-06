@@ -245,7 +245,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
-          encoding: "json"
+          encoding: "json",
         })
         .send(),
     ]);
@@ -312,7 +312,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
-          encoding: "json"
+          encoding: "json",
         })
         .send(),
     ]);
