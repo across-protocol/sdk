@@ -1086,6 +1086,28 @@ async function fetchBatchFillStatusFromPdaAccounts(
   return fillStatuses;
 }
 
+export async function getIPForFillRelayTxs(
+  spokePool: SvmAddress,
+  relayData: RelayData,
+  repaymentChainId: number,
+  repaymentAddress: SdkAddress,
+  signer: TransactionSigner<string>,
+  provider: SVMProvider
+) {
+  const ixs = await getFillRelayViaInstructionParamsInstructions(
+    toAddress(spokePool),
+    relayData,
+    repaymentChainId,
+    repaymentAddress,
+    signer,
+    provider
+  );
+  const txns = await mapAsync(ixs, async (ix) => {
+    return pipe(await createDefaultTransaction(provider, signer), (tx) => appendTransactionMessageInstruction(ix, tx));
+  });
+  return txns;
+}
+
 /**
  * Returns a set of instructions to execute to fill a relay via instruction params.
  * @param spokePool The program ID of the Solana spoke pool.
