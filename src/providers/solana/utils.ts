@@ -1,5 +1,5 @@
 import { RpcTransport } from "@solana/rpc-spec";
-import { CompilableTransactionMessage, SolanaRpcApi } from "@solana/kit";
+import { SolanaRpcApi } from "@solana/kit";
 import { isSolanaError, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../arch/svm";
 
 /**
@@ -15,17 +15,47 @@ export interface SolanaRateLimitTask {
   reject: (err: unknown) => void;
 }
 
+export type TransactionResult = {
+  err: string | undefined;
+  logs: Array<string>;
+  postExecutionAccounts: ExecutionAccounts[];
+  preExecutionAccounts: ExecutionAccounts[];
+  returnData: string | undefined;
+  unitsConsumed: bigint;
+};
+
+export type ExecutionAccounts = {
+  data: [string, string];
+  executable: boolean;
+  lamports: bigint;
+  owner: string;
+  rentEpoch: bigint;
+  space: bigint;
+};
+
 // `simulateBundle` minimal response struct.
 export type SolanaBundleSimulation = {
-  result: {
-    unitsConsumed: number;
-    returnData: { programId: string; data: string };
+  context: { apiVersion: string; slot: bigint };
+  value: {
+    summary: "succeeded" | { failed: { error: { TransactionFailure: [Array<bigint>, string] }; tx_signature: string } };
+    transactionResults: Array<TransactionResult>;
   };
+};
+
+export type SimulationOpts = {
+  simulationBank?: string;
+  skipSigVerify?: boolean;
+  replaceRecentBlockhash?: boolean;
+  accounts?: { addresses: string[]; encoding: string };
+  // pre/post Execution accounts must be defined if any other opt is defined.
+  preExecutionAccountsConfigs: Array<{ accountIndex: number; addresses: string[] } | undefined>;
+  postExecutionAccountsConfigs: Array<{ accountIndex: number; addresses: string[] } | undefined>;
 };
 
 // Minimal extension of a Solana RPC Api which also supports some JITO RPC endpoints.
 export interface JitoInterface extends SolanaRpcApi {
-  simulateBundle(transactions: CompilableTransactionMessage[]): SolanaBundleSimulation;
+  // Simulate an array of base64 encoded transactions
+  simulateBundle(transactions: { encodedTransactions: string[] }, opts?: SimulationOpts): SolanaBundleSimulation;
 }
 
 /**

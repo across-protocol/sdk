@@ -7,6 +7,8 @@ import {
   Rpc,
   pipe,
   appendTransactionMessageInstruction,
+  compileTransaction,
+  getBase64EncodedWireTransaction,
 } from "@solana/kit";
 import {
   SVMProvider,
@@ -29,6 +31,7 @@ import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
+import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
 import { arch } from "../..";
 
 /**
@@ -111,6 +114,7 @@ export class SvmQuery implements QueryInterface {
           repaymentAddress
         )
       : _fillRelayTx;
+
     const [_computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
       fillTooLarge.tooLarge
         ? this.estimateComputeUnits(
@@ -258,7 +262,7 @@ export class SvmQuery implements QueryInterface {
     relayer: SvmAddress,
     repaymentChainId: number,
     repaymentAddress: SvmAddress
-  ): Promise<number> {
+  ): Promise<bigint> {
     // @dev There is no way to tell if the RPC supports the JITO interface without querying the rpc directly.
     // Cast the rpc type to support JITO and attempt to call `simulateBundle`. Throw and error if it fails, since
     // the transaction message cannot be simulated otherwise.
@@ -267,23 +271,60 @@ export class SvmQuery implements QueryInterface {
     const spokePoolAddr = toAddress(this.spokePool);
     const voidSigner = SolanaVoidSigner(relayer.toBase58());
 
-    const [instructionParamsIxs, fillRelayTx] = await Promise.all([
+    const [instructionParamsIxs, _fillRelayTx] = await Promise.all([
       getFillRelayViaInstructionParamsInstructions(
         spokePoolAddr,
         relayData,
         repaymentChainId,
         repaymentAddress,
-        voidSigner
+        voidSigner,
+        provider
       ),
       getIPFillRelayTx(this.spokePool, provider, relayData, voidSigner, repaymentChainId, repaymentAddress),
     ]);
+
+    // Set a high compute unit limit for the fill relay transaction so that the simulation won't fail because
+    // it ran out of CUs.
+    const computeUnitLimitIx = getSetComputeUnitLimitInstruction({ units: 10_000_000 });
+    const fillRelayTx = pipe(_fillRelayTx, (tx) => appendTransactionMessageInstruction(computeUnitLimitIx, tx));
+
     const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix) => {
       return pipe(await createDefaultTransaction(provider, voidSigner), (tx) =>
         appendTransactionMessageInstruction(ix, tx)
       );
     });
+    const bundleTxns = [...instructionParamsTxs, fillRelayTx].map((txn) => {
+      const compiled = compileTransaction(txn);
+      return getBase64EncodedWireTransaction(compiled);
+    });
 
-    const simulateBundleResponse = await provider.simulateBundle([...instructionParamsTxs, fillRelayTx]).send();
-    return simulateBundleResponse.result.unitsConsumed;
+    // Define execution accounts for the relayer simulation.
+    const executionAccounts = bundleTxns.map(() => {
+      return { accountIndex: 0, addresses: [this.spokePool.toBase58(), relayer.toBase58()] };
+    });
+    const simulateBundleResponse = await provider
+      .simulateBundle(
+        {
+          encodedTransactions: bundleTxns,
+        },
+        {
+          skipSigVerify: true,
+          preExecutionAccountsConfigs: executionAccounts,
+          postExecutionAccountsConfigs: executionAccounts,
+        }
+      )
+      .send();
+
+    // If the bundle simulation failed, then return data from the failure.
+    if (simulateBundleResponse.value.summary !== "succeeded") {
+      const { TransactionFailure: failure } = simulateBundleResponse.value.summary.failed.error;
+      throw new Error(`simulateBundle failed with result: ${failure[1]}`);
+    }
+
+    const totalCuSpent = simulateBundleResponse.value.transactionResults.reduce(
+      (sum, res) => res.unitsConsumed + sum,
+      BigInt(0)
+    );
+    return totalCuSpent;
   }
 }

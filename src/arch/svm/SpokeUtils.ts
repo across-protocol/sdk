@@ -528,7 +528,7 @@ export async function fillRelayInstruction(
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,
-    delegate: toAddress(SvmAddress.from(delegatePda.toString())),
+    delegate: delegatePda,
     mint: svmRelayData.outputToken,
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
@@ -1101,9 +1101,11 @@ export async function getFillRelayViaInstructionParamsInstructions(
   repaymentChainId: number,
   repaymentAddress: SdkAddress,
   signer: TransactionSigner<string>,
+  provider: SVMProvider,
   maxWriteSize = 450
 ): Promise<IInstruction[]> {
   const instructionParams = await getInstructionParamsPda(spokePool, signer.address);
+  const encodedInstructionParams = await fetchEncodedAccount(provider, instructionParams);
 
   const relayDataEncoder = SvmSpokeClient.getFillRelayParamsEncoder();
   const svmRelayData = toSvmRelayData(relayData);
@@ -1132,7 +1134,9 @@ export async function getFillRelayViaInstructionParamsInstructions(
     });
     instructions.push(writeInstructionParamsIx);
   }
-  return instructions;
+  return encodedInstructionParams.exists
+    ? [SvmSpokeClient.getCloseInstructionParamsInstruction({ signer, instructionParams }), ...instructions]
+    : instructions;
 }
 
 /**
