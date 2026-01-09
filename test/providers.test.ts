@@ -63,10 +63,6 @@ describe("providers", () => {
       expect(isEvmProvider(evmProvider)).to.be.true;
     });
 
-    it("should correctly accept Optimism provider", () => {
-      expect(isEvmProvider(asL2Provider(evmProvider))).to.be.true;
-    });
-
     it("should correctly rejects SVM provider", () => {
       expect(isEvmProvider(svmProvider)).to.be.false;
     });

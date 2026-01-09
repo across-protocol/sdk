@@ -9,6 +9,7 @@ import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
+import { EvmProvider } from "../../arch/evm/types";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -64,7 +65,7 @@ export class QueryBase__factory {
 
     assert(relayerAddress.isEVM());
     return new QueryBase(
-      provider,
+      provider as EvmProvider,
       symbolMapping,
       spokePoolAddress,
       relayerAddress,
