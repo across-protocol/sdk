@@ -1,15 +1,15 @@
 import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
-import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
+import { chainIsEvm, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
+import { EvmProvider } from "../../arch/evm/types";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -63,14 +63,9 @@ export class QueryBase__factory {
       );
     }
 
-    // For OPStack chains, we need to wrap the provider in an L2Provider
-    provider = chainIsOPStack(chainId)
-      ? asL2Provider(provider as providers.Provider)
-      : (provider as providers.Provider);
-
     assert(relayerAddress.isEVM());
     return new QueryBase(
-      provider,
+      provider as EvmProvider,
       symbolMapping,
       spokePoolAddress,
       relayerAddress,

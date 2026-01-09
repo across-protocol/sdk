@@ -1,5 +1,3 @@
-import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
@@ -19,7 +17,9 @@ import {
 } from "../../utils";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
-import { Transport } from "viem";
+import { Transport, createPublicClient, Hex, http, Address as ViemAddress } from "viem";
+import * as viemChains from "viem/chains";
+import { publicActionsL2 } from "viem/op-stack";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
 import { arch } from "../..";
@@ -185,18 +185,33 @@ export class QueryBase implements QueryInterface {
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;
+      transport: Transport;
     }>
   ): Promise<BigNumber> {
-    const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1") } = options || {};
+    const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1"), transport } = options || {};
     const { chainId } = await this.provider.getNetwork();
-    assert(isOptimismL2Provider(this.provider), `Unexpected provider for chain ID ${chainId}.`);
+
+    const viemChain = Object.values(viemChains).find((chain) => chain.id === chainId);
+    assert(viemChain, `Chain ID ${chainId} not found in 'viemChains'`);
+
+    const opStackClient = createPublicClient({
+      chain: viemChain,
+      transport: transport ?? http(),
+    }).extend(publicActionsL2());
+
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
     });
-    const l1DataFee = await (this.provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
-    return l1DataFee.mul(opStackL1DataFeeMultiplier).div(fixedPointAdjustment);
+    const l1DataFee = await opStackClient.estimateL1Fee({
+      account: relayer.toEvmAddress() as ViemAddress,
+      to: populatedTransaction.to as ViemAddress,
+      value: BigInt(populatedTransaction.value?.toString() ?? 0),
+      data: populatedTransaction.data as Hex,
+      gas: populatedTransaction.gasLimit ? BigInt(populatedTransaction.gasLimit.toString()) : undefined,
+    });
+    return BigNumber.from(l1DataFee.toString()).mul(opStackL1DataFeeMultiplier).div(fixedPointAdjustment);
   }
 
   /**
@@ -213,7 +228,7 @@ export class QueryBase implements QueryInterface {
   async estimateGas(
     unsignedTx: PopulatedTransaction,
     senderAddress: Address,
-    provider: providers.Provider | L2Provider<providers.Provider>,
+    provider: providers.Provider,
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
