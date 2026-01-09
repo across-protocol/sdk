@@ -1,10 +1,11 @@
-import { utils } from "@uma/sdk";
 import assert from "assert";
 import { Contract } from "ethers";
 import winston from "winston";
 import { isError } from "../../typeguards";
+import { averageBlockTime } from "../../arch/evm";
 import {
   EventSearchConfig,
+  EvmAddress,
   MakeOptional,
   isArrayOf,
   isDefined,
@@ -24,7 +25,6 @@ import {
   DisabledChainsUpdate,
   GlobalConfigUpdate,
   LiteChainsIdListUpdate,
-  Log,
   ParsedTokenConfig,
   RateModelUpdate,
   RouteRateModelUpdate,
@@ -43,8 +43,8 @@ type ConfigStoreUpdateSuccess = {
   chainId: number;
   searchEndBlock: number;
   events: {
-    updatedTokenConfigEvents: Log[];
-    updatedGlobalConfigEvents: Log[];
+    updatedTokenConfigEvents: SortableEvent[];
+    updatedGlobalConfigEvents: SortableEvent[];
     globalConfigUpdateTimes: number[];
   };
 };
@@ -99,16 +99,16 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     readonly configStoreVersion: number
   ) {
     super(eventSearchConfig);
-    this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.latestBlockSearched = 0;
+    this.firstHeightToSearch = eventSearchConfig.from;
+    this.latestHeightSearched = 0;
   }
 
   getRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     originChainId: number | string,
     destinationChainId: number | string,
     blockNumber: number | undefined = undefined
@@ -122,7 +122,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
       (config) =>
-        config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token && config.rateModel !== undefined
+        config.blockNumber <= (blockNumber ?? 0) &&
+        config.l1Token === l1Token.toEvmAddress() &&
+        config.rateModel !== undefined
     );
     if (!defaultRateModelUpdate) {
       throw new Error(`Could not find TokenConfig update for ${l1Token} at block ${blockNumber}`);
@@ -131,12 +133,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRouteRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     route: string,
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
-      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token
+      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token.toEvmAddress()
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;
@@ -341,8 +343,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
 
+    const updatedTokenConfigSortableEvents = updatedTokenConfigEvents.map(spreadEventWithBlockNumber);
+    const updatedGlobalConfigSortableEvents = updatedGlobalConfigEvents.map(spreadEventWithBlockNumber);
+
     // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
-    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) => sortEventsAscendingInPlace(events));
+    [updatedTokenConfigSortableEvents, updatedGlobalConfigSortableEvents].forEach((events) =>
+      sortEventsAscendingInPlace(events)
+    );
 
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
@@ -351,10 +358,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       success: true,
       chainId,
-      searchEndBlock: searchConfig.toBlock,
+      searchEndBlock: searchConfig.to,
       events: {
-        updatedTokenConfigEvents,
-        updatedGlobalConfigEvents,
+        updatedTokenConfigEvents: updatedTokenConfigSortableEvents,
+        updatedGlobalConfigEvents: updatedGlobalConfigSortableEvents,
         globalConfigUpdateTimes,
       },
     };
@@ -380,13 +387,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
       // If transaction hash is known to be invalid, skip it immediately to avoid creating extra logs.
-      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.transactionHash.toLowerCase())) {
+      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.txnRef.toLowerCase())) {
         continue;
       }
 
-      const args = {
-        ...(spreadEventWithBlockNumber(event) as TokenConfig),
-      };
+      const args = event as TokenConfig;
 
       try {
         const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
@@ -402,8 +407,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.cumulativeRouteRateModelUpdates.push({ ...eventData, routeRateModel, l1Token });
         }
       } catch (err) {
-        // @dev averageBlockTimeSeconds does not actually block.
-        const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
+        const { average: blockTime } = await averageBlockTime(this.configStore.provider);
+        const maxWarnAge = (24 * 60 * 60) / blockTime;
         if (result.searchEndBlock - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
           // This will emit warning logs for any invalid historical updates and it will be very noisy, so
@@ -418,7 +423,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.logger.debug({
             at: "ConfigStoreClient::update",
             message: `Skipping invalid historical update at block ${event.blockNumber}`,
-            transactionHash: event.transactionHash,
+            txnRef: event.txnRef,
           });
         }
         continue;
@@ -427,7 +432,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
-      const args = spreadEventWithBlockNumber(updatedGlobalConfigEvents[i]) as SortableEvent & {
+      const args = updatedGlobalConfigEvents[i] as SortableEvent & {
         key: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         value: any;
@@ -493,7 +498,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           }
           // Now check that we're only appending positive integers to the chainIndices array on each
           // update. If this isn't the case, skip the update & warn. If there is no previous update,
-          // resolve an implcit chain ID list.
+          // resolve an implicit chain ID list.
           const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? this.implicitChainIdIndices(chainId);
           // We should now check that previousUpdate is a subset of chainIndices.
           if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
@@ -548,9 +553,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     }
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
-    this.latestBlockSearched = result.searchEndBlock;
-    this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
-    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
+    this.latestHeightSearched = result.searchEndBlock;
+    this.firstHeightToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 
@@ -562,7 +567,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     rateModel: string | undefined;
     routeRateModel: RouteRateModelUpdate["routeRateModel"];
   } {
-    const { value, key, transactionHash } = args;
+    const { value, key, txnRef } = args;
     const parsedValue = parseJSONWithNumericString(value) as ParsedTokenConfig;
     const l1Token = key;
 
@@ -578,7 +583,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       const rateModel = parsedValue.rateModel;
       assert(
         this.isValidRateModel(rateModel),
-        `Invalid rateModel UBar for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(rateModel)}`
+        `Invalid rateModel UBar for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(rateModel)}`
       );
       rateModelForToken = JSON.stringify(rateModel);
 
@@ -601,7 +606,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
             assert(
               this.isValidRateModel(routeRateModel) &&
-                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
+                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(
                   routeRateModel
                 )}`
             );

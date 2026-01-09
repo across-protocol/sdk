@@ -1,19 +1,25 @@
-import { DepositWithBlock, Fill, FillType, V3Fill } from "../../src/interfaces";
+import { DepositWithBlock, RelayData, FillType } from "../../src/interfaces";
+import { Address, getMessageHash } from "../../src/utils";
 
-export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
-  const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
+export function fillFromDeposit(
+  deposit: DepositWithBlock,
+  relayer: Address
+): RelayData & { destinationChainId: number } {
+  const { blockNumber, txnRef, txnIndex, ...partialDeposit } = deposit;
   const { recipient, message } = partialDeposit;
 
-  const fill: V3Fill = {
+  const updatedMessage = deposit.updatedMessage ?? message;
+  const fill = {
     ...partialDeposit,
     relayer,
-
+    message,
     // Caller can modify these later.
     exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
     relayExecutionInfo: {
-      updatedRecipient: deposit.updatedRecipient ?? recipient,
-      updatedMessage: deposit.updatedMessage ?? message,
+      updatedRecipient: deposit.updatedRecipient?.toBytes32() ?? recipient,
+      updatedMessage,
+      updatedMessageHash: getMessageHash(updatedMessage),
       updatedOutputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
       fillType: FillType.FastFill,
     },

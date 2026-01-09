@@ -3,6 +3,7 @@ import { Result } from "@ethersproject/abi";
 import { Contract, Event, EventFilter } from "ethers";
 import { Log, SortableEvent } from "../interfaces";
 import { delay } from "./common";
+import { isDefined, toBN, BigNumberish } from "./";
 
 const maxRetries = 3;
 const retrySleepTime = 10;
@@ -58,14 +59,21 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
   if (returnedObject.rootBundleId) {
     returnedObject.rootBundleId = Number(returnedObject.rootBundleId);
   }
+  // If depositId is included in the event, cast it to a BigNumber. Need to check if it is defined since the deposit ID can
+  // be 0, which would still make this evaluate as false.
+  if (isDefined(returnedObject.depositId)) {
+    // Assuming a numeric output, we can safely cast the unknown to BigNumberish since the depositId will either be a uint32 (and therefore a TypeScript `number`),
+    // or a uint256 (and therefore an ethers BigNumber).
+    returnedObject.depositId = toBN(returnedObject.depositId as BigNumberish);
+  }
 
   return returnedObject;
 }
 
 export interface EventSearchConfig {
-  fromBlock: number;
-  toBlock: number;
-  maxBlockLookBack?: number;
+  from: number;
+  to: number;
+  maxLookBack?: number;
 }
 
 export const eventToLog = (event: Event): Log => ({ ...event, event: event.event!, args: spreadEvent(event.args!) });
@@ -77,8 +85,8 @@ export async function paginatedEventQuery(
   retryCount = 0
 ): Promise<Log[]> {
   // If the max block look back is set to 0 then we dont need to do any pagination and can query over the whole range.
-  if (searchConfig.maxBlockLookBack === 0) {
-    const events = await contract.queryFilter(filter, searchConfig.fromBlock, searchConfig.toBlock);
+  if (searchConfig.maxLookBack === 0) {
+    const events = await contract.queryFilter(filter, searchConfig.from, searchConfig.to);
     return events.map(eventToLog);
   }
 
@@ -96,7 +104,7 @@ export async function paginatedEventQuery(
       )
         .flat()
         // Filter events by block number because ranges can include blocks that are outside the range specified for caching reasons.
-        .filter((event) => event.blockNumber >= searchConfig.fromBlock && event.blockNumber <= searchConfig.toBlock)
+        .filter((event) => event.blockNumber >= searchConfig.from && event.blockNumber <= searchConfig.to)
         .map(eventToLog)
     );
   } catch (error) {
@@ -123,11 +131,11 @@ export async function paginatedEventQuery(
  * input range, but can include blocks outside of the desired range, so results should be filtered. Results
  * are ordered from smallest to largest.
  */
-export function getPaginatedBlockRanges({
-  fromBlock,
-  toBlock,
-  maxBlockLookBack,
-}: EventSearchConfig): [number, number][] {
+export function getPaginatedBlockRanges({ from, to, maxLookBack }: EventSearchConfig): [number, number][] {
+  const fromBlock = from;
+  const toBlock = to;
+  const maxBlockLookBack = maxLookBack;
+
   // If the maxBlockLookBack is undefined, we can look back as far as we like. Just return the entire range.
   if (maxBlockLookBack === undefined) {
     return [[fromBlock, toBlock]];
@@ -168,65 +176,59 @@ export function getPaginatedBlockRanges({
   return ranges;
 }
 
-export function spreadEventWithBlockNumber(event: Log): SortableEvent {
+export function logToSortableEvent(log: Log): SortableEvent {
   return {
-    ...spreadEvent(event.args),
-    blockNumber: event.blockNumber,
-    transactionIndex: event.transactionIndex,
-    logIndex: event.logIndex,
-    transactionHash: event.transactionHash,
+    txnIndex: log.transactionIndex,
+    txnRef: log.transactionHash,
+    logIndex: log.logIndex,
+    blockNumber: log.blockNumber,
   };
 }
 
+export function spreadEventWithBlockNumber(event: Log): SortableEvent {
+  return {
+    ...spreadEvent(event.args),
+    ...logToSortableEvent(event),
+  };
+}
+
+type PartialSortableEvent = Pick<SortableEvent, "blockNumber" | "logIndex">;
+
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsAscending<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsAscending<T extends PartialSortableEvent>(events: T[]): T[] {
   return sortEventsAscendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) => {
-    if (ex.blockNumber !== ey.blockNumber) {
-      return ex.blockNumber - ey.blockNumber;
-    }
-    if (ex.transactionIndex !== ey.transactionIndex) {
-      return ex.transactionIndex - ey.transactionIndex;
-    }
-    return ex.logIndex - ey.logIndex;
-  });
+export function sortEventsAscendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
+  return events.sort((ex, ey) =>
+    ex.blockNumber === ey.blockNumber ? ex.logIndex - ey.logIndex : ex.blockNumber - ey.blockNumber
+  );
 }
 
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsDescending<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsDescending<T extends PartialSortableEvent>(events: T[]): T[] {
   return sortEventsDescendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsDescendingInPlace<T extends SortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) => {
-    if (ex.blockNumber !== ey.blockNumber) {
-      return ey.blockNumber - ex.blockNumber;
-    }
-    if (ex.transactionIndex !== ey.transactionIndex) {
-      return ey.transactionIndex - ex.transactionIndex;
-    }
-    return ey.logIndex - ex.logIndex;
-  });
+export function sortEventsDescendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
+  return events.sort((ex, ey) =>
+    ex.blockNumber === ey.blockNumber ? ey.logIndex - ex.logIndex : ey.blockNumber - ex.blockNumber
+  );
 }
 
 // Returns true if ex is older than ey.
-export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
-  if (ex.blockNumber !== ey.blockNumber) {
-    return ex.blockNumber < ey.blockNumber;
-  }
-  if (ex.transactionIndex !== ey.transactionIndex) {
-    return ex.transactionIndex < ey.transactionIndex;
-  }
-  return ex.logIndex < ey.logIndex;
+export function isEventOlder<T extends PartialSortableEvent>(ex: T, ey: T): boolean {
+  return ex.blockNumber === ey.blockNumber ? ex.logIndex < ey.logIndex : ex.blockNumber < ey.blockNumber;
 }
 
-export function getTransactionHashes(events: SortableEvent[]): string[] {
-  return [...Array.from(new Set(events.map((e) => e.transactionHash)))];
+export function getTransactionRefs(events: SortableEvent[]): string[] {
+  return [...Array.from(new Set(events.map((e) => e.txnRef)))];
+}
+
+export function duplicateEvent(a: SortableEvent, b: SortableEvent): boolean {
+  return a.txnRef === b.txnRef && a.logIndex === b.logIndex;
 }

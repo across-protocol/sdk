@@ -1,20 +1,15 @@
-import assert from "assert";
 import Decimal from "decimal.js";
-import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import { getGasPriceEstimate } from "../gasPriceOracle";
-import { TypedMessage } from "../interfaces/TypedData";
+import bs58 from "bs58";
+import { ethers } from "ethers";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { chainIsOPStack } from "./NetworkUtils";
-import { Address, createPublicClient, Hex, http, Transport } from "viem";
-import * as chains from "viem/chains";
-import { publicActionsL2 } from "viem/op-stack";
-import { estimateGas } from "viem/linea";
-import { getPublicClient } from "../gasPriceOracle/util";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
+
+export const { keccak256 } = ethers.utils;
+export { bs58 };
 
 /**
  * toBNWei.
@@ -235,198 +230,9 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
 export type TransactionCostEstimate = {
   nativeGasCost: BigNumber; // Units: gas
   tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
+  gasPrice: BigNumber; // Units: wei/gas
+  opStackL1GasCost?: BigNumber; // Units: wei (L1 gas cost * wei/gas)
 };
-
-/**
- * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain.
- * @param unsignedTx The unsigned transaction that this function will estimate.
- * @param senderAddress The address that the transaction will be submitted from.
- * @param provider A valid ethers provider - will be used to reason the gas price.
- * @param options
- * @param options.gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
- * @param options.gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
- * @param options.transport A custom transport object for custom gas price retrieval.
- * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
- */
-export async function estimateTotalGasRequiredByUnsignedTransaction(
-  unsignedTx: PopulatedTransaction,
-  senderAddress: string,
-  provider: providers.Provider,
-  options: Partial<{
-    gasPrice: BigNumberish;
-    gasUnits: BigNumberish;
-    transport: Transport;
-  }> = {}
-): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, transport } = options || {};
-
-  const { chainId } = await provider.getNetwork();
-  const voidSigner = new VoidSigner(senderAddress, provider);
-
-  // Estimate the Gas units required to submit this transaction.
-  const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
-  let tokenGasCost: BigNumber;
-
-  // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
-  if (chainIsOPStack(chainId)) {
-    const chain = Object.values(chains).find((chain) => chain.id === chainId);
-    assert(chain, `Chain ID ${chainId} not supported`);
-    const opStackClient = createPublicClient({
-      chain,
-      transport: transport ?? http(),
-    }).extend(publicActionsL2());
-    const populatedTransaction = await voidSigner.populateTransaction({
-      ...unsignedTx,
-      gasLimit: nativeGasCost, // prevents additional gas estimation call
-    });
-    const [l1GasCost, l2GasPrice] = await Promise.all([
-      opStackClient.estimateL1Fee({
-        account: senderAddress as Address,
-        to: populatedTransaction.to as Address,
-        value: BigInt(populatedTransaction.value?.toString() ?? 0),
-        data: populatedTransaction.data as Hex,
-        gas: populatedTransaction.gasLimit ? BigInt(populatedTransaction.gasLimit.toString()) : undefined,
-      }),
-      _gasPrice ? BigInt(_gasPrice.toString()) : opStackClient.getGasPrice(),
-    ]);
-    const l2GasCost = nativeGasCost.mul(l2GasPrice.toString());
-    tokenGasCost = BigNumber.from(l1GasCost.toString()).add(l2GasCost);
-  } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
-    // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
-    const {
-      gasLimit: nativeGasCost,
-      baseFeePerGas,
-      priorityFeePerGas,
-    } = await getLineaGasFees(chainId, transport, unsignedTx);
-    tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
-  } else {
-    let gasPrice = _gasPrice;
-    if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId, transport);
-      gasPrice = gasPriceEstimate.maxFeePerGas;
-    }
-    tokenGasCost = nativeGasCost.mul(gasPrice);
-  }
-
-  return {
-    nativeGasCost, // Units: gas
-    tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
-  };
-}
-
-async function getLineaGasFees(chainId: number, transport: Transport | undefined, unsignedTx: PopulatedTransaction) {
-  const { gasLimit, baseFeePerGas, priorityFeePerGas } = await estimateGas(getPublicClient(chainId, transport), {
-    account: unsignedTx.from as Address,
-    to: unsignedTx.to as Address,
-    value: BigInt(unsignedTx.value?.toString() || "1"),
-  });
-
-  return {
-    gasLimit: BigNumber.from(gasLimit.toString()),
-    baseFeePerGas: BigNumber.from(baseFeePerGas.toString()),
-    priorityFeePerGas: BigNumber.from(priorityFeePerGas.toString()),
-  };
-}
-
-export type UpdateDepositDetailsMessageType = {
-  UpdateDepositDetails: [
-    {
-      name: "depositId";
-      type: "uint32";
-    },
-    { name: "originChainId"; type: "uint256" },
-    { name: "updatedRelayerFeePct"; type: "int64" },
-    { name: "updatedRecipient"; type: "address" },
-    { name: "updatedMessage"; type: "bytes" },
-  ];
-};
-
-export type UpdateV3DepositDetailsMessageType = {
-  UpdateDepositDetails: [
-    { name: "depositId"; type: "uint32" },
-    { name: "originChainId"; type: "uint256" },
-    { name: "updatedOutputAmount"; type: "uint256" },
-    { name: "updatedRecipient"; type: "address" },
-    { name: "updatedMessage"; type: "bytes" },
-  ];
-};
-
-/**
- * Utility function to get EIP-712 compliant typed data that can be signed with the JSON-RPC method
- * `eth_signedTypedDataV4` in MetaMask (https://docs.metamask.io/guide/signing-data.html). The resulting signature
- * can then be used to call the method `speedUpDeposit` of a `SpokePool.sol` contract.
- * @param depositId The deposit ID to speed up.
- * @param originChainId The chain ID of the origin chain.
- * @param updatedRelayerFeePct The new relayer fee percentage.
- * @param updatedRecipient The new recipient address.
- * @param updatedMessage The new message that should be provided to the recipient.
- * @return EIP-712 compliant typed data.
- */
-export function getUpdateDepositTypedData(
-  depositId: number,
-  originChainId: number,
-  updatedRelayerFeePct: BigNumber,
-  updatedRecipient: string,
-  updatedMessage: string
-): TypedMessage<UpdateDepositDetailsMessageType> {
-  return {
-    types: {
-      UpdateDepositDetails: [
-        { name: "depositId", type: "uint32" },
-        { name: "originChainId", type: "uint256" },
-        { name: "updatedRelayerFeePct", type: "int64" },
-        { name: "updatedRecipient", type: "address" },
-        { name: "updatedMessage", type: "bytes" },
-      ],
-    },
-    primaryType: "UpdateDepositDetails",
-    domain: {
-      name: "ACROSS-V2",
-      version: "1.0.0",
-      chainId: originChainId,
-    },
-    message: {
-      depositId,
-      originChainId,
-      updatedRelayerFeePct,
-      updatedRecipient,
-      updatedMessage,
-    },
-  };
-}
-
-export function getUpdateV3DepositTypedData(
-  depositId: number,
-  originChainId: number,
-  updatedOutputAmount: BigNumber,
-  updatedRecipient: string,
-  updatedMessage: string
-): TypedMessage<UpdateV3DepositDetailsMessageType> {
-  return {
-    types: {
-      UpdateDepositDetails: [
-        { name: "depositId", type: "uint32" },
-        { name: "originChainId", type: "uint256" },
-        { name: "updatedOutputAmount", type: "uint256" },
-        { name: "updatedRecipient", type: "address" },
-        { name: "updatedMessage", type: "bytes" },
-      ],
-    },
-    primaryType: "UpdateDepositDetails",
-    domain: {
-      name: "ACROSS-V2",
-      version: "1.0.0",
-      chainId: originChainId,
-    },
-    message: {
-      depositId,
-      originChainId,
-      updatedOutputAmount,
-      updatedRecipient,
-      updatedMessage,
-    },
-  };
-}
 
 export function randomAddress() {
   return ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20)));

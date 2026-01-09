@@ -1,4 +1,4 @@
-import { BigNumber } from "../utils";
+import { Address, BigNumber, EvmAddress } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface PoolRebalanceLeaf {
@@ -8,7 +8,7 @@ export interface PoolRebalanceLeaf {
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
   leafId: number;
-  l1Tokens: string[];
+  l1Tokens: EvmAddress[];
 }
 
 export interface RelayerRefundLeaf {
@@ -16,8 +16,8 @@ export interface RelayerRefundLeaf {
   chainId: number;
   refundAmounts: BigNumber[];
   leafId: number;
-  l2TokenAddress: string;
-  refundAddresses: string[];
+  l2TokenAddress: Address;
+  refundAddresses: Address[];
 }
 
 export interface ProposedRootBundle extends SortableEvent {
@@ -27,7 +27,7 @@ export interface ProposedRootBundle extends SortableEvent {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: string;
+  proposer: EvmAddress;
 }
 
 export type RealizedLpFee = {
@@ -54,33 +54,36 @@ export interface ExecutedRootBundle extends SortableEvent {
   bundleLpFees: BigNumber[];
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
-  incentiveBalances: BigNumber[];
   leafId: number;
-  l1Tokens: string[];
+  l1Tokens: EvmAddress[];
   proof: string[];
 }
 
 export type ExecutedRootBundleStringified = Omit<
   ExecutedRootBundle,
-  "bundleLpFees" | "netSendAmounts" | "runningBalances" | "incentiveBalances"
+  "bundleLpFees" | "netSendAmounts" | "runningBalances"
 > & {
   bundleLpFees: string[];
   netSendAmounts: string[];
   runningBalances: string[];
-  incentiveBalances: string[];
 };
 
 export type TokenRunningBalance = {
   runningBalance: BigNumber;
-  incentiveBalance: BigNumber;
 };
 
 export interface RelayerRefundLeafWithGroup extends RelayerRefundLeaf {
   groupIndex: number;
 }
 
-export interface L1Token {
-  address: string;
+export interface L1TokenInfo {
+  address: EvmAddress;
+  symbol: string;
+  decimals: number;
+}
+
+export interface TokenInfo {
+  address: Address;
   symbol: string;
   decimals: number;
 }
@@ -92,25 +95,25 @@ export interface LpToken {
 
 export interface CrossChainContractsSet extends SortableEvent {
   l2ChainId: number;
-  spokePool: string;
+  spokePool: Address;
 }
 
 export interface DestinationTokenWithBlock extends SortableEvent {
-  l2Token: string;
-  l1Token: string;
+  l2Token: Address;
+  l1Token: EvmAddress;
 }
 
 export interface SetPoolRebalanceRoot extends SortableEvent {
   destinationChainId: number;
-  l1Token: string;
-  destinationToken: string;
+  l1Token: EvmAddress;
+  destinationToken: Address;
 }
 
 export interface PendingRootBundle {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: string;
+  proposer: EvmAddress;
   unclaimedPoolRebalanceLeafCount: number;
   challengePeriodEndTimestamp: number;
   bundleEvaluationBlockNumbers: number[];

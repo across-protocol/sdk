@@ -2,20 +2,26 @@ import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import {
+  EvmAddress,
+  SvmAddress,
   toBNWei,
   toBN,
   toGWei,
   TransactionCostEstimate,
   bnOne,
+  bnZero,
   getCurrentTime,
+  getMessageHash,
   spreadEvent,
   isMessageEmpty,
+  fixedPointAdjustment,
+  toAddressType,
+  toBytes32,
 } from "../src/utils";
 import {
   BigNumber,
   Contract,
   SignerWithAddress,
-  assert,
   assertPromiseError,
   assertPromisePasses,
   buildDepositForRelayerFeeTest,
@@ -27,10 +33,17 @@ import {
   setupTokensForWallet,
   makeCustomTransport,
 } from "./utils";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import assert from "assert";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
-import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
+import { QueryBase, QueryBase__factory, DEFAULT_LOGGER, SvmQuery } from "../src/relayFeeCalculator";
+import { getDefaultProvider } from "ethers";
+import { MockedProvider } from "../src/providers/mocks";
+import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
+import { address as toSvmKitAddress } from "@solana/kit";
+import { createDefaultSolanaClient } from "./utils/svm/utils";
+import { RelayData } from "../src/interfaces";
 
 dotenv.config({ path: ".env" });
 
@@ -77,9 +90,11 @@ class ExampleQueries implements QueryInterface {
   getGasCosts(): Promise<TransactionCostEstimate> {
     const getGasCost = () => {
       const { defaultGas: gasCost } = this;
+      const gasPrice = toGWei("1");
       return {
         nativeGasCost: toBN(gasCost),
-        tokenGasCost: toBN(gasCost).mul(toGWei("1")),
+        tokenGasCost: toBN(gasCost).mul(gasPrice),
+        gasPrice,
       };
     };
 
@@ -90,8 +105,13 @@ class ExampleQueries implements QueryInterface {
     // Return token price denominated in ETH, assuming ETH is native token.
     return Promise.resolve(1 / 1000); // 1 USDC = 1 / $1000 ETH/USD
   }
-  getTokenDecimals(): number {
-    return 6;
+
+  getNativeGasCost(): Promise<BigNumber> {
+    return Promise.resolve(toBN(this.defaultGas));
+  }
+
+  getAuxiliaryNativeTokenCost(): BigNumber {
+    return bnZero;
   }
 }
 describe("RelayFeeCalculator", () => {
@@ -113,22 +133,24 @@ describe("RelayFeeCalculator", () => {
       [104729, toBNWei("2.917740071995340354").toString()], // ~291%
     ];
     for (const [input, truth] of gasFeePercents) {
+      const deposit = buildDepositForRelayerFeeTest(input, "usdc", 1, 10);
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit);
       const result = (
-        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
+        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, outputTokenInfo, false)
       ).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
-    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
+    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1), 100e6);
     assert.ok(result);
     // overriding token price also succeeds
     const resultWithPrice = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1),
       100e6,
       false,
-      randomAddress(),
+      toAddressType(randomAddress(), 1),
       1.01
     );
     assert.ok(resultWithPrice);
@@ -139,7 +161,7 @@ describe("RelayFeeCalculator", () => {
       toBN(resultWithPrice.gasFeePercent).lt(
         (
           await client.relayerFeeDetails(
-            buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
+            buildDepositForRelayerFeeTest(100e6, "usdc", 1, 10),
             100e6,
             false,
             undefined,
@@ -158,19 +180,20 @@ describe("RelayFeeCalculator", () => {
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(1000e6, "usdc", 10, 1),
       1000e6
     );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
-    assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas units
+    assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas fee in token units
+    assert.equal(relayerFeeDetails.gasUnits, "305572"); // consumed 305,572 gas units
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", 10, 1), 10e6)).isAmountTooLow,
       false
     );
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", 10, 1), 1e6)).isAmountTooLow,
       true
     );
   });
@@ -181,7 +204,7 @@ describe("RelayFeeCalculator", () => {
         new RelayFeeCalculator({
           queries,
           capitalCostsConfig: {
-            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("0.01").toString() },
+            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("1.01").toString() },
           },
         }),
       /upper bound must be </
@@ -190,7 +213,7 @@ describe("RelayFeeCalculator", () => {
       () =>
         RelayFeeCalculator.validateCapitalCostsConfig({
           ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.01").toString(),
+          upperBound: toBNWei("1.01").toString(),
         }),
       /upper bound must be </
     );
@@ -277,12 +300,182 @@ describe("RelayFeeCalculator", () => {
     assert.equal(client.capitalFeePercent("0", "ZERO_CUTOFF_WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
     assert.equal(client.capitalFeePercent("0", "WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
   });
+
+  it("destinationChainOverrides", () => {
+    // Create a client with destination chain and route overrides
+    const token = TOKEN_SYMBOLS_MAP.USDC;
+
+    const customCapitalCostsConfig = {
+      [token.symbol]: {
+        default: {
+          lowerBound: toBNWei("0.0003").toString(),
+          upperBound: toBNWei("0.002").toString(),
+          cutoff: toBNWei("15").toString(),
+          decimals: token.decimals,
+        },
+        originChainOverrides: {
+          [CHAIN_IDs.MAINNET]: {
+            lowerBound: toBNWei("0.0004").toString(),
+            upperBound: toBNWei("0.005").toString(),
+            cutoff: toBNWei("12").toString(),
+            decimals: token.decimals,
+          },
+        },
+        destinationChainOverrides: {
+          // Override for destination chain ARBITRUM
+          [CHAIN_IDs.ARBITRUM]: {
+            lowerBound: toBNWei("0.0005").toString(),
+            upperBound: toBNWei("0.003").toString(),
+            cutoff: toBNWei("10").toString(),
+            decimals: token.decimals,
+          },
+        },
+        routeOverrides: {
+          // Override for route MAINNET->ARBITRUM
+          [CHAIN_IDs.MAINNET]: {
+            [CHAIN_IDs.ARBITRUM]: {
+              lowerBound: toBNWei("0.0007").toString(),
+              upperBound: toBNWei("0.004").toString(),
+              cutoff: toBNWei("8").toString(),
+              decimals: token.decimals,
+            },
+          },
+        },
+      },
+    };
+
+    const client = new RelayFeeCalculator({
+      queries,
+      capitalCostsConfig: customCapitalCostsConfig,
+    });
+
+    // Get config values for cleaner assertions
+    const defaultConfig = customCapitalCostsConfig[token.symbol].default;
+    const originChainOverride = customCapitalCostsConfig[token.symbol].originChainOverrides[CHAIN_IDs.MAINNET];
+    const destChainOverride = customCapitalCostsConfig[token.symbol].destinationChainOverrides[CHAIN_IDs.ARBITRUM];
+    const routeOverride = customCapitalCostsConfig[token.symbol].routeOverrides[CHAIN_IDs.MAINNET][CHAIN_IDs.ARBITRUM];
+
+    // Test using default config (no routes specified)
+    const defaultFee = client.capitalFeePercent(toBNWei("1", token.decimals), token.symbol);
+    assert.ok(toBN(defaultFee).gte(toBN(defaultConfig.lowerBound)), "Default fee should be at least the lower bound");
+    assert.ok(toBN(defaultFee).lt(toBN(defaultConfig.upperBound)), "Default fee should be less than the upper bound");
+
+    // Test using origin chain override only
+    const originFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString()
+    );
+    assert.ok(
+      toBN(originFee).gte(toBN(originChainOverride.lowerBound)),
+      "Origin override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(originFee).lt(toBN(originChainOverride.upperBound)),
+      "Origin override fee should be less than its upper bound"
+    );
+
+    // Test using destination chain override (only destination specified)
+    const destinationFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      undefined,
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(destinationFee).gte(toBN(destChainOverride.lowerBound)),
+      "Destination override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(destinationFee).lt(toBN(destChainOverride.upperBound)),
+      "Destination override fee should be less than its upper bound"
+    );
+
+    // Test using route-specific override (both origin and destination specified)
+    const routeFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(routeFee).gte(toBN(routeOverride.lowerBound)),
+      "Route override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(routeFee).lt(toBN(routeOverride.upperBound)),
+      "Route override fee should be less than its upper bound"
+    );
+
+    // Test priority order: when both origin and destination chain are specified but no route override exists,
+    // destination chain override should take priority over origin chain override
+    const destOverOriginFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.OPTIMISM.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(destOverOriginFee).gte(toBN(destChainOverride.lowerBound)),
+      "Destination should take priority over origin - fee should match destination lower bound"
+    );
+    assert.ok(
+      toBN(destOverOriginFee).lt(toBN(destChainOverride.upperBound)),
+      "Destination should take priority over origin - fee should match destination upper bound"
+    );
+
+    // Test priority order: route override takes priority over both origin and destination chain overrides
+    const routeOverBothFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(routeOverBothFee).gte(toBN(routeOverride.lowerBound)),
+      "Route should take priority over both origin and destination - fee should match route lower bound"
+    );
+    assert.ok(
+      toBN(routeOverBothFee).lt(toBN(routeOverride.upperBound)),
+      "Route should take priority over both origin and destination - fee should match route upper bound"
+    );
+
+    // Verify that route override != origin override
+    assert.notEqual(
+      routeOverBothFee.toString(),
+      originFee.toString(),
+      "Route override fee should be different from origin override fee"
+    );
+
+    // Verify that route override != destination override
+    assert.notEqual(
+      routeOverBothFee.toString(),
+      destinationFee.toString(),
+      "Route override fee should be different from destination override fee"
+    );
+
+    // Test fallback to default when route doesn't match and no destination chain override exists
+    const fallbackToDefaultFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.OPTIMISM.toString(),
+      CHAIN_IDs.POLYGON.toString()
+    );
+    assert.ok(
+      toBN(fallbackToDefaultFee).gte(toBN(defaultConfig.lowerBound)),
+      "Fallback to default fee should be at least the default lower bound"
+    );
+    assert.ok(
+      toBN(fallbackToDefaultFee).lt(toBN(defaultConfig.upperBound)),
+      "Fallback to default fee should be less than the default upper bound"
+    );
+  });
 });
 
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: QueryBase;
+  let queries: QueryBase | SvmQuery;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -320,38 +513,45 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    queries = QueryBase__factory.create(
+      1,
+      spokePool.provider,
+      tokenMap,
+      spokePool.address,
+      EvmAddress.from(relayer.address)
+    );
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
-    testGasFeePct = (message?: string) =>
-      client.gasFeePercent(
-        {
-          inputAmount: bnOne,
-          outputAmount: bnOne,
-          inputToken: erc20.address,
-          outputToken: destErc20.address,
-          recipient: testContract.address,
-          quoteTimestamp: 1,
-          depositId: 1000000,
-          depositor: depositor.address,
-          originChainId: 10,
-          destinationChainId: 1,
-          message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: ZERO_ADDRESS,
-          fillDeadline: getCurrentTime() + 60000,
-          exclusivityDeadline: 0,
-          fromLiteChain: false,
-          toLiteChain: false,
-        },
+    testGasFeePct = (message?: string) => {
+      const deposit = {
+        inputAmount: bnOne,
+        outputAmount: bnOne,
+        inputToken: toAddressType(erc20.address, 10),
+        outputToken: toAddressType(erc20.address, 1),
+        recipient: toAddressType(testContract.address, 1),
+        depositId: BigNumber.from(1000000),
+        depositor: toAddressType(depositor.address, 10),
+        originChainId: 10,
+        destinationChainId: 1,
+        message: message || EMPTY_MESSAGE,
+        exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
+        fillDeadline: getCurrentTime() + 60000,
+        exclusivityDeadline: 0,
+      };
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit, tokenMap);
+      return client.gasFeePercent(
+        deposit,
         1,
+        outputTokenInfo,
         false,
-        relayer.address,
+        toAddressType(relayer.address, 1),
         1,
-        tokenMap,
+        undefined,
         undefined,
         undefined,
         customTransport
       );
+    };
   });
   it("should not revert if no message is passed", async () => {
     await assertPromisePasses(testGasFeePct());
@@ -380,7 +580,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: EMPTY_MESSAGE,
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
@@ -397,7 +597,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0x04",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
@@ -429,14 +629,14 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0xabcdef",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 600,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
     );
-    const fillData = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+    const fillData = await spokePool.queryFilter(spokePool.filters.FilledRelay());
     expect(fillData.length).to.eq(1);
-    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.message));
+    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.messageHash));
     expect(onlyMessages.length).to.eq(1);
     const relevantFill = onlyMessages[0];
     const spreadFill = spreadEvent(relevantFill.args);
@@ -445,10 +645,160 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       ...spreadFill.relayExecutionInfo,
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
-      updatedRecipient: testContract.address,
-      updatedMessage: "0xabcdef",
+      updatedRecipient: toBytes32(testContract.address),
+      updatedMessageHash: getMessageHash("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
     });
+  });
+});
+
+describe("QueryBase", function () {
+  describe("estimateGas", function () {
+    let queryBase: QueryBase;
+    beforeEach(function () {
+      queryBase = QueryBase__factory.create(
+        1, // chainId
+        getDefaultProvider(),
+        undefined, // symbolMapping
+        undefined, // spokePoolAddress
+        undefined, // simulatedRelayerAddress
+        undefined,
+        this.logger
+      ) as QueryBase;
+    });
+    it("Uses passed in options", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: toGWei("1.5"),
+      };
+      const result = await queryBase.estimateGas(
+        {}, // populatedTransaction
+        toAddressType(randomAddress(), 1),
+        getDefaultProvider(),
+        options
+      );
+      expect(result.gasPrice).to.equal(options.gasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(options.gasPrice.mul(options.gasUnits));
+    });
+    it("Queries GasPriceOracle for gasPrice if not supplied", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: undefined,
+        baseFeeMultiplier: toBNWei("2"),
+      };
+      // Mocked provider gets queried to compute gas price.
+      const stdLastBaseFeePerGas = toGWei("12");
+      const stdMaxPriorityFeePerGas = toGWei("1");
+      const chainId = 1; // get gas price from GasPriceOracle.ethereum.eip1559()
+      const mockedProvider = new MockedProvider(stdLastBaseFeePerGas, stdMaxPriorityFeePerGas, chainId);
+
+      const result = await queryBase.estimateGas(
+        {}, // populatedTransaction
+        toAddressType(randomAddress(), 1),
+        mockedProvider,
+        options
+      );
+      // In this test, verify that the baseFeeMultiplier is passed correctly to the
+      // GasPriceOracle.
+      const expectedGasPrice = stdLastBaseFeePerGas
+        .mul(options.baseFeeMultiplier)
+        .div(fixedPointAdjustment)
+        .add(stdMaxPriorityFeePerGas);
+      expect(result.gasPrice).to.equal(expectedGasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(expectedGasPrice.mul(options.gasUnits));
+    });
+  });
+});
+
+describe("getAuxiliaryNativeTokenCost", function () {
+  it("returns 0 for EVM queries regardless of message", function () {
+    const evmQueries = QueryBase__factory.create(
+      1, // EVM chain
+      getDefaultProvider()
+    );
+
+    const deposit = buildDepositForRelayerFeeTest(1e6, "USDC", 1, 10);
+    deposit.message = "0x1234";
+
+    const fee = evmQueries.getAuxiliaryNativeTokenCost(deposit as unknown as RelayData);
+    expect(fee.eq(bnZero)).to.equal(true);
+  });
+
+  it("returns value_amount for SVM queries when AcrossPlusMessage has value_amount", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    ) as SvmQuery;
+
+    // Compose a valid AcrossPlusMessage with non-zero value_amount
+    const valueAmount = 123456n;
+    const encoder = getAcrossPlusMessageEncoder();
+    const encoded = encoder.encode({
+      handler: toSvmKitAddress(SVM_DEFAULT_ADDRESS),
+      read_only_len: 0,
+      value_amount: valueAmount,
+      accounts: [],
+      handler_message: new Uint8Array(),
+    });
+    const messageHex = "0x" + Buffer.from(encoded).toString("hex");
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: messageHex,
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    const fee = svmQueries.getAuxiliaryNativeTokenCost(deposit);
+    expect(fee.eq(BigNumber.from(valueAmount))).to.equal(true);
+  });
+
+  it("throws for SVM queries when message is not AcrossPlus-encoded", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    );
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: "0x1234",
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    expect(() => svmQueries.getAuxiliaryNativeTokenCost(deposit)).to.throw();
   });
 });

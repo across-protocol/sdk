@@ -1,39 +1,53 @@
 import { SortableEvent } from "./Common";
-import { FilledV3RelayEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
-import { BigNumber } from "../utils";
+import { BigNumber, Address, EvmAddress } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
-
-export type { FilledV3RelayEvent, V3FundsDepositedEvent };
 
 export interface RelayData {
   originChainId: number;
-  depositor: string;
-  recipient: string;
-  depositId: number;
-  inputToken: string;
+  depositor: Address;
+  recipient: Address;
+  depositId: BigNumber;
+  inputToken: Address;
   inputAmount: BigNumber;
-  outputToken: string;
+  outputToken: Address;
   outputAmount: BigNumber;
   message: string;
   fillDeadline: number;
-  exclusiveRelayer: string;
+  exclusiveRelayer: Address;
   exclusivityDeadline: number;
 }
 
-export interface Deposit extends RelayData {
+export interface ConvertedRelayData
+  extends Omit<RelayData, "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"> {
+  depositor: string;
+  recipient: string;
+  inputToken: string;
+  outputToken: string;
+  exclusiveRelayer: string;
+}
+
+export interface SpeedUpCommon {
+  updatedRecipient: Address;
+  updatedOutputAmount: BigNumber;
+  updatedMessage: string;
+}
+
+export interface Deposit extends RelayData, Partial<SpeedUpCommon> {
+  messageHash: string;
   destinationChainId: number;
   quoteTimestamp: number;
   speedUpSignature?: string;
-  updatedRecipient?: string;
-  updatedOutputAmount?: BigNumber;
-  updatedMessage?: string;
   fromLiteChain: boolean;
   toLiteChain: boolean;
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
   quoteBlockNumber: number;
+}
+
+export interface DepositWithTime extends Deposit, SortableEvent {
+  depositTimestamp: number;
 }
 
 export enum FillStatus {
@@ -49,34 +63,58 @@ export enum FillType {
 }
 
 export interface RelayExecutionEventInfo {
-  updatedRecipient: string;
+  updatedRecipient: Address;
   updatedOutputAmount: BigNumber;
-  updatedMessage: string;
+  updatedMessage?: string;
+  updatedMessageHash: string;
   fillType: FillType;
 }
 
-export interface Fill extends RelayData {
+export interface Fill extends Omit<RelayData, "message"> {
+  messageHash: string;
   destinationChainId: number;
-  relayer: string;
+  relayer: Address;
   repaymentChainId: number;
   relayExecutionInfo: RelayExecutionEventInfo;
 }
 
-export interface FillWithBlock extends Fill, SortableEvent {}
-
-export interface SpeedUp {
+export interface ConvertedFill
+  extends Omit<
+    Fill,
+    "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer" | "relayExecutionInfo"
+  > {
   depositor: string;
+  recipient: string;
+  inputToken: string;
+  outputToken: string;
+  exclusiveRelayer: string;
+  relayer: string;
+  relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
+}
+
+export interface FillWithBlock extends Fill, SortableEvent {}
+export interface FillWithTime extends Fill, SortableEvent {
+  fillTimestamp: number;
+}
+
+export interface EnabledDepositRoute {
+  originToken: Address;
+  destinationChainId: number;
+  enabled: boolean;
+}
+
+export interface EnabledDepositRouteWithBlock extends EnabledDepositRoute, SortableEvent {}
+export interface SpeedUp extends SpeedUpCommon {
+  depositor: EvmAddress;
   depositorSignature: string;
-  depositId: number;
+  depositId: BigNumber;
   originChainId: number;
-  updatedRecipient: string;
-  updatedOutputAmount: BigNumber;
-  updatedMessage: string;
 }
 
 export interface SpeedUpWithBlock extends SpeedUp, SortableEvent {}
 
-export interface SlowFillRequest extends RelayData {
+export interface SlowFillRequest extends Omit<RelayData, "message"> {
+  messageHash: string;
   destinationChainId: number;
 }
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
@@ -115,9 +153,31 @@ export interface TokensBridged extends SortableEvent {
   amountToReturn: BigNumber;
   chainId: number;
   leafId: number;
+  l2TokenAddress: Address;
+}
+
+export interface ClaimedRelayerRefundWithBlock extends SortableEvent {
   l2TokenAddress: string;
+  refundAddress: string;
+  amount: BigNumber;
+  caller?: string;
+}
+
+export interface BridgedToHubPoolWithBlock extends SortableEvent {
+  amount: BigNumber;
+  mint: string;
 }
 
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
+}
+
+export interface RelayDataWithMessageHash extends RelayData {
+  messageHash?: string;
+}
+
+export interface InvalidFill {
+  fill: FillWithBlock;
+  reason: string;
+  deposit?: DepositWithBlock;
 }

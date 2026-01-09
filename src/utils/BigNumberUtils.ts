@@ -20,6 +20,12 @@ export const bnUint32Max = BigNumber.from("0xffffffff");
 export const bnUint256Max = BigNumber.from("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 /**
+ * BigInt min/max helpers.
+ */
+export const biMin = (a: bigint, b: bigint) => (a > b ? b : a);
+export const biMax = (a: bigint, b: bigint) => (a > b ? a : b);
+
+/**
  * Converts a stringified number into a BigNumber with 18 decimal places.
  * @param num The number to parse.
  * @returns The parsed BigNumber.
@@ -61,4 +67,15 @@ export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "
   }
   // Otherwise, it is a string int and we can parse it directly.
   return BigNumber.from(num.toString());
+};
+
+/**
+ * Compares two BigNumbers and returns the maximum. Order does not matter.
+ *
+ * @param val The first BigNumber to compare.
+ * @param cmp The second BigNumber to compare.
+ * @returns The greater of the two BigNumbers.
+ */
+export const bnMax = (val: BigNumber, cmp: BigNumber) => {
+  return val.gt(cmp) ? val : cmp;
 };

@@ -2,12 +2,13 @@ import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { providers } from "ethers";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
-import { chainIsAlephZero, chainIsMatic, isDefined } from "../../utils";
+import { CUSTOM_GAS_TOKENS } from "../../constants";
+import { chainIsEvm, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
-import { PolygonQueries } from "./polygon";
-import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
-import { AlephZeroQueries } from "./alephZero";
+import { SVMProvider as svmProvider } from "../../arch/svm";
+import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
+import { CustomGasTokenQueries } from "./customGasToken";
+import { SvmQuery } from "./svmQuery";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -20,47 +21,53 @@ const fixedGasPrice = {
 export class QueryBase__factory {
   static create(
     chainId: number,
-    provider: providers.Provider,
+    provider: providers.Provider | svmProvider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
-    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayerAddress = getDefaultRelayer(chainId),
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
-    gasMarkup = 0,
     coingeckoBaseCurrency = "eth"
-  ): QueryBase {
+  ): QueryBase | SvmQuery {
     assert(isDefined(spokePoolAddress));
 
-    if (chainIsMatic(chainId)) {
-      return new PolygonQueries(
-        provider,
+    const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
+    if (chainIsEvm(chainId) && isDefined(customGasTokenSymbol)) {
+      assert(relayerAddress.isEVM());
+      return new CustomGasTokenQueries({
+        queryBaseArgs: [
+          provider as providers.Provider,
+          symbolMapping,
+          spokePoolAddress,
+          relayerAddress,
+          logger,
+          coingeckoProApiKey,
+          fixedGasPrice[chainId],
+          "usd",
+        ],
+        customGasTokenSymbol,
+      });
+    }
+    if (chainIsSvm(chainId)) {
+      assert(relayerAddress.isSVM());
+      return new SvmQuery(
+        provider as svmProvider,
         symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        coingeckoProApiKey,
+        SvmAddress.from(spokePoolAddress),
+        relayerAddress,
         logger,
-        gasMarkup
+        coingeckoProApiKey,
+        fixedGasPrice[chainId],
+        coingeckoBaseCurrency
       );
     }
 
-    if (chainIsAlephZero(chainId)) {
-      return new AlephZeroQueries(
-        provider,
-        symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        coingeckoProApiKey,
-        logger,
-        gasMarkup
-      );
-    }
-
+    assert(relayerAddress.isEVM());
     return new QueryBase(
       provider,
       symbolMapping,
       spokePoolAddress,
-      simulatedRelayerAddress,
-      gasMarkup,
+      relayerAddress,
       logger,
       coingeckoProApiKey,
       fixedGasPrice[chainId],

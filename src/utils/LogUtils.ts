@@ -1,5 +1,6 @@
-import { Logger } from "winston";
+import winston from "winston";
 
+export class Logger extends winston.Logger {}
 export type DefaultLogLevels = "debug" | "info" | "warn" | "error";
 
 type LogParamType = {
@@ -13,7 +14,7 @@ type LogParamType = {
 };
 
 export function formattedLog(
-  logger: Logger | undefined,
+  logger: winston.Logger | undefined,
   { level, message, at: { location, function: fnName }, data }: LogParamType
 ): void {
   if (logger) {
@@ -22,17 +23,5 @@ export function formattedLog(
       message,
       ...data,
     });
-  }
-}
-
-/**
- * Asserts the truth of a condition. If the condition is false, an error is thrown with the provided message.
- * @param condition The condition to assert.
- * @param message The message to throw if the condition is false.
- * @throws Error if the condition is false.
- */
-export function assert(condition: boolean, message: string): void {
-  if (!condition) {
-    throw new Error(message);
   }
 }

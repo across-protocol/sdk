@@ -1,21 +1,34 @@
 import hre from "hardhat";
-import { SpokePoolClient } from "../src/clients";
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import {
+  bnOne,
+  bnZero,
+  getMessageHash,
+  getNetworkName,
+  deploy as deployMulticall,
+  toAddressType,
+  EvmAddress,
+  SvmAddress,
+} from "../src/utils";
+import { CHAIN_IDs, EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
+  deposit,
   SignerWithAddress,
-  fillV3Relay,
+  fillRelay,
   createSpyLogger,
   deploySpokePoolWithToken,
   ethers,
   expect,
   setupTokensForWallet,
+  toBN,
   toBNWei,
 } from "./utils";
+import { getRandomSvmAddress } from "../src/arch/svm";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
@@ -24,17 +37,19 @@ describe("SpokePoolClient: Fills", function () {
   let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
   let spokePoolClient: SpokePoolClient;
   let deploymentBlock: number;
-  let deposit: Deposit;
+  let depositTemplate: Deposit;
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
+    await deployMulticall(depositor);
+
     ({ spokePool, erc20, destErc20, weth, deploymentBlock } = await deploySpokePoolWithToken(
       originChainId,
       destinationChainId
     ));
     await spokePool.setChainId(destinationChainId); // The spoke pool for a fill should be at the destinationChainId.
 
-    spokePoolClient = new SpokePoolClient(
+    spokePoolClient = new EVMSpokePoolClient(
       createSpyLogger().spyLogger,
       spokePool,
       null,
@@ -47,39 +62,42 @@ describe("SpokePoolClient: Fills", function () {
 
     const spokePoolTime = Number(await spokePool.getCurrentTime());
     const outputAmount = toBNWei(1);
-    deposit = {
-      depositId: 0,
+
+    const message = EMPTY_MESSAGE;
+    depositTemplate = {
+      depositId: bnZero,
       originChainId,
       destinationChainId,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      inputToken: erc20.address,
+      depositor: toAddressType(depositor.address, originChainId),
+      recipient: toAddressType(depositor.address, destinationChainId),
+      inputToken: toAddressType(erc20.address, originChainId),
       inputAmount: outputAmount.add(bnOne),
-      outputToken: destErc20.address,
+      outputToken: toAddressType(destErc20.address, destinationChainId),
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
-      message: EMPTY_MESSAGE,
+      message,
+      messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
-      exclusiveRelayer: ZERO_ADDRESS,
+      exclusiveRelayer: toAddressType(ZERO_ADDRESS, destinationChainId),
       fromLiteChain: false,
       toLiteChain: false,
     };
   });
 
   it("Correctly fetches fill data single fill, single chain", async function () {
-    await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId + 1 }, relayer1);
+    await fillRelay(spokePool, depositTemplate, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(1) }, relayer1);
     await spokePoolClient.update();
     expect(spokePoolClient.getFills().length).to.equal(2);
   });
 
   it("Correctly fetches deposit data multiple fills, multiple chains", async function () {
     // Mix and match various fields to produce unique fills and verify they are all recorded by the SpokePoolClient.
-    await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, originChainId: originChainId2 }, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.inputAmount.add(bnOne) }, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.outputAmount.sub(bnOne) }, relayer2);
+    await fillRelay(spokePool, depositTemplate, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, originChainId: originChainId2 }, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, inputAmount: depositTemplate.inputAmount.add(bnOne) }, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, inputAmount: depositTemplate.outputAmount.sub(bnOne) }, relayer2);
 
     await spokePoolClient.update();
 
@@ -88,11 +106,49 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer1.address, originChainId)).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer2.address, originChainId)).length).to.equal(1);
   });
 
-  it("Correctly locates the block number for a FilledV3Relay event", async function () {
+  it("Correctly locates the block number for a Deposit", async function () {
+    const nBlocks = 1_000;
+
+    // Submit the deposit randomly within the next `nBlocks` blocks.
+    const startBlock = await spokePool.provider.getBlockNumber();
+    const targetDepositBlock = startBlock + Math.floor(Math.random() * nBlocks);
+
+    let depositId = toBN(-1);
+    for (let i = 0; i < nBlocks; ++i) {
+      const blockNumber = await spokePool.provider.getBlockNumber();
+      if (blockNumber === targetDepositBlock - 1) {
+        const inputToken = toAddressType(erc20.address, originChainId);
+        const inputAmount = bnOne;
+        const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
+        const outputAmount = bnOne;
+        const { depositId: _depositId, blockNumber: depositBlockNumber } = await deposit(
+          spokePool,
+          destinationChainId,
+          relayer1,
+          inputToken,
+          inputAmount,
+          outputToken,
+          outputAmount
+        );
+        depositId = toBN(_depositId);
+
+        expect(depositBlockNumber).to.equal(targetDepositBlock);
+        continue;
+      }
+
+      await hre.network.provider.send("evm_mine");
+    }
+
+    expect(depositId.eq(-1)).to.be.false;
+    const depositBlock = await findDepositBlock(spokePool, depositId, startBlock);
+    expect(depositBlock).to.equal(targetDepositBlock);
+  });
+
+  it("Correctly locates the block number for a Fill event", async function () {
     const nBlocks = 1_000;
 
     // Submit the fill randomly within the next `nBlocks` blocks.
@@ -102,7 +158,7 @@ describe("SpokePoolClient: Fills", function () {
     for (let i = 0; i < nBlocks; ++i) {
       const blockNumber = await spokePool.provider.getBlockNumber();
       if (blockNumber === targetFillBlock - 1) {
-        const { blockNumber: fillBlockNumber } = await fillV3Relay(spokePool, deposit, relayer1);
+        const { blockNumber: fillBlockNumber } = await fillRelay(spokePool, depositTemplate, relayer1);
         expect(fillBlockNumber).to.equal(targetFillBlock);
         continue;
       }
@@ -110,11 +166,35 @@ describe("SpokePoolClient: Fills", function () {
       await hre.network.provider.send("evm_mine");
     }
 
-    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
+    const fillBlock = await findFillBlock(spokePool, depositTemplate, startBlock);
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
-  it("FilledV3Relay block search: bounds checking", async function () {
+  it("Correctly returns a Fill event using the relay data", async function () {
+    const targetDeposit = { ...depositTemplate, depositId: depositTemplate.depositId.add(1) };
+    // Submit multiple fills at the same block:
+    const startBlock = await spokePool.provider.getBlockNumber();
+    await fillRelay(spokePool, depositTemplate, relayer1);
+    await fillRelay(spokePool, targetDeposit, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(2) }, relayer1);
+    await hre.network.provider.send("evm_mine");
+
+    let fill = await findFillEvent(spokePool, targetDeposit, startBlock);
+    expect(fill).to.not.be.undefined;
+    fill = fill!;
+
+    expect(fill.depositId).to.equal(targetDeposit.depositId);
+
+    // Looking for a fill can return undefined:
+    const missingFill = await findFillEvent(
+      spokePool,
+      { ...depositTemplate, depositId: depositTemplate.depositId.add(3) },
+      startBlock
+    );
+    expect(missingFill).to.be.undefined;
+  });
+
+  it("Deposit block search: bounds checking", async function () {
     const nBlocks = 100;
     const startBlock = await spokePool.provider.getBlockNumber();
     for (let i = 0; i < nBlocks; ++i) {
@@ -122,23 +202,114 @@ describe("SpokePoolClient: Fills", function () {
     }
 
     // No fill has been made, so expect an undefined fillBlock.
-    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
+    const numberOfDeposits = await spokePool.numberOfDeposits();
+    const expectedDepositId = toBN(Math.max(numberOfDeposits - 1, 0));
+
+    const depositBlockNumber = await findDepositBlock(spokePool, expectedDepositId, startBlock);
+    expect(depositBlockNumber).to.be.undefined;
+
+    const inputToken = toAddressType(erc20.address, originChainId);
+    const inputAmount = bnOne;
+    const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
+    const outputAmount = bnOne;
+
+    const { depositId, blockNumber } = await deposit(
+      spokePool,
+      destinationChainId,
+      relayer1,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await hre.network.provider.send("evm_mine");
+
+    expect(expectedDepositId.eq(depositId)).to.be.true;
+
+    // Now search for the deposit _after_ it was made, with the wrong lower bound (too high).
+    const depositBlock = await findDepositBlock(spokePool, depositId, blockNumber);
+    expect(depositBlock).to.not.exist;
+
+    // Should assert if highBlock <= lowBlock.
+    await assertPromiseError(
+      findDepositBlock(spokePool, depositId, await spokePool.provider.getBlockNumber(), blockNumber),
+      "Block numbers out of range"
+    );
+  });
+
+  it("Fill block search: bounds checking", async function () {
+    const nBlocks = 100;
+    const startBlock = await spokePool.provider.getBlockNumber();
+    for (let i = 0; i < nBlocks; ++i) {
+      await hre.network.provider.send("evm_mine");
+    }
+
+    // No fill has been made, so expect an undefined fillBlock.
+    const fillBlock = await findFillBlock(spokePool, depositTemplate, startBlock);
     expect(fillBlock).to.be.undefined;
 
-    const { blockNumber: lateBlockNumber } = await fillV3Relay(spokePool, deposit, relayer1);
+    const { blockNumber: lateBlockNumber } = await fillRelay(spokePool, depositTemplate, relayer1);
     await hre.network.provider.send("evm_mine");
 
     // Now search for the fill _after_ it was filled and expect an exception.
-    const srcChain = getNetworkName(deposit.originChainId);
+    const srcChain = getNetworkName(depositTemplate.originChainId);
     await assertPromiseError(
-      findFillBlock(spokePool, deposit, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId} filled on `
+      findFillBlock(spokePool, depositTemplate, lateBlockNumber),
+      `${srcChain} deposit ${depositTemplate.depositId.toString()} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.
     await assertPromiseError(
-      findFillBlock(spokePool, deposit, await spokePool.provider.getBlockNumber()),
+      findFillBlock(spokePool, depositTemplate, await spokePool.provider.getBlockNumber()),
       "Block numbers out of range"
     );
+  });
+
+  it("Creates a fills with different repaymentChainId", async function () {
+    const targetDeposit1 = { ...depositTemplate, depositId: depositTemplate.depositId.add(1) };
+    const targetDeposit2 = { ...depositTemplate, depositId: depositTemplate.depositId.add(2) };
+
+    // Submit multiple fills at the same block:
+    const startBlock = await spokePool.provider.getBlockNumber();
+    await fillRelay(spokePool, targetDeposit1, relayer1, {
+      repaymentChainId: originChainId2,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    await fillRelay(spokePool, targetDeposit2, relayer2, {
+      repaymentChainId: destinationChainId,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    const svmAddress = SvmAddress.from(getRandomSvmAddress());
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, relayer2, {
+      repaymentChainId: CHAIN_IDs.SOLANA,
+      repaymentAddress: svmAddress,
+    });
+
+    let fill1 = await findFillEvent(spokePool, targetDeposit1, startBlock);
+    expect(fill1).to.exist;
+    fill1 = fill1!;
+    expect(fill1.repaymentChainId).to.equal(originChainId2);
+    expect(fill1.relayer.isEVM()).to.be.true;
+
+    let fill2 = await findFillEvent(spokePool, targetDeposit2, startBlock);
+    expect(fill2).to.exist;
+    fill2 = fill2!;
+    expect(fill2.repaymentChainId).to.equal(destinationChainId);
+    expect(fill2.relayer.isEVM()).to.be.true;
+
+    expect(fill1.depositId).to.equal(targetDeposit1.depositId);
+    expect(fill2.depositId).to.equal(targetDeposit2.depositId);
+
+    // Looking for a fill can return undefined:
+    let svmFill = await findFillEvent(
+      spokePool,
+      { ...depositTemplate, depositId: depositTemplate.depositId.add(3) },
+      startBlock
+    );
+    expect(svmFill).to.exist;
+    svmFill = svmFill!;
+    expect(svmFill.repaymentChainId).to.equal(CHAIN_IDs.SOLANA);
+    expect(svmFill.relayer.isEVM()).to.be.false;
+    expect(svmFill.relayer.isSVM()).to.be.true;
   });
 });

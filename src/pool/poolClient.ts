@@ -1,5 +1,5 @@
 import assert from "assert";
-import * as uma from "@uma/sdk";
+import * as uma from "./uma";
 import {
   bnZero,
   toBNWei,
@@ -216,7 +216,7 @@ export class PoolEventState {
 
     // save these events
     this.processEvents(events);
-    // only process token receipt events, becasue we just want the l1 token involved with this transfer
+    // only process token receipt events, because we just want the l1 token involved with this transfer
     const eventState = hubPool.getEventState(events);
     // event state is keyed by l1token address
     const l1Tokens = Object.keys(eventState);
@@ -335,7 +335,7 @@ export function calculateRemoval(amountWei: BigNumber, percentWei: BigNumber) {
   const receive = amountWei.mul(percentWei).div(fixedPointAdjustment);
   const remain = amountWei.sub(receive);
   return {
-    recieve: receive.toString(),
+    receive: receive.toString(),
     remain: remain.toString(),
   };
 }

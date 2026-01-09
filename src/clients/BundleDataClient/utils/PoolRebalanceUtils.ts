@@ -1,10 +1,12 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
-import { SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, compareAddresses } from "../../../utils";
+import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
+import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress, isDefined } from "../../../utils";
+import { getLatestFinalizedSlotWithBlock } from "../../../arch/svm";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
+import assert from "assert";
 
 export type PoolRebalanceRoot = {
   runningBalances: RunningBalances;
@@ -17,25 +19,56 @@ export type PoolRebalanceRoot = {
 // when evaluating  pending root bundle. The block end numbers must be less than the latest blocks for each chain ID
 // (because we can't evaluate events in the future), and greater than the expected start blocks, which are the
 // greater of 0 and the latest bundle end block for an executed root bundle proposal + 1.
-export function getWidestPossibleExpectedBlockRange(
-  chainIdListForBundleEvaluationBlockNumbers: number[],
+export async function getWidestPossibleExpectedBlockRange(
+  chainIds: number[],
   spokeClients: { [chainId: number]: SpokePoolClient },
   endBlockBuffers: number[],
   clients: Clients,
   latestMainnetBlock: number,
-  enabledChains: number[]
-): number[][] {
+  enabledChains: number[],
+  optimistic: boolean = false
+): Promise<number[][]> {
   // We impose a buffer on the head of the chain to increase the probability that the received blocks are final.
   // Reducing the latest block that we query also gives partially filled deposits slightly more buffer for relayers
   // to fully fill the deposit and reduces the chance that the data worker includes a slow fill payment that gets
   // filled during the challenge period.
-  const latestPossibleBundleEndBlockNumbers = chainIdListForBundleEvaluationBlockNumbers.map(
-    (chainId: number, index) =>
-      spokeClients[chainId] && Math.max(spokeClients[chainId].latestBlockSearched - endBlockBuffers[index], 0)
+  const resolveEndBlock = (chainId: number, idx: number): number =>
+    Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[idx], 0);
+
+  // Across bundles are bounded by slots on Solana. The UMIP requires that the bundle end slot is backed by a block.
+  const resolveSVMEndBlock = (chainId: number, idx: number): Promise<number> => {
+    const spokePoolClient = spokeClients[chainId];
+    assert(isSVMSpokePoolClient(spokePoolClient));
+
+    const maxSlot = resolveEndBlock(chainId, idx); // Respect any configured buffer for Solana.
+    return getLatestFinalizedSlotWithBlock(
+      spokePoolClient.svmEventsClient.getRpc(),
+      spokePoolClient.logger,
+      BigInt(maxSlot)
+    );
+  };
+
+  const latestPossibleBundleEndBlockNumbers = await Promise.all(
+    chainIds.map((chainId, idx) => {
+      if (!enabledChains.includes(chainId) || !isDefined(spokeClients[chainId])) {
+        return -1; // Chain is disabled; end block is redundant and will be overridden later.
+      }
+
+      if (chainIsEvm(chainId)) {
+        return Promise.resolve(resolveEndBlock(chainId, idx));
+      }
+
+      if (chainIsSvm(chainId)) {
+        return resolveSVMEndBlock(chainId, idx);
+      }
+
+      assert(false, `Unsupported chainId: ${chainId}`);
+    })
   );
-  return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number, index) => {
+
+  return chainIds.map((chainId: number, index) => {
     const lastEndBlockForChain = clients.hubPoolClient.getLatestBundleEndBlockForChain(
-      chainIdListForBundleEvaluationBlockNumbers,
+      chainIds,
       latestMainnetBlock,
       chainId
     );
@@ -44,31 +77,33 @@ export function getWidestPossibleExpectedBlockRange(
     // and end block.
     if (!enabledChains.includes(chainId)) {
       return [lastEndBlockForChain, lastEndBlockForChain];
-    } else {
-      // If the latest block hasn't advanced enough from the previous proposed end block, then re-use it. It will
-      // be regarded as disabled by the Dataworker clients. Otherwise, add 1 to the previous proposed end block.
-      if (lastEndBlockForChain >= latestPossibleBundleEndBlockNumbers[index]) {
-        // @dev: Without this check, then `getNextBundleStartBlockNumber` could return `latestBlock+1` even when the
-        // latest block for the chain hasn't advanced, resulting in an invalid range being produced.
-        return [lastEndBlockForChain, lastEndBlockForChain];
-      } else {
-        // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
-        // latest block for chain minus buffer.
-        return [
-          clients.hubPoolClient.getNextBundleStartBlockNumber(
-            chainIdListForBundleEvaluationBlockNumbers,
-            latestMainnetBlock,
-            chainId
-          ),
-          latestPossibleBundleEndBlockNumbers[index],
-        ];
-      }
     }
+
+    // If the latest block hasn't advanced enough from the previous proposed end block, then re-use it. It will
+    // be regarded as disabled by the Dataworker clients. Otherwise, add 1 to the previous proposed end block.
+    if (lastEndBlockForChain >= latestPossibleBundleEndBlockNumbers[index]) {
+      // @dev: Without this check, then `getNextBundleStartBlockNumber` could return `latestBlock+1` even when the
+      // latest block for the chain hasn't advanced, resulting in an invalid range being produced.
+      return [lastEndBlockForChain, lastEndBlockForChain];
+    }
+
+    // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
+    // latest block for chain minus buffer.
+    return [
+      optimistic
+        ? clients.hubPoolClient.getOptimisticBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId)
+        : clients.hubPoolClient.getNextBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId),
+      latestPossibleBundleEndBlockNumbers[index],
+    ];
   });
 }
 
-export function isChainDisabled(blockRangeForChain: number[]): boolean {
-  return blockRangeForChain[0] === blockRangeForChain[1];
+export function isChainDisabledAtBlock(
+  chainId: number,
+  mainnetBlock: number,
+  configStoreClient: AcrossConfigStoreClient
+): boolean {
+  return configStoreClient.getDisabledChainsForBlock(mainnetBlock).includes(chainId);
 }
 
 // Note: this function computes the intended transfer amount before considering the transfer threshold.
@@ -150,7 +185,7 @@ export function addLastRunningBalance(
       const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
         latestMainnetBlock,
         Number(repaymentChainId),
-        l1TokenAddress
+        EvmAddress.from(l1TokenAddress)
       );
       if (!runningBalance.eq(bnZero)) {
         updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalance);
@@ -163,31 +198,56 @@ export function updateRunningBalanceForDeposit(
   runningBalances: RunningBalances,
   hubPoolClient: HubPoolClient,
   deposit: V3DepositWithBlock,
-  updateAmount: BigNumber
+  updateAmount: BigNumber,
+  mainnetBundleEndBlock: number
 ): void {
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     deposit.inputToken,
     deposit.originChainId,
-    deposit.quoteBlockNumber
+    mainnetBundleEndBlock
   );
-  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
+  assert(isDefined(l1TokenCounterpart), "updateRunningBalanceForDeposit: l1TokenCounterpart is undefined");
+
+  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
 }
 
 export function constructPoolRebalanceLeaves(
   latestMainnetBlock: number,
   runningBalances: RunningBalances,
   realizedLpFees: RunningBalances,
+  chainsWithRefundsOnly: number[],
   configStoreClient: AcrossConfigStoreClient,
   maxL1TokenCount?: number
 ): PoolRebalanceLeaf[] {
+  // Add a leaf for each chain ID with no L1 tokens or running balances
+  assert(
+    chainsWithRefundsOnly.every((chainId) => runningBalances[chainId] === undefined) &&
+      chainsWithRefundsOnly.every((chainId) => realizedLpFees[chainId] === undefined),
+    "Refund-only chains should not have running balances or realized LP fees."
+  );
+
   // Create one leaf per L2 chain ID. First we'll create a leaf with all L1 tokens for each chain ID, and then
   // we'll split up any leaves with too many L1 tokens.
   const leaves: PoolRebalanceLeaf[] = [];
   Object.keys(runningBalances)
     .map((chainId) => Number(chainId))
+    .concat(chainsWithRefundsOnly)
     // Leaves should be sorted by ascending chain ID
     .sort((chainIdA, chainIdB) => chainIdA - chainIdB)
     .map((chainId) => {
+      if (chainsWithRefundsOnly.includes(chainId)) {
+        leaves.push({
+          chainId,
+          bundleLpFees: [],
+          netSendAmounts: [],
+          runningBalances: [],
+          groupIndex: 0,
+          leafId: leaves.length,
+          l1Tokens: [],
+        });
+        return;
+      }
+
       // Sort addresses.
       const sortedL1Tokens = Object.keys(runningBalances[chainId]).sort((addressA, addressB) => {
         return compareAddresses(addressA, addressB);
@@ -229,9 +289,10 @@ export function constructPoolRebalanceLeaves(
           runningBalances: leafRunningBalances,
           groupIndex: groupIndexForChainId++,
           leafId: leaves.length,
-          l1Tokens: l1TokensToIncludeInThisLeaf,
+          l1Tokens: l1TokensToIncludeInThisLeaf.map((l1TokenAddr: string) => EvmAddress.from(l1TokenAddr)),
         });
       }
     });
+
   return leaves;
 }

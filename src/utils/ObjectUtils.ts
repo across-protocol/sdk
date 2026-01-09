@@ -3,7 +3,24 @@
 // Append value along the keyPath to object. For example assign(deposits, ['1337', '31337'], [{depositId:1}]) will create
 // deposits = {1337:{31337:[{depositId:1}]}}. Note that if the path into the object exists then this will append. This
 
+// -----------------------------------------------------------------------------
+// Overload declarations (must appear before the implementation).
+// -----------------------------------------------------------------------------
+export function assign<T, K1 extends keyof T>(obj: T, keyPath: [K1], value: T[K1]): void;
+export function assign<T, K1 extends keyof T, K2 extends keyof NonNullable<T[K1]>>(
+  obj: T,
+  keyPath: [K1, K2],
+  value: NonNullable<T[K1]>[K2]
+): void;
+export function assign<
+  T,
+  K1 extends keyof T,
+  K2 extends keyof NonNullable<T[K1]>,
+  K3 extends keyof NonNullable<NonNullable<T[K1]>[K2]>,
+>(obj: T, keyPath: [K1, K2, K3], value: NonNullable<NonNullable<T[K1]>[K2]>[K3]): void;
+
 // function respects the destination type; if it is an object then deep merge and if an array effectively will push.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function assign(obj: any, keyPath: any[], value: any): void {
   const lastKeyIndex = keyPath.length - 1;
   for (let i = 0; i < lastKeyIndex; ++i) {
@@ -28,6 +45,20 @@ export function assign(obj: any, keyPath: any[], value: any): void {
   // If the object at the deep path is an object then append object wise.
   else {
     obj[keyPath[lastKeyIndex]] = { ...obj[keyPath[lastKeyIndex]], ...value };
+  }
+}
+
+// Trims `obj` by deleting `value` and all empty dictionaries produced from that deletion.
+export function deleteFromJson(obj: Record<string | number, unknown>, keyPath: (string | number)[]): void {
+  const lastKeyIndex = keyPath.length - 1;
+  let _obj = obj; // Copy the pointer.
+  for (let i = 0; i < lastKeyIndex; ++i) {
+    const key = keyPath[i];
+    _obj = obj[key] as Record<string | number, unknown>;
+  }
+  delete _obj[keyPath[lastKeyIndex]];
+  if (lastKeyIndex !== 0 && Object.values(_obj).length === 0) {
+    deleteFromJson(obj, keyPath.slice(0, lastKeyIndex));
   }
 }
 

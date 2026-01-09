@@ -5,3 +5,5 @@ export * from "./speedProvider";
 export * from "./constants";
 export * from "./types";
 export * from "./utils";
+export * from "./mocks";
+export * from "./solana";

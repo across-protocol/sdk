@@ -1,19 +1,27 @@
 import { constants as ethersConstants } from "ethers";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, ChainFamily, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
+  CCTP_NO_DOMAIN,
   ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
+  OFT_NO_EID,
   PUBLIC_NETWORKS,
+  PRODUCTION_NETWORKS,
   TESTNET_CHAIN_IDs,
   TOKEN_SYMBOLS_MAP,
+  TOKEN_EQUIVALENCE_REMAPPING,
 } from "@across-protocol/constants";
 
-export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
+export const { AddressZero: ZERO_ADDRESS, HashZero: ZERO_BYTES } = ethersConstants;
 
 // 2^96 - 1 is a conservative erc20 max allowance.
 export const MAX_SAFE_ALLOWANCE = "79228162514264337593543950335";
+
+// The maximum depositId that can be emitted in a depositV3 method is the maximum uint32 value, so
+// 2^32 - 1.
+export const MAX_SAFE_DEPOSIT_ID = "4294967295";
 
 export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
 
@@ -22,14 +30,18 @@ export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
  */
 export const HUBPOOL_CHAIN_ID = 1;
 
-// List of versions where certain UMIP features were deprecated
+// List of versions where certain UMIP features were deprecated or activated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 
 // A hardcoded identifier used, by default, to tag all Arweave records.
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 
 // A hardcoded version number used, by default, to tag all Arweave records.
-export const ARWEAVE_TAG_APP_VERSION = 2;
+// Version 3:
+// - Changed depositId number -> string (uint32 -> uint256).
+// Version 4:
+// - Dropped message field from Fill event data.
+export const ARWEAVE_TAG_APP_VERSION = 4;
 
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
@@ -45,14 +57,65 @@ export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
 
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67";
+export const DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM = "E4bX4nCwe2GcKqt9NpofnXVrCeRp37PAMaiZtV9x3kxC";
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"; // Görli, ...
 
 export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2WBaND9xgp8Lg";
 
 export const EMPTY_MESSAGE = "0x";
+export const UNDEFINED_MESSAGE_HASH = "";
 
 export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
+  TOKEN_SYMBOLS_MAP["USDC-BNB"].symbol,
 ];
+
+export const STABLE_COIN_SYMBOLS = [
+  ...BRIDGED_USDC_SYMBOLS,
+  TOKEN_SYMBOLS_MAP.USDB.symbol,
+  TOKEN_SYMBOLS_MAP.USDC.symbol,
+  TOKEN_SYMBOLS_MAP.USDT.symbol,
+  TOKEN_SYMBOLS_MAP["USDT-BNB"].symbol,
+  TOKEN_SYMBOLS_MAP["USDT-SPOT"].symbol,
+  TOKEN_SYMBOLS_MAP.DAI.symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDC"].symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDT"].symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDS"].symbol,
+  TOKEN_SYMBOLS_MAP.GHO.symbol,
+  TOKEN_SYMBOLS_MAP.WGHO.symbol,
+];
+
+const resolveCustomGasTokens = (): { [chainId: number]: string } => {
+  // Lens & Lens Sepolia are exceptional; every other EVM
+  // custom gas token can be inferred from the chain defs.
+  const overrides = {
+    [CHAIN_IDs.LENS]: "GHO",
+    [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
+  };
+
+  return Object.fromEntries(
+    Object.keys(PUBLIC_NETWORKS)
+      .map(Number)
+      .filter((chainId) => PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM)
+      .map((chainId) => {
+        const { nativeToken } = PUBLIC_NETWORKS[chainId];
+        return [chainId, overrides[chainId] ?? nativeToken];
+      })
+      .filter(([, nativeToken]) => nativeToken !== "ETH")
+  );
+};
+export const CUSTOM_GAS_TOKENS = resolveCustomGasTokens();
+
+// Blocks where SpokePools were upgraded from v2 to v2.5. This is where the fillStatus mapping
+// was introduced. This mapping should only be updated on subsequent upgrades where there are
+// breaking changes and the exact upgrade block is required to bound certain queries.
+export const SPOKEPOOL_UPGRADE_BLOCKS = {
+  [CHAIN_IDs.ARBITRUM]: 183082059,
+  [CHAIN_IDs.BASE]: 10874747,
+  [CHAIN_IDs.MAINNET]: 19277695,
+  [CHAIN_IDs.OPTIMISM]: 116469982,
+  [CHAIN_IDs.POLYGON]: 53793776,
+  [CHAIN_IDs.ZK_SYNC]: 27157340,
+};

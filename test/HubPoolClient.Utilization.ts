@@ -27,6 +27,7 @@ import {
   toBNWei,
   toWei,
 } from "./utils";
+import { toAddressType } from "../src/utils";
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;
@@ -82,7 +83,7 @@ describe("HubPool Utilization", function () {
     configStoreClient = new MockConfigStoreClient(
       createSpyLogger().spyLogger,
       configStore,
-      { fromBlock },
+      { from: fromBlock },
       DEFAULT_CONFIG_STORE_VERSION,
       [originChainId, repaymentChainId, 1],
       chainId,
@@ -115,11 +116,11 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: owner.address,
-      recipient: owner.address,
-      inputToken: l2Token.address,
+      depositor: toAddressType(owner.address, originChainId),
+      recipient: toAddressType(owner.address, destinationChainId),
+      inputToken: toAddressType(l2Token.address, originChainId),
       inputAmount: amountToLp.div(10),
-      outputToken: l1Token.address,
+      outputToken: toAddressType(l1Token.address, destinationChainId),
       outputAmount: l1Token.address,
       originChainId,
       destinationChainId: repaymentChainId,

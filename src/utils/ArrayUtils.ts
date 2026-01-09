@@ -168,3 +168,16 @@ export function includesAsync<T>(
 export function isArrayOf<T>(array: unknown, predicate: (value: unknown) => value is T): array is T[] {
   return Array.isArray(array) && array.every(predicate);
 }
+
+/**
+ * Checks if a value is a Uint8Array.
+ * @param value The value to check.
+ * @returns True if the value is a Uint8Array, false otherwise.
+ */
+export function isUint8Array(value: unknown): value is Uint8Array {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === "number" && Number.isInteger(item) && item >= 0 && item < 256)
+  );
+}

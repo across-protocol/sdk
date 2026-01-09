@@ -33,6 +33,8 @@ export function stringifyJSONWithNumericString(obj: unknown): string {
   return JSON.stringify(obj, (_key, value) => {
     if (typeof value === "object" && value !== null && value.type === "BigNumber") {
       return BigNumber.from(value).toString();
+    } else if (typeof value === "bigint" && value !== null) {
+      return value.toString();
     }
     return value;
   });
@@ -82,4 +84,18 @@ export function jsonReviverWithBigNumbers(_key: string, value: unknown): unknown
     }
   }
   return value;
+}
+
+/**
+ * A replacer for `JSON.stringify` that converts BigInt to a decimal string with 'n' suffix.
+ */
+export function jsonReplacerWithBigInts(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() + "n" : value;
+}
+
+/**
+ * A reviver for `JSON.parse` that converts strings ending in 'n' back to BigInt.
+ */
+export function jsonReviverWithBigInts(_key: string, value: unknown): unknown {
+  return typeof value === "string" && /^-?\d+n$/.test(value) ? BigInt(value.slice(0, -1)) : value;
 }

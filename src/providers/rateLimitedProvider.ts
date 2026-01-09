@@ -68,7 +68,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
         return result;
       } catch (error) {
         // Log errors as well.
-        // For now, to keep logs light, don't log the error itself, just propogate and let it be handled higher up.
+        // For now, to keep logs light, don't log the error itself, just propagate and let it be handled higher up.
         const elapsedTimeS = (performance.now() - startTime) / 1000;
         this.logger.debug({
           ...loggerArgs,

@@ -1,4 +1,4 @@
-// Sets up all contracts neccessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
+// Sets up all contracts necessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
 
 import { EthersTestLibrary } from "../types";
 import {
@@ -11,7 +11,6 @@ import {
   deploySpokePoolWithToken,
   enableRoutesOnHubPool,
   Contract,
-  enableRoutes,
   createSpyLogger,
   winston,
   deployAndConfigureHubPool,
@@ -61,10 +60,10 @@ export async function setupHubPool(
   const [owner, depositor, relayer, dataworker] = await ethers.getSigners();
   const hubPoolChainId = await owner.getChainId();
 
-  const { spokePool: spokePool_1, erc20: erc20_1 } = await deploySpokePoolWithToken(originChainId, destinationChainId);
-  const { spokePool: spokePool_2, erc20: erc20_2 } = await deploySpokePoolWithToken(destinationChainId, originChainId);
-  const { spokePool: spokePool_3 } = await deploySpokePoolWithToken(repaymentChainId, hubPoolChainId);
-  const { spokePool: spokePool_4 } = await deploySpokePoolWithToken(hubPoolChainId, repaymentChainId);
+  const { spokePool: spokePool_1, erc20: erc20_1 } = await deploySpokePoolWithToken(originChainId);
+  const { spokePool: spokePool_2, erc20: erc20_2 } = await deploySpokePoolWithToken(destinationChainId);
+  const { spokePool: spokePool_3 } = await deploySpokePoolWithToken(repaymentChainId);
+  const { spokePool: spokePool_4 } = await deploySpokePoolWithToken(hubPoolChainId);
   const spokePoolDeploymentBlocks = {
     [originChainId]: await spokePool_1.provider.getBlockNumber(),
     [destinationChainId]: await spokePool_2.provider.getBlockNumber(),
@@ -87,10 +86,6 @@ export async function setupHubPool(
     umaEcosystem.finder.address,
     umaEcosystem.timer.address
   );
-
-  // Enable deposit routes for second L2 tokens so relays can be sent between spoke pool 1 <--> 2.
-  await enableRoutes(spokePool_1, [{ originToken: erc20_2.address, destinationChainId: destinationChainId }]);
-  await enableRoutes(spokePool_2, [{ originToken: erc20_1.address, destinationChainId: originChainId }]);
 
   // For each chain, enable routes to both erc20's so that we can fill relays
   await enableRoutesOnHubPool(hubPool, [
@@ -228,13 +223,13 @@ async function _constructSpokePoolClientsWithLookback(
   await hubPoolClient.update();
   const latestBlocks = await Promise.all(spokePools.map((x) => x.provider.getBlockNumber()));
   return spokePools.map((pool, i) => {
-    return new clients.SpokePoolClient(
+    return new clients.EVMSpokePoolClient(
       spyLogger,
       pool.connect(signer),
       hubPoolClient,
       spokePoolChains[i],
       deploymentBlocks?.[spokePoolChains[i]] ?? 0,
-      lookbackForAllChains === undefined ? undefined : { fromBlock: latestBlocks[i] - lookbackForAllChains }
+      lookbackForAllChains === undefined ? undefined : { from: latestBlocks[i] - lookbackForAllChains }
     );
   });
 }

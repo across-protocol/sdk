@@ -1,8 +1,18 @@
-import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
+import {
+  CCTP_NO_DOMAIN,
+  ChainFamily,
+  CHAIN_IDs,
+  MAINNET_CHAIN_IDs,
+  OFT_NO_EID,
+  PRODUCTION_NETWORKS,
+  PUBLIC_NETWORKS,
+  TESTNET_CHAIN_IDs,
+} from "../constants";
 
-const hreNetworks: Record<number, string> = {
+export const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
-  1337: "Hardhat2",
+  1342: "Hardhat2",
+  31337: "HardhatNetwork",
 };
 
 /**
@@ -12,7 +22,7 @@ const hreNetworks: Record<number, string> = {
  */
 export function getNetworkName(networkId: number | string): string {
   networkId = Number(networkId);
-  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? `unknown (${networkId})`;
 }
 
 /**
@@ -61,6 +71,15 @@ export function chainIsOPStack(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a ZkStack implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a ZkStack chain, otherwise false.
+ */
+export function chainIsZkStack(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ZK_STACK;
+}
+
+/**
  * Determines whether a chain ID is an Arbitrum Orbit implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is an Orbit chain, otherwise false.
@@ -76,15 +95,6 @@ export function chainIsOrbit(chainId: number): boolean {
  */
 export function chainIsArbitrum(chainId: number): boolean {
   return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
-}
-
-/**
- * Determines whether a chain ID is an Aleph0 implementation
- * @param chainId Chain ID to evaluate
- * @returns True if chainId is an Aleph0 chain, otherwise false.
- */
-export function chainIsAlephZero(chainId: number): boolean {
-  return [CHAIN_IDs.ALEPH_ZERO].includes(chainId);
 }
 
 /**
@@ -106,23 +116,47 @@ export function chainIsL1(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID runs on an EVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an EVM-like execution layer.
+ */
+export function chainIsEvm(chainId: number): boolean {
+  // TODO: Update when additional execution layers beyond EVM and SVM are supported.
+  return PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM;
+}
+
+/**
+ * Determines whether a chain ID runs on an SVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an SVM-like execution layer.
+ */
+export function chainIsSvm(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.SVM;
+}
+
+/**
  * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
  */
 export function chainIsCCTPEnabled(chainId: number): boolean {
-  return [
-    // Mainnets
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.ARBITRUM,
-    CHAIN_IDs.POLYGON,
-    // Testnets
-    CHAIN_IDs.BASE_SEPOLIA,
-    CHAIN_IDs.OPTIMISM_SEPOLIA,
-    CHAIN_IDs.ARBITRUM_SEPOLIA,
-    CHAIN_IDs.POLYGON_AMOY,
-  ].includes(chainId);
+  // Add chainIds to cctpExceptions to administratively disable CCTP on a chain.
+  // This is useful if constants has been updated to specify a CCTP domain in advance of it being activated.
+  const cctpExceptions: number[] = [];
+  return PRODUCTION_NETWORKS[chainId]?.cctpDomain !== CCTP_NO_DOMAIN && !cctpExceptions.includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has the capacity for bridging via OFT. Must be evaluated in conjunction
+ * with a specific token.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an OFT-bridging enabled chain, otherwise false.
+ */
+export function chainIsOFTEnabled(chainId: number): boolean {
+  // Add chainIds to oftEnabled as they are supported by the protocol.
+  // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
+  const oftEnabled = [CHAIN_IDs.ARBITRUM, CHAIN_IDs.POLYGON, CHAIN_IDs.HYPEREVM, CHAIN_IDs.MONAD, CHAIN_IDs.PLASMA];
+  return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
 
 /**

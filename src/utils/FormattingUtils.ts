@@ -59,12 +59,12 @@ export const formatFeePct = (relayerFeePct: BN): string => {
 /**
  * Shortens a lengthy hexadecimal string to a shorter version with an ellipsis in the middle.
  * @param hex A hexadecimal string to be shortened.
- * @param maxLength The maximum length of the shortened string. Defaults to 8.
+ * @param maxLength The maximum length of the shortened string.
  * @param delimiter The delimiter to use in the middle of the shortened string. Defaults to "...".
  * @returns The shortened hexadecimal string.
- * @example createShortHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
+ * @example createShortenedString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
  */
-export function createShortHexString(hex: string, maxLength = 8, delimiter = ".."): string {
+export function createShortenedString(hex: string, maxLength = 12, delimiter = ".."): string {
   // If we have more maxLength then the hex size, we can simply
   // return the hex directly.
   if (hex.length <= maxLength) {
@@ -126,14 +126,18 @@ export function convertFromWei(weiVal: string, decimals: number): string {
   return formatFunction(weiVal);
 }
 
+export function formatGwei(weiVal: string): string {
+  return convertFromWei(weiVal, 9);
+}
+
 /**
  * Shortens a list of addresses to a shorter version with only the first 10 characters.
  * @param addresses A list of addresses to shorten.
  * @returns A list of shortened addresses.
- * @see createShortHexString
+ * @see createShortenedString
  */
 export function shortenHexStrings(addresses: string[]): string[] {
-  return addresses.map((h) => createShortHexString(h));
+  return addresses.map((h) => createShortenedString(h));
 }
 
 // formatWei converts a string or BN instance from Wei to Ether, e.g., 1e19 -> 10.

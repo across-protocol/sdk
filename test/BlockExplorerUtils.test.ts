@@ -6,14 +6,14 @@ describe("BlockExplorerUtils", () => {
     it("should return a valid block explorer link for a transaction hash", () => {
       const txHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
       const chainId = 1;
-      const expectedLink = `<https://etherscan.io/tx/${txHash}|0x1..def>`;
+      const expectedLink = `<https://etherscan.io/tx/${txHash} | 0x123..bcdef>`;
       expect(blockExplorerLink(txHash, chainId)).to.be.eq(expectedLink);
     });
 
     it("should return a valid block explorer link for an address", () => {
       const address = "0x1234567890abcdef1234567890abcdef12345678";
       const chainId = 1;
-      const expectedLink = `<https://etherscan.io/address/${address}|0x1..678>`;
+      const expectedLink = `<https://etherscan.io/address/${address} | 0x123..45678>`;
       expect(blockExplorerLink(address, chainId)).to.be.eq(expectedLink);
     });
 
@@ -52,8 +52,8 @@ describe("BlockExplorerUtils", () => {
       ];
       const chainId = 1;
       const expectedLinks = [
-        "<https://etherscan.io/tx/0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef|0x1..def>\n",
-        "<https://etherscan.io/address/0x1234567890abcdef1234567890abcdef12345678|0x1..678>\n",
+        "<https://etherscan.io/tx/0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef | 0x123..bcdef>\n",
+        "<https://etherscan.io/address/0x1234567890abcdef1234567890abcdef12345678 | 0x123..45678>\n",
       ].join("");
       expect(blockExplorerLinks(txHashesOrAddresses, chainId)).to.be.eq(expectedLinks);
     });

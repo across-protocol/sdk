@@ -1,16 +1,17 @@
 import winston from "winston";
 import { Contract } from "ethers";
-import { BigNumber, randomAddress, assign, bnZero } from "../../utils";
-import { L1Token, Log, PendingRootBundle, RealizedLpFee } from "../../interfaces";
+import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Address, isDefined } from "../../utils";
+import { Log, PendingRootBundle, RealizedLpFee, L1TokenInfo } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
+import { ZERO_ADDRESS } from "../../constants";
 
 const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
   relayerRefundRoot: "",
   slowRelayRoot: "",
-  proposer: "",
+  proposer: EvmAddress.from(ZERO_ADDRESS),
   unclaimedPoolRebalanceLeafCount: 0,
   challengePeriodEndTimestamp: 0,
   bundleEvaluationBlockNumbers: [],
@@ -22,10 +23,9 @@ export class MockHubPoolClient extends HubPoolClient {
   private realizedLpFeePct: BigNumber = bnZero;
   private realizedLpFeePctOverride = false;
 
-  private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
-  private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
+  private l1TokensMock: L1TokenInfo[] = []; // L1Tokens and their associated info.
 
-  private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
+  private spokePoolTokens: { [l1Token: string]: { [chainId: number]: Address } } = {};
 
   private eventManager: EventManager;
 
@@ -70,20 +70,22 @@ export class MockHubPoolClient extends HubPoolClient {
       [chainId],
       [
         {
-          spokePool: contract,
+          spokePool: toAddressType(contract, chainId),
           blockNumber: blockNumber,
-          transactionIndex: 0,
           logIndex: 0,
+          l2ChainId: chainId,
+          txnIndex: 0,
+          txnRef: "",
         },
       ]
     );
   }
 
   setLatestBlockNumber(blockNumber: number) {
-    this.latestBlockSearched = blockNumber;
+    this.latestHeightSearched = blockNumber;
   }
 
-  addL1Token(l1Token: L1Token) {
+  addL1Token(l1Token: L1TokenInfo) {
     this.l1TokensMock.push(l1Token);
   }
 
@@ -91,33 +93,49 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.l1TokensMock;
   }
 
-  getTokenInfoForDeposit() {
-    return this.tokenInfoToReturn;
-  }
-
   setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
     this.spokePoolTokens[l1Token] ??= {};
-    this.spokePoolTokens[l1Token][chainId] = l2Token;
+    this.spokePoolTokens[l1Token][chainId] = toAddressType(l2Token, chainId);
   }
 
-  getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string {
+  l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
+    if (this.spokePoolTokens[l1Token.toEvmAddress()]?.[destinationChainId]) {
+      return true;
+    } else {
+      return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
+    }
+  }
+  l2TokenHasPoolRebalanceRoute(l2Token: Address, chainId: number, hubPoolBlock: number): boolean {
     const l1Token = Object.keys(this.spokePoolTokens).find(
-      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId]?.eq(l2Token)
     );
-    return l1Token ?? super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
+    if (!l1Token) {
+      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
+    } else return true;
   }
 
-  getL2TokenForL1TokenAtBlock(l1Token: string, chainId: number, blockNumber: number): string {
-    const l2Token = this.spokePoolTokens[l1Token]?.[chainId];
+  deleteTokenMapping(l1Token: string, chainId: number) {
+    delete this.spokePoolTokens[l1Token]?.[chainId];
+  }
+
+  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress | undefined {
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId]?.eq(l2Token)
+    );
+    if (isDefined(l1Token)) {
+      return EvmAddress.from(l1Token);
+    } else {
+      return super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
+    }
+  }
+
+  getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address | undefined {
+    const l2Token = this.spokePoolTokens[l1Token.toEvmAddress()]?.[chainId];
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }
 
-  getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
-    return this.l1TokensMock.find((token) => token.address === l1Token);
-  }
-
-  setTokenInfoToReturn(tokenInfo: L1Token) {
-    this.tokenInfoToReturn = tokenInfo;
+  getTokenInfoForL1Token(l1Token: EvmAddress): L1TokenInfo | undefined {
+    return this.l1TokensMock.find((token) => token.address.eq(l1Token));
   }
 
   _update(eventNames: string[]): Promise<HubPoolUpdate> {
@@ -147,7 +165,7 @@ export class MockHubPoolClient extends HubPoolClient {
       latestBlockSearched,
       pendingRootBundleProposal: this.rootBundleProposal,
       events,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
     });
   }
 
@@ -157,6 +175,30 @@ export class MockHubPoolClient extends HubPoolClient {
     ProposeRootBundle: "uint32,uint8,uint256[],bytes32,bytes32,bytes32,address",
     RootBundleExecuted: "uint256,uint256,uint256,address[],uint256[],int256[],int256[],address",
   };
+
+  setCrossChainContractsEvent(
+    l2ChainId: number,
+    adapter: string,
+    spokePool: string,
+    overrides: EventOverrides = {}
+  ): Log {
+    const event = "CrossChainContractsSet";
+
+    const topics: string[] = [];
+    const args = {
+      l2ChainId,
+      adapter,
+      spokePool,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.hubPool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: overrides.blockNumber,
+    });
+  }
 
   setPoolRebalanceRoute(
     destinationChainId: number,

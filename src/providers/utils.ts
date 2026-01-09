@@ -1,12 +1,13 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
 import assert from "assert";
 import { providers } from "ethers";
-import { isEqual } from "lodash";
-import { isDefined } from "../utils";
-import { RPCProvider, RPCTransport } from "./types";
+import { isEqual, sortBy } from "lodash";
+import { getOriginFromURL, isDefined } from "../utils";
+import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
+import * as quicknode from "./quicknode";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -16,6 +17,7 @@ const PROVIDERS = {
   INFURA: infura.getURL,
   INFURA_DIN: infura.getURL,
   DRPC: drpc.getURL,
+  QUICKNODE: quicknode.getURL,
 };
 
 /**
@@ -24,7 +26,7 @@ const PROVIDERS = {
  * @returns True if the provider string is a supported provider.
  */
 export function isSupportedProvider(provider: string): provider is RPCProvider {
-  return ["ALCHEMY", "INFURA", "INFURA_DIN", "DRPC"].includes(provider);
+  return Object.keys(PROVIDERS).includes(provider);
 }
 
 /**
@@ -82,7 +84,10 @@ export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: 
   const filteredB = objB?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
 
   // Compare objects without the ignored keys.
-  return isDefined(filteredA) && isDefined(filteredB) && isEqual(filteredA, filteredB);
+  const sortKeys = ["transactionIndex", "logIndex"];
+  return (
+    isDefined(filteredA) && isDefined(filteredB) && isEqual(sortBy(filteredA, sortKeys), sortBy(filteredB, sortKeys))
+  );
 }
 
 /**
@@ -96,14 +101,19 @@ const IGNORED_FIELDS = {
   // 2023-08-31 Added blockHash because of upstream zkSync provider disagreements. Consider removing later.
   // 2024-05-07 Added l1BatchNumber and logType due to Alchemy. Consider removing later.
   // 2024-07-11 Added blockTimestamp after zkSync rolled out a new node release.
+  // 2025-07-24 Added additional fields returned by Chainstack on (at least) Polygon.
   eth_getBlockByNumber: [
     "miner", // polygon (sometimes)
     "l1BatchNumber", // zkSync
     "l1BatchTimestamp", // zkSync
+    "requestsHash", // Chainstack (Polygon)
     "size", // Alchemy/Arbitrum (temporary)
     "totalDifficulty", // Quicknode/Alchemy (sometimes)
     "logsBloom", // zkSync (third-party providers return 0x0..0)
     "transactions", // Polygon yParity field in transactions[]
+    "withdrawals", // Chainstack (Polygon)
+    "sendCount", // Arbitrum
+    "sendRoot", // Arbitrum
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
@@ -128,12 +138,34 @@ export interface RateLimitTask {
  * @returns The formatted error message.
  */
 export function formatProviderError(provider: providers.StaticJsonRpcProvider, rawErrorText: string) {
-  return `Provider ${provider.connection.url} failed with error: ${rawErrorText}`;
+  return `Provider ${getOriginFromURL(provider.connection.url)} failed with error: ${rawErrorText}`;
 }
 
 export function createSendErrorWithMessage(message: string, sendError: Record<string, unknown>) {
   const error = new Error(message);
   return { ...sendError, ...error };
+}
+
+/**
+ * Validate and parse a possible JSON-RPC error response.
+ * @param error An unknown error object received in response to a JSON-RPC request.
+ * @returns A JSON-RPC error object, or undefined.
+ */
+export function parseJsonRpcError(response: unknown): { code: number; message: string; data?: unknown } | undefined {
+  if (!RpcError.is(response)) {
+    return;
+  }
+
+  try {
+    const error = JSON.parse(response.body);
+    if (JsonRpcError.is(error)) {
+      return error.error;
+    }
+  } catch {
+    // Suppress error.
+  }
+
+  return;
 }
 
 /**
@@ -165,8 +197,13 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
   }
 }
 
+export function compareSvmRpcResults(_method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
+  return isEqual(rpcResultA, rpcResultB);
+}
+
 export enum CacheType {
   NONE, // Do not cache
   WITH_TTL, // Cache with TTL
   NO_TTL, // Cache with infinite TTL
+  DECIDE_TTL_POST_SEND, // Decide which TTL to cache with after we receive the RPC response
 }

@@ -1,10 +1,10 @@
 import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
 import { RPCTransport } from "./types";
 
-const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
+const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
 // Chain-specific overrides for when the endpoint name does not match the canonical chain name.
-const endpoints: { [chainId: string]: string } = {
+const endpoints: { [chainId: number]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arb",
   [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb-sepolia",
   [CHAIN_IDs.MAINNET]: "eth",
@@ -12,6 +12,8 @@ const endpoints: { [chainId: string]: string } = {
   [CHAIN_IDs.OPTIMISM]: "opt",
   [CHAIN_IDs.OPTIMISM_SEPOLIA]: "opt-sepolia",
   [CHAIN_IDs.WORLD_CHAIN]: "worldchain",
+  [CHAIN_IDs.BSC]: "bnb",
+  [CHAIN_IDs.HYPEREVM]: "hyperliquid",
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
