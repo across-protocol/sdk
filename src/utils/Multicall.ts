@@ -32,6 +32,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.HYPEREVM,
   CHAIN_IDs.LINEA,
   CHAIN_IDs.MAINNET,
+  CHAIN_IDs.MEGAETH, // @TODO: Currently Multicall3 is not deployed on MegaETH mainnet, just testnet.
   CHAIN_IDs.MONAD,
   CHAIN_IDs.PLASMA,
   CHAIN_IDs.POLYGON,

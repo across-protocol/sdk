@@ -20,11 +20,6 @@
   version "3.1.97"
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.97.tgz#a9df3ca45475863b809622cdac4d2a411e0d3450"
   integrity sha512-W2Q6bxcKNJ2QHtgIfOuCWOv/AmUyhPlXoJSiYZ9C3Ldk+fWupHkvbQ+4Ngg+1CCGD4HJLhyF1eLyxL3zg9tkUA==
-
-"@across-protocol/contracts@4.1.19":
-  version "4.1.19"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.19.tgz#77bd0867c5b152ffbdd6e4b786e63fde5027bc72"
-  integrity sha512-362X2tTMCwr9qQJiUX5VRwo3vucgmXALajQisW9dwVBV4NmDtCP+upw5d9okQGsktaRP6nqziSzc4q5NOeJQCg==
   dependencies:
     "@across-protocol/constants" "^3.1.95"
     "@coral-xyz/anchor" "^0.31.1"
