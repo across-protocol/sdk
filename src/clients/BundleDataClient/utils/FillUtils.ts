@@ -161,9 +161,12 @@ function _getRepaymentChainId(
     return relayData.destinationChainId;
   }
 
-  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
+  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute and the repayment chain is not disabled in protocol.
   const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient, bundleEndBlockForMainnet);
-  if (repaymentTokenIsValid) {
+  const repaymentChainIsValid = !hubPoolClient.configStoreClient
+    .getDisabledChainsForBlock(bundleEndBlockForMainnet)
+    .includes(relayData.repaymentChainId);
+  if (repaymentTokenIsValid && repaymentChainIsValid) {
     return relayData.repaymentChainId;
   }
 

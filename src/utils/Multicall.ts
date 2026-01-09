@@ -42,7 +42,6 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.SEPOLIA,
   CHAIN_IDs.ARBITRUM_SEPOLIA,
   CHAIN_IDs.PLASMA_TESTNET,
-  CHAIN_IDs.TATARA,
   ...Object.keys(hreNetworks).map(Number), // See test/utils/multicall.ts
 ];
 
