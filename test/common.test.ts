@@ -112,6 +112,12 @@ describe("Utils test", () => {
         const expected = BigNumber.from("100000000000000000000");
         expect(result).to.deep.equal(expected);
       });
+
+      it("should handle negative exponent scientific notation (1e-18)", () => {
+        const result = toBNWei(1e-18);
+        const expected = BigNumber.from("1");
+        expect(result).to.deep.equal(expected);
+      });
     });
 
     describe("edge cases", () => {
