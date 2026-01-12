@@ -45,7 +45,6 @@ export const {
   buildPoolRebalanceLeafTree,
   buildPoolRebalanceLeaves,
   deploySpokePool,
-  getContractFactory,
   getDepositParams,
   getUpdatedV3DepositSignature,
   hubPoolFixture,
@@ -53,6 +52,8 @@ export const {
   randomAddress,
   zeroAddress,
 } = utils;
+
+export { getContractFactory } from "./getContractFactory";
 
 export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
