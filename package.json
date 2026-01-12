@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.109",
+  "version": "4.3.110",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -57,7 +57,7 @@
   ],
   "devDependencies": {
     "@coral-xyz/borsh": "^0.30.1",
-    "@defi-wonderland/smock": "^2.3.5",
+    "@defi-wonderland/smock": "^2.4.0",
     "@eth-optimism/contracts": "^0.5.37",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.1.7",
@@ -110,7 +110,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.94",
+    "@across-protocol/constants": "^3.1.97",
     "@across-protocol/contracts": "4.1.19",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
