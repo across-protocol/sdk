@@ -26,16 +26,7 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.94.tgz#17c52c7234133df63411c6ea77133ed25c88c710"
   integrity sha512-wZWgzELYjsaMqbtRqIgXz9u2nuJUEv+ivWoidreEsNbGL1TPorPtnC3nIobFKXB+hnbembxYWsj5Py2pGPZwQw==
 
-"@across-protocol/contracts@^0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-0.1.4.tgz#64b3d91e639d2bb120ea94ddef3d160967047fa5"
-  integrity sha512-y9FVRSFdPgEdGWBcf8rUmmzdYhzGdy0752HwpaAFtMJ1pn+HFgNaI0EZc/UudMKIPOkk+/BxPIHYPy7tKad5/A==
-  dependencies:
-    "@eth-optimism/contracts" "^0.5.5"
-    "@openzeppelin/contracts" "4.1.0"
-    "@uma/core" "^2.18.0"
-
-"@across-protocol/contracts@^4.1.19-alpha.4":
+"@across-protocol/contracts@4.1.19-alpha.4":
   version "4.1.19-alpha.4"
   resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.19-alpha.4.tgz#63952e9ec5ba9f26edd999dcbb59d503a0b1f165"
   integrity sha512-7/gGuOFgRkcc9askXtJl73zmXUDUMmTdA1In7IYZkkRfsLp4n5y2RnOMtWATqkGYHZ3gCI73BODvPImVDxMqKQ==
