@@ -16,24 +16,23 @@
     "@uma/common" "^2.17.0"
     hardhat "^2.9.3"
 
-"@across-protocol/constants@^3.1.88":
-  version "3.1.88"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.88.tgz#1ba756921a06bd5bd2d3750a934b1ceb624a6b66"
-  integrity sha512-pwvbDpaMm25VCsjc9G3gsIyWxY/mak+AGg0NHQszhS1nbKFFZxgJe6Qs5v9IIND7mlxTAXFmXNLOsjwC9U5Kkg==
-
 "@across-protocol/constants@^3.1.94":
   version "3.1.94"
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.94.tgz#17c52c7234133df63411c6ea77133ed25c88c710"
   integrity sha512-wZWgzELYjsaMqbtRqIgXz9u2nuJUEv+ivWoidreEsNbGL1TPorPtnC3nIobFKXB+hnbembxYWsj5Py2pGPZwQw==
 
-"@across-protocol/contracts@4.1.19-alpha.4":
-  version "4.1.19-alpha.4"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.19-alpha.4.tgz#63952e9ec5ba9f26edd999dcbb59d503a0b1f165"
-  integrity sha512-7/gGuOFgRkcc9askXtJl73zmXUDUMmTdA1In7IYZkkRfsLp4n5y2RnOMtWATqkGYHZ3gCI73BODvPImVDxMqKQ==
+"@across-protocol/constants@^3.1.95":
+  version "3.1.97"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.97.tgz#a9df3ca45475863b809622cdac4d2a411e0d3450"
+  integrity sha512-W2Q6bxcKNJ2QHtgIfOuCWOv/AmUyhPlXoJSiYZ9C3Ldk+fWupHkvbQ+4Ngg+1CCGD4HJLhyF1eLyxL3zg9tkUA==
+
+"@across-protocol/contracts@4.1.19":
+  version "4.1.19"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.19.tgz#77bd0867c5b152ffbdd6e4b786e63fde5027bc72"
+  integrity sha512-362X2tTMCwr9qQJiUX5VRwo3vucgmXALajQisW9dwVBV4NmDtCP+upw5d9okQGsktaRP6nqziSzc4q5NOeJQCg==
   dependencies:
-    "@across-protocol/constants" "^3.1.88"
+    "@across-protocol/constants" "^3.1.95"
     "@coral-xyz/anchor" "^0.31.1"
-    "@defi-wonderland/smock" "^2.3.4"
     "@eth-optimism/contracts" "^0.5.40"
     "@ethersproject/abstract-provider" "5.7.0"
     "@ethersproject/abstract-signer" "5.7.0"
@@ -56,7 +55,6 @@
     "@uma/contracts-node" "^0.4.17"
     axios "^1.7.4"
     bs58 "^6.0.0"
-    prettier-plugin-rust "^0.1.9"
     yargs "^17.7.2"
     zksync-web3 "^0.14.3"
 
@@ -532,18 +530,6 @@
     "@so-ric/colorspace" "^1.1.6"
     enabled "2.0.x"
     kuler "^2.0.0"
-
-"@defi-wonderland/smock@^2.3.4":
-  version "2.4.1"
-  resolved "https://registry.yarnpkg.com/@defi-wonderland/smock/-/smock-2.4.1.tgz#123ce79f39d83c12261045f614b5a8db5c7a3059"
-  integrity sha512-SvWg0joZppEWEB1XopkJazH1+whLw48KgwYLblml0Y7meJLK+J33uuPNtEsmAwgXWCCt6CouK2fXtSEDz2zKVw==
-  dependencies:
-    "@nomicfoundation/ethereumjs-util" "^9.0.4"
-    diff "^5.0.0"
-    lodash.isequal "^4.5.0"
-    lodash.isequalwith "^4.4.0"
-    rxjs "^7.2.0"
-    semver "^7.3.5"
 
 "@defi-wonderland/smock@^2.3.5":
   version "2.3.5"
@@ -1937,11 +1923,6 @@
   resolved "https://registry.yarnpkg.com/@nomicfoundation/ethereumjs-rlp/-/ethereumjs-rlp-5.0.2.tgz#4fee8dc58a53ac6ae87fb1fca7c15dc06c6b5dea"
   integrity sha512-QwmemBc+MMsHJ1P1QvPl8R8p2aPvvVcKBbvHnQOKBpBztEo0omN0eaob6FeZS/e3y9NSe+mfu3nNFBHszqkjTA==
 
-"@nomicfoundation/ethereumjs-rlp@5.0.4":
-  version "5.0.4"
-  resolved "https://registry.yarnpkg.com/@nomicfoundation/ethereumjs-rlp/-/ethereumjs-rlp-5.0.4.tgz#66c95256fc3c909f6fb18f6a586475fc9762fa30"
-  integrity sha512-8H1S3s8F6QueOc/X92SdrA4RDenpiAEqMg5vJH99kcQaCy/a3Q6fgseo75mgWlbanGJXSlAPtnCeG9jvfTYXlw==
-
 "@nomicfoundation/ethereumjs-statemanager@1.0.5":
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/@nomicfoundation/ethereumjs-statemanager/-/ethereumjs-statemanager-1.0.5.tgz#951cc9ff2c421d40233d2e9d0fe033db2391ee44"
@@ -2025,14 +2006,6 @@
   dependencies:
     "@chainsafe/ssz" "^0.10.0"
     "@nomicfoundation/ethereumjs-rlp" "5.0.2"
-    ethereum-cryptography "0.1.3"
-
-"@nomicfoundation/ethereumjs-util@^9.0.4":
-  version "9.0.4"
-  resolved "https://registry.yarnpkg.com/@nomicfoundation/ethereumjs-util/-/ethereumjs-util-9.0.4.tgz#84c5274e82018b154244c877b76bc049a4ed7b38"
-  integrity sha512-sLOzjnSrlx9Bb9EFNtHzK/FJFsfg2re6bsGqinFinH1gCqVfz9YYlXiMWwDM4C/L4ywuHFCYwfKTVr/QHQcU0Q==
-  dependencies:
-    "@nomicfoundation/ethereumjs-rlp" "5.0.4"
     ethereum-cryptography "0.1.3"
 
 "@nomicfoundation/ethereumjs-vm@7.0.2":
@@ -11005,11 +10978,6 @@ jest-util@^29.0.0:
     graceful-fs "^4.2.9"
     picomatch "^2.2.3"
 
-jinx-rust@0.1.6:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/jinx-rust/-/jinx-rust-0.1.6.tgz#c7bce55d97bfbad76a9b930c01fe6a8629a170d7"
-  integrity sha512-qP+wtQL1PrDDFwtPKhNGtjWOmijCrKdfUHWTV2G/ikxfjrh+cjdvkQTmny9RAsVF0jiui9m+F0INWu4cuRcZeQ==
-
 js-cookie@^2.2.1:
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/js-cookie/-/js-cookie-2.2.1.tgz#69e106dc5d5806894562902aa5baec3744e9b2b8"
@@ -13844,15 +13812,7 @@ prettier-linter-helpers@^1.0.0:
   dependencies:
     fast-diff "^1.1.2"
 
-prettier-plugin-rust@^0.1.9:
-  version "0.1.9"
-  resolved "https://registry.yarnpkg.com/prettier-plugin-rust/-/prettier-plugin-rust-0.1.9.tgz#1a93b035743fa02a006b4980a1035a260ea9e501"
-  integrity sha512-n1DTTJQaHMdnoG/+nKUvBm3EKsMVWsYES2UPCiOPiZdBrmuAO/pX++m7L3+Hz3uuhtddpH0HRKHB2F3jbtJBOQ==
-  dependencies:
-    jinx-rust "0.1.6"
-    prettier "^2.7.1"
-
-prettier@^2.3.1, prettier@^2.7.1:
+prettier@^2.3.1:
   version "2.8.8"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.8.8.tgz#e8c5d7e98a4305ffe3de2e1fc4aca1a71c28b1da"
   integrity sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==
