@@ -57,7 +57,7 @@
   ],
   "devDependencies": {
     "@coral-xyz/borsh": "^0.30.1",
-    "@defi-wonderland/smock": "^2.3.5",
+    "@defi-wonderland/smock": "^2.4.0",
     "@eth-optimism/contracts": "^0.5.37",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.1.7",
