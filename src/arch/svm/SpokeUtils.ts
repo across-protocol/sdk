@@ -36,6 +36,8 @@ import {
   type WritableAccount,
   type ReadonlyAccount,
   type Commitment,
+  type CompilableTransactionMessage,
+  type TransactionMessageWithBlockhashLifetime,
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
@@ -499,7 +501,7 @@ export async function fillRelayInstruction(
   recipientTokenAccount: Address<string>,
   repaymentAddress: EvmAddress | SvmAddress,
   repaymentChainId: number
-) {
+): Promise<IInstruction> {
   const program = toAddress(spokePool);
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
@@ -574,7 +576,7 @@ export async function getFillRelayTx(
   signer: TransactionSigner,
   repaymentChainId: number,
   repaymentAddress: SdkAddress
-) {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
   const svmRelayData = toSvmRelayData(relayData);
 
   assert(
@@ -669,7 +671,7 @@ export async function getIPFillRelayTx(
   signer: TransactionSigner,
   repaymentChainId: number,
   repaymentAddress: SdkAddress
-) {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
   const program = toAddress(spokePoolAddr);
   const _relayDataHash = getRelayDataHash(
     { ...relayData, messageHash: getMessageHash(relayData.message) },
@@ -758,7 +760,7 @@ export const createFillInstruction = async (
   tokenDecimals: number,
   createRecipientAta: boolean = false,
   remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
-) => {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
@@ -826,7 +828,7 @@ export const createDepositInstruction = async (
   depositInput: SvmSpokeClient.DepositInput,
   tokenDecimals: number,
   createVaultAtaIfNeeded: boolean = true
-) => {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
   const getCreateAssociatedTokenIdempotentIx = () =>
     getCreateAssociatedTokenIdempotentInstruction({
       payer: signer,
@@ -871,7 +873,7 @@ export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
-) => {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
   const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
@@ -896,7 +898,7 @@ export async function getSlowFillRequestTx(
     outputToken: SvmAddress;
   },
   signer: TransactionSigner
-) {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
   const program = toAddress(spokePoolAddr);
   const messageHash = getMessageHash(relayData.message);
   const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, relayData.destinationChainId);
@@ -933,7 +935,7 @@ export const createCloseFillPdaInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   fillStatusPda: Address
-) => {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
   const closeFillPdaIx = SvmSpokeClient.getCloseFillPdaInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
@@ -949,7 +951,7 @@ export const createReceiveMessageInstruction = async (
   solanaClient: SVMProvider,
   input: MessageTransmitterClient.ReceiveMessageInput,
   remainingAccounts: IAccountMeta<string>[]
-) => {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
   const receiveMessageIx = MessageTransmitterClient.getReceiveMessageInstruction(input);
   (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
@@ -1501,7 +1503,7 @@ export async function getCCTPV1ReceiveMessageTx(
   message: AttestedCCTPMessage,
   hubChainId: number,
   recipientAta: SvmAddress
-) {
+): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["message_transmitter"],
