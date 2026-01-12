@@ -31,7 +31,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
   public minBlockRange = 10;
   public numberOfDeposits = bnZero;
 
-  constructor(programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, chainId = CHAIN_IDs.SOLANA) {
+  constructor(programId: Address = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, chainId = CHAIN_IDs.SOLANA) {
     super(null as unknown as SVMProvider, programId as Address, null as unknown as Address, null as unknown as Idl);
     this.chainId = chainId;
   }
