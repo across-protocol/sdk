@@ -28,7 +28,44 @@ function getAllFilesInPath(dirPath: string, arrayOfFiles: string[] = []): string
 }
 
 /**
+ * Foundry artifact structure
+ */
+interface FoundryArtifact {
+  abi: unknown[];
+  bytecode: {
+    object: string;
+    linkReferences?: Record<string, unknown>;
+    sourceMap?: string;
+  };
+}
+
+/**
+ * Hardhat artifact structure
+ */
+interface HardhatArtifact {
+  abi: unknown[];
+  bytecode: string;
+}
+
+type Artifact = FoundryArtifact | HardhatArtifact;
+
+function isFoundryArtifact(artifact: Artifact): artifact is FoundryArtifact {
+  return typeof artifact.bytecode === "object" && "object" in artifact.bytecode;
+}
+
+/**
+ * Extracts the bytecode string from an artifact, handling both Foundry and Hardhat formats.
+ */
+function getBytecodeFromArtifact(artifact: Artifact): string {
+  if (isFoundryArtifact(artifact)) {
+    return artifact.bytecode.object;
+  }
+  return artifact.bytecode;
+}
+
+/**
  * Finds an artifact JSON file from a given path by contract name.
+ * Supports both Hardhat (artifacts/contracts/) and Foundry (out/) artifact structures.
  */
 function findArtifactFromPath(contractName: string, artifactsPath: string): { abi: unknown[]; bytecode: string } {
   const allArtifactsPaths = getAllFilesInPath(artifactsPath);
@@ -36,15 +73,20 @@ function findArtifactFromPath(contractName: string, artifactsPath: string): { ab
   if (desiredArtifactPaths.length !== 1) {
     throw new Error(`Couldn't find desired artifact or found too many for ${contractName}`);
   }
-  return JSON.parse(fs.readFileSync(desiredArtifactPaths[0], "utf-8"));
+  const artifact: Artifact = JSON.parse(fs.readFileSync(desiredArtifactPaths[0], "utf-8"));
+  return {
+    abi: artifact.abi,
+    bytecode: getBytecodeFromArtifact(artifact),
+  };
 }
 
 /**
  * Attempts to find an artifact in the @across-protocol/contracts package.
+ * Uses the Foundry 'out/' folder for artifacts.
  */
 function getAcrossContractsArtifact(contractName: string): { abi: unknown[]; bytecode: string } {
   const contractsPackagePath = path.dirname(require.resolve("@across-protocol/contracts/package.json"));
-  const artifactsPath = path.join(contractsPackagePath, "artifacts/contracts");
+  const artifactsPath = path.join(contractsPackagePath, "out");
   return findArtifactFromPath(contractName, artifactsPath);
 }
 

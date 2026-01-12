@@ -1,12 +1,19 @@
-import { identifier } from "@across-protocol/contracts/dist/test-utils";
-import { refundProposalLiveness } from "../constants";
-import { Contract, getContractFactory, SignerWithAddress, utf8ToHex } from "../utils";
+import { Contract, Signer } from "ethers";
+import { getContractFactory } from "../utils/getContractFactory";
+import { identifier, refundProposalLiveness } from "./constants";
+import { utf8ToHex } from "../../src/utils";
+
+// Re-export SignerWithAddress type
+export type SignerWithAddress = Signer & { address: string };
 
 export async function setupUmaEcosystem(owner: SignerWithAddress): Promise<{
   timer: Contract;
   finder: Contract;
   collateralWhitelist: Contract;
+  identifierWhitelist: Contract;
   store: Contract;
+  optimisticOracle: Contract;
+  mockOracle: Contract;
 }> {
   // Setup minimum UMA ecosystem contracts. Note that we don't use the umaEcosystemFixture because Hardhat Fixture's
   // seem to produce non-deterministic behavior between tests.
@@ -33,6 +40,9 @@ export async function setupUmaEcosystem(owner: SignerWithAddress): Promise<{
     timer,
     finder,
     collateralWhitelist,
+    identifierWhitelist,
     store,
+    optimisticOracle,
+    mockOracle,
   };
 }

@@ -41,19 +41,34 @@ const chaiAssert = chai.assert;
 
 export type SignerWithAddress = utils.SignerWithAddress;
 
+// Import fixtures that don't use getContractFactory from @across-protocol/contracts
 export const {
-  buildPoolRebalanceLeafTree,
-  buildPoolRebalanceLeaves,
-  deploySpokePool,
   getDepositParams,
   getUpdatedV3DepositSignature,
-  hubPoolFixture,
   modifyRelayHelper,
   randomAddress,
   zeroAddress,
 } = utils;
 
-export { getContractFactory } from "./getContractFactory";
+// Import local Merkle utilities that use our local getContractFactory
+export {
+  buildPoolRebalanceLeafTree,
+  buildPoolRebalanceLeaves,
+  buildRelayerRefundTree,
+  buildRelayerRefundLeaves,
+  buildSlowRelayTree,
+  buildV3SlowRelayTree,
+  getParamType,
+} from "./MerkleLib.utils";
+
+// Import and export the local getContractFactory
+import { getContractFactory } from "./getContractFactory";
+export { getContractFactory };
+
+// Import local fixtures that use our local getContractFactory
+import { hubPoolFixture, deployHubPool } from "../fixtures/HubPoolFixture";
+import { spokePoolFixture, deploySpokePool } from "../fixtures/SpokePoolFixture";
+export { hubPoolFixture, deployHubPool, spokePoolFixture, deploySpokePool };
 
 export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
@@ -140,7 +155,7 @@ export function createSpyLogger(): SpyLoggerResult {
 }
 
 export async function deploySpokePoolWithToken(fromChainId = 0): Promise<SpokePoolDeploymentResult> {
-  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await utils.deploySpokePool(utils.ethers);
+  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await deploySpokePool(utils.ethers);
   const receipt = await spokePool.deployTransaction.wait();
 
   await spokePool.setChainId(fromChainId == 0 ? utils.originChainId : fromChainId);
@@ -157,7 +172,7 @@ export async function deployConfigStore(
   additionalChainIdIndices?: number[]
 ): Promise<{ configStore: AcrossConfigStore; deploymentBlock: number }> {
   const configStore = (await (
-    await utils.getContractFactory("AcrossConfigStore", signer)
+    await getContractFactory("AcrossConfigStore", signer)
   ).deploy()) as AcrossConfigStore;
   const { blockNumber: deploymentBlock } = await configStore.deployTransaction.wait();
 
@@ -199,21 +214,21 @@ export async function deployAndConfigureHubPool(
   l1Token_2: utils.Contract;
   hubPoolDeploymentBlock: number;
 }> {
-  const lpTokenFactory = await (await utils.getContractFactory("LpTokenFactory", signer)).deploy();
+  const lpTokenFactory = await (await getContractFactory("LpTokenFactory", signer)).deploy();
   const hubPool = await (
-    await utils.getContractFactory("HubPool", signer)
+    await getContractFactory("HubPool", signer)
   ).deploy(lpTokenFactory.address, finderAddress, zeroAddress, timerAddress);
   const receipt = await hubPool.deployTransaction.wait();
 
-  const mockAdapter = await (await utils.getContractFactory("Mock_Adapter", signer)).deploy();
+  const mockAdapter = await (await getContractFactory("Mock_Adapter", signer)).deploy();
 
   for (const spokePool of spokePools) {
     await hubPool.setCrossChainContracts(spokePool.l2ChainId, mockAdapter.address, spokePool.spokePool.address);
   }
 
-  const l1Token_1 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
+  const l1Token_1 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
   await l1Token_1.addMember(TokenRolesEnum.MINTER, signer.address);
-  const l1Token_2 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
+  const l1Token_2 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
   await l1Token_2.addMember(TokenRolesEnum.MINTER, signer.address);
 
   return { hubPool, mockAdapter, l1Token_1, l1Token_2, hubPoolDeploymentBlock: receipt.blockNumber };
