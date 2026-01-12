@@ -19,13 +19,8 @@ export async function getParamType(
   functionName: string,
   paramName: string
 ): Promise<ethers.utils.ParamType | string> {
-  const contractFactory = await getContractFactory(
-    contractName,
-    new ethers.VoidSigner(ethers.constants.AddressZero)
-  );
-  const fragment = contractFactory.interface.fragments.find(
-    (fragment) => fragment.name === functionName
-  );
+  const contractFactory = await getContractFactory(contractName, new ethers.VoidSigner(ethers.constants.AddressZero));
+  const fragment = contractFactory.interface.fragments.find((fragment) => fragment.name === functionName);
   if (!fragment || fragment.type !== "function") {
     return "";
   }

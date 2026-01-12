@@ -42,13 +42,7 @@ const chaiAssert = chai.assert;
 export type SignerWithAddress = utils.SignerWithAddress;
 
 // Import fixtures that don't use getContractFactory from @across-protocol/contracts
-export const {
-  getDepositParams,
-  getUpdatedV3DepositSignature,
-  modifyRelayHelper,
-  randomAddress,
-  zeroAddress,
-} = utils;
+export const { getDepositParams, getUpdatedV3DepositSignature, modifyRelayHelper, randomAddress, zeroAddress } = utils;
 
 // Import local Merkle utilities that use our local getContractFactory
 export {
@@ -171,9 +165,7 @@ export async function deployConfigStore(
   rateModel: unknown = sampleRateModel,
   additionalChainIdIndices?: number[]
 ): Promise<{ configStore: AcrossConfigStore; deploymentBlock: number }> {
-  const configStore = (await (
-    await getContractFactory("AcrossConfigStore", signer)
-  ).deploy()) as AcrossConfigStore;
+  const configStore = (await (await getContractFactory("AcrossConfigStore", signer)).deploy()) as AcrossConfigStore;
   const { blockNumber: deploymentBlock } = await configStore.deployTransaction.wait();
 
   for (const token of tokensToAdd) {

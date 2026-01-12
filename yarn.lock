@@ -26,16 +26,7 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.97.tgz#a9df3ca45475863b809622cdac4d2a411e0d3450"
   integrity sha512-W2Q6bxcKNJ2QHtgIfOuCWOv/AmUyhPlXoJSiYZ9C3Ldk+fWupHkvbQ+4Ngg+1CCGD4HJLhyF1eLyxL3zg9tkUA==
 
-"@across-protocol/contracts@^0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-0.1.4.tgz#64b3d91e639d2bb120ea94ddef3d160967047fa5"
-  integrity sha512-y9FVRSFdPgEdGWBcf8rUmmzdYhzGdy0752HwpaAFtMJ1pn+HFgNaI0EZc/UudMKIPOkk+/BxPIHYPy7tKad5/A==
-  dependencies:
-    "@eth-optimism/contracts" "^0.5.5"
-    "@openzeppelin/contracts" "4.1.0"
-    "@uma/core" "^2.18.0"
-
-"@across-protocol/contracts@^4.1.20-alpha.1":
+"@across-protocol/contracts@4.1.20-alpha.1":
   version "4.1.20-alpha.1"
   resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.20-alpha.1.tgz#b81c200ed641eb6c87b27142ef6a7d0be86f4592"
   integrity sha512-OwwUksFAA7eeAanW4FcObVHoDYgICOrshExgi7EJZYIjn42T+COfDa8Rll8fo7KMv+LS9lv/nZ+hLpVFeKvSmQ==
@@ -66,6 +57,15 @@
     bs58 "^6.0.0"
     yargs "^17.7.2"
     zksync-web3 "^0.14.3"
+
+"@across-protocol/contracts@^0.1.4":
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-0.1.4.tgz#64b3d91e639d2bb120ea94ddef3d160967047fa5"
+  integrity sha512-y9FVRSFdPgEdGWBcf8rUmmzdYhzGdy0752HwpaAFtMJ1pn+HFgNaI0EZc/UudMKIPOkk+/BxPIHYPy7tKad5/A==
+  dependencies:
+    "@eth-optimism/contracts" "^0.5.5"
+    "@openzeppelin/contracts" "4.1.0"
+    "@uma/core" "^2.18.0"
 
 "@adraffy/ens-normalize@1.10.0":
   version "1.10.0"
