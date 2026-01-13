@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.112",
+  "version": "4.3.112-alpha.0",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -136,7 +136,7 @@
     "node-gyp": "^11.0.0",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2",
-    "viem": "~2.43.0"
+    "viem": "~2.37.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
