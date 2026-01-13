@@ -16495,7 +16495,7 @@ viem@^2.21.8:
     ox "0.9.6"
     ws "8.18.3"
 
-viem@^2.43.0:
+viem@^2.44:
   version "2.44.1"
   resolved "https://registry.yarnpkg.com/viem/-/viem-2.44.1.tgz#7ada715b4dc704b25a7826466b8563c9100f674c"
   integrity sha512-wfQda7PIJeF9hWiGKV628AfBwyYxyoc89OcgF4s4/chs2PY8ibUA7IG+DWdU4oAkjhHm9w47w1m2dwwOPBU+ng==
