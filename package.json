@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.111-alpha.4",
+  "version": "4.3.112",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -64,6 +64,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@openzeppelin/hardhat-upgrades": "^1.28.0",
     "@size-limit/preset-small-lib": "^7.0.8",
+    "@solana/web3.js": "^1.31.0",
     "@typechain/ethers-v5": "^11.1.1",
     "@typechain/hardhat": "^6.1.6",
     "@types/async": "^3.2.24",
@@ -111,7 +112,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.97",
-    "@across-protocol/contracts": "4.1.19",
+    "@across-protocol/contracts": "4.1.20",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
@@ -120,7 +121,6 @@
     "@solana-program/system": "^0.7.0",
     "@solana-program/token-2022": "^0.4.0",
     "@solana/kit": "^2.3.0",
-    "@solana/web3.js": "^1.31.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "^24.3.0",
     "@uma/contracts-node": "^0.4.26",

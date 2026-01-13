@@ -108,6 +108,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BSC]: ethereum.eip1559,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
+    [CHAIN_IDs.MEGAETH]: ethereum.eip1559,
     [CHAIN_IDs.MONAD]: ethereum.eip1559,
     [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
