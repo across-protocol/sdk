@@ -9,6 +9,8 @@ import {
   appendTransactionMessageInstruction,
   compileTransaction,
   getBase64EncodedWireTransaction,
+  type CompilableTransactionMessage,
+  type TransactionMessageWithBlockhashLifetime,
 } from "@solana/kit";
 import {
   SVMProvider,
@@ -222,7 +224,7 @@ export class SvmQuery implements QueryInterface {
     signer: TransactionSigner,
     repaymentChainId: number,
     repaymentAddress: Address
-  ) {
+  ): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
     return await getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 

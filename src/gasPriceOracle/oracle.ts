@@ -108,6 +108,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BSC]: ethereum.eip1559,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
+    [CHAIN_IDs.MEGAETH]: ethereum.eip1559,
     [CHAIN_IDs.MONAD]: ethereum.eip1559,
     [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
@@ -118,7 +119,6 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
     [CHAIN_IDs.SEPOLIA]: ethereum.eip1559,
-    [CHAIN_IDs.TATARA]: ethereum.eip1559,
   } as const;
 
   let gasPriceFeed = gasPriceFeeds[chainId];

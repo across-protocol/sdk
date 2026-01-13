@@ -80,11 +80,9 @@ export const STABLE_COIN_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDT-BNB"].symbol,
   TOKEN_SYMBOLS_MAP["USDT-SPOT"].symbol,
   TOKEN_SYMBOLS_MAP.DAI.symbol,
-  TOKEN_SYMBOLS_MAP["TATARA-USDC"].symbol,
-  TOKEN_SYMBOLS_MAP["TATARA-USDT"].symbol,
-  TOKEN_SYMBOLS_MAP["TATARA-USDS"].symbol,
   TOKEN_SYMBOLS_MAP.GHO.symbol,
   TOKEN_SYMBOLS_MAP.WGHO.symbol,
+  TOKEN_SYMBOLS_MAP.USDM.symbol,
 ];
 
 const resolveCustomGasTokens = (): { [chainId: number]: string } => {
