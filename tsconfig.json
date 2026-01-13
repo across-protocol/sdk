@@ -3,7 +3,7 @@
   "include": ["src", "types"],
   "compilerOptions": {
     "module": "CommonJS",
-    "target": "ESNext",
+    "target": "ES5",
     "lib": ["dom", "esnext"],
     // allow bundling of json files
     "resolveJsonModule": true,
