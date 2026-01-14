@@ -64,7 +64,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await hubPoolClient.update();
 
     expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.equal(SvmAddress.from(solanaSpokePool));
-    // expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.deep.equal(SvmAddress.from(solanaSpokePool).toBytes32());
   });
 
   it("Gets L2 token counterpart", async function () {
