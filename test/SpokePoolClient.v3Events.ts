@@ -422,14 +422,14 @@ describe("SpokePoolClient: Event Filtering", function () {
 
   it("Correctly truncates events with bytes32 address fields: TokensBridged", async function () {
     for (let i = 0; i < 10; ++i) {
-      const l2TokenAddress = ethers.utils.hexZeroPad(randomAddress(), 32);
+      const l2TokenAddress = EvmAddress.from(ethers.utils.hexZeroPad(randomAddress(), 32));
       originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
       await originSpokePoolClient.update(["TokensBridged"]);
       let tokensBridged = originSpokePoolClient.getTokensBridged().at(-1);
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress).to.deep.equal(toAddressType(l2TokenAddress, i));
+      expect((tokensBridged.l2TokenAddress).eq(l2TokenAddress)).to.be.true;
     }
   });
 
