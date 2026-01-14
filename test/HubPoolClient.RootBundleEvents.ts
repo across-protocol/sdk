@@ -83,15 +83,17 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     const pendingBundle = hubPoolClient.getPendingRootBundle();
     expect(pendingBundle.proposer).to.equal(toAddressType(dataworker.address, hubPoolClient.chainId));
-    expect(pendingBundle).excluding("proposer").to.deep.equal({
-      poolRebalanceRoot: tree.getHexRoot(),
-      relayerRefundRoot: constants.mockTreeRoot,
-      slowRelayRoot: constants.mockTreeRoot,
-      unclaimedPoolRebalanceLeafCount: 2,
-      challengePeriodEndTimestamp: proposeTime + liveness,
-      bundleEvaluationBlockNumbers: [11, 22],
-      proposalBlockNumber,
-    });
+    expect(pendingBundle)
+      .excluding("proposer")
+      .to.deep.equal({
+        poolRebalanceRoot: tree.getHexRoot(),
+        relayerRefundRoot: constants.mockTreeRoot,
+        slowRelayRoot: constants.mockTreeRoot,
+        unclaimedPoolRebalanceLeafCount: 2,
+        challengePeriodEndTimestamp: proposeTime + liveness,
+        bundleEvaluationBlockNumbers: [11, 22],
+        proposalBlockNumber,
+      });
     expect(hubPoolClient.hasPendingProposal()).to.equal(true);
 
     // Ignores root bundles that aren't full executed.
