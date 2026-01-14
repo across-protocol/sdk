@@ -57,6 +57,7 @@
   ],
   "devDependencies": {
     "@defi-wonderland/smock": "^2.4.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "@openzeppelin/hardhat-upgrades": "^1.28.0",
