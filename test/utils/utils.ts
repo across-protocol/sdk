@@ -35,6 +35,10 @@ import {
 } from "../constants";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
 import { SpyTransport } from "./SpyTransport";
+import { addressEqualityPlugin } from "./chai-plugins";
+
+// Add custom chai assertion for Address class equality
+chai.use(addressEqualityPlugin);
 
 chai.use(chaiExclude);
 const chaiAssert = chai.assert;

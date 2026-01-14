@@ -152,6 +152,11 @@
       "import": "./dist/esm/index.js",
       "types": "./dist/types/index.d.ts"
     },
+    "./test/utils/chai-plugins": {
+      "require": "./test/utils/chai-plugins.js",
+      "import": "./test/utils/chai-plugins.js",
+      "types": "./test/utils/chai-plugins.ts"
+    },
     "./dist/cjs/*": {
       "require": "./dist/cjs/*.js",
       "import": "./dist/esm/*.js"
