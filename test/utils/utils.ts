@@ -60,8 +60,8 @@ import { getContractFactory } from "./getContractFactory";
 export { getContractFactory };
 
 // Import local fixtures that use our local getContractFactory
-import { hubPoolFixture, deployHubPool } from "../fixtures/HubPoolFixture";
-import { spokePoolFixture, deploySpokePool } from "../fixtures/SpokePoolFixture";
+import { hubPoolFixture, deployHubPool } from "../fixtures/HubPool.Fixture";
+import { spokePoolFixture, deploySpokePool } from "../fixtures/SpokePool.Fixture";
 export { hubPoolFixture, deployHubPool, spokePoolFixture, deploySpokePool };
 
 export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };

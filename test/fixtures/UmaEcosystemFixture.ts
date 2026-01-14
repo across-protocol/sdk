@@ -1,6 +1,6 @@
 import { Contract, Signer } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
-import { identifier, refundProposalLiveness } from "./constants";
+import { identifier, refundProposalLiveness } from "../constants";
 import { utf8ToHex } from "../../src/utils";
 
 // Re-export SignerWithAddress type

@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { Contract, Signer } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
-import { destinationChainId, TokenRolesEnum, zeroAddress } from "./constants";
+import { destinationChainId, TokenRolesEnum, zeroAddress } from "../constants";
 
 export { zeroAddress };
 
