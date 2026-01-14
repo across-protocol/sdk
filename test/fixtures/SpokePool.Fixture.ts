@@ -2,11 +2,9 @@ import hre from "hardhat";
 import { Contract, Signer } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
 import { destinationChainId, TokenRolesEnum, zeroAddress } from "../constants";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 export { zeroAddress };
-
-// Re-export SignerWithAddress type
-export type SignerWithAddress = Signer & { address: string };
 
 /**
  * Deploys a SpokePool with associated tokens for testing.

@@ -30,9 +30,6 @@ import * as clients from "../../src/clients";
 import { MockConfigStoreClient } from "../mocks";
 import { setupUmaEcosystem } from "./UmaEcosystemFixture";
 
-// Re-export SignerWithAddress type
-export type SignerWithAddress = Signer & { address: string };
-
 export async function setupHubPool(
   ethers: EthersTestLibrary,
   maxRefundPerRelayerRefundLeaf: number,
