@@ -135,7 +135,7 @@ export abstract class Address {
   }
 
   static isAddress(obj: unknown): obj is Address {
-    return "__address_type_brand" in (obj as { __address_type_brand: boolean });
+    return typeof obj === "object" && obj !== null && "__address_type_brand" in obj;
   }
 
   public toJSON() {
