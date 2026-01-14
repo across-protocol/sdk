@@ -429,7 +429,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress).to.equal(toAddressType(l2TokenAddress, i));
+      expect(tokensBridged.l2TokenAddress).to.equal(EvmAddress.from(l2TokenAddress));
     }
   });
 
