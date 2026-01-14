@@ -18,11 +18,11 @@ import { Address } from "../../src/utils";
  * expect(address1).to.equal(address2);
  * ```
  */
-export const addressEqualityPlugin: ChaiPlugin = function (chai, utils) {
+export const addressEqualityPlugin: ChaiPlugin = function (chai, _utils) {
   const { Assertion } = chai;
 
   Assertion.overwriteMethod("equal", function (_super) {
-    return function (this: any, expected: any) {
+    return function (this: Chai.AssertionStatic, expected: unknown, ...args: unknown[]) {
       const obj = this._obj;
 
       // If both are Address instances, compare their values using .eq()
@@ -35,7 +35,7 @@ export const addressEqualityPlugin: ChaiPlugin = function (chai, utils) {
           obj.toString()
         );
       } else {
-        _super.apply(this, arguments);
+        _super.apply(this, [expected, ...args]);
       }
     };
   });
