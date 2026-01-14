@@ -81,8 +81,11 @@ describe("HubPoolClient: RootBundle Events", function () {
     ).to.equal(undefined);
     await hubPoolClient.update();
 
-    const pendingBundle = hubPoolClient.getPendingRootBundle();
-    expect(pendingBundle.proposer).to.equal(toAddressType(dataworker.address, hubPoolClient.chainId));
+    let pendingBundle = hubPoolClient.getPendingRootBundle();
+    expect(pendingBundle).to.exist;
+    pendingBundle = pendingBundle!;
+
+    expect(pendingBundle.proposer.eq(EvmAddress.from(dataworker.address))).to.be.true;
     expect(pendingBundle)
       .excluding("proposer")
       .to.deep.equal({

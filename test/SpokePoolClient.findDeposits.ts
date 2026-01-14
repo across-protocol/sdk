@@ -103,10 +103,10 @@ describe("SpokePoolClient: Find Deposits", function () {
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
-        expect(foundDeposit.depositor).to.equal(depositEvent.depositor);
-        expect(foundDeposit.recipient).to.equal(depositEvent.recipient);
-        expect(foundDeposit.inputToken).to.equal(depositEvent.inputToken);
-        expect(foundDeposit.outputToken).to.equal(depositEvent.outputToken);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
         expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
         expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
@@ -142,10 +142,10 @@ describe("SpokePoolClient: Find Deposits", function () {
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
-        expect(foundDeposit.depositor).to.equal(depositEvent.depositor);
-        expect(foundDeposit.recipient).to.equal(depositEvent.recipient);
-        expect(foundDeposit.inputToken).to.equal(depositEvent.inputToken);
-        expect(foundDeposit.outputToken).to.equal(depositEvent.outputToken);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
         expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
         expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
@@ -200,10 +200,10 @@ describe("SpokePoolClient: Find Deposits", function () {
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
-        expect(foundDeposit.depositor).to.equal(depositEvent.depositor);
-        expect(foundDeposit.recipient).to.equal(depositEvent.recipient);
-        expect(foundDeposit.inputToken).to.equal(depositEvent.inputToken);
-        expect(foundDeposit.outputToken).to.equal(depositEvent.outputToken);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
         expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
         expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
