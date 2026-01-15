@@ -1,6 +1,6 @@
 // Sets up all contracts necessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
 import hre from "hardhat";
-import { Contract, Signer } from "ethers";
+import { Contract } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
 import { EthersTestLibrary } from "../types";
 import {

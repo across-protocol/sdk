@@ -1,8 +1,7 @@
 import hre from "hardhat";
-import { Contract, Signer } from "ethers";
+import { Contract } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
 import { destinationChainId, TokenRolesEnum, zeroAddress } from "../constants";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 export { zeroAddress };
 
