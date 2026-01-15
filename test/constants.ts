@@ -11,6 +11,14 @@ export const {
   mockTreeRoot,
   refundProposalLiveness,
   totalBond,
+  TokenRolesEnum,
+  bondAmount,
+  finalFee,
+  finalFeeUsdc,
+  finalFeeUsdt,
+  randomAddress,
+  zeroAddress,
+  identifier,
 } = contracts;
 export const CONFIG_STORE_VERSION = DEFAULT_CONFIG_STORE_VERSION;
 export const randomL1Token = contracts.randomAddress();
