@@ -19,7 +19,7 @@ import {
   winston,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
-import { EvmAddress, toAddressType } from "../src/utils";
+import { EvmAddress } from "../src/utils";
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
