@@ -368,6 +368,19 @@ export async function getEventAuthority(programId: Address): Promise<Address> {
 }
 
 /**
+ * Returns the PDA for the handler signer.
+ * @param programId The multicall handler program ID.
+ * @returns The PDA for the State account.
+ */
+export async function getHandlerSignerPda(programId: Address): Promise<Address> {
+  const [handlerSignerPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["handler_signer"],
+  });
+  return handlerSignerPda;
+}
+
+/**
  * Returns the PDA for the Self Authority.
  * @returns The PDA for the Self Authority.
  */
