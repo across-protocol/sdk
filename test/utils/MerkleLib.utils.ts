@@ -46,7 +46,7 @@ export async function buildRelayerRefundTree(
   }
   const paramType = await getParamType("MerkleLibTest", "verifyRelayerRefund", "refund");
   const hashFn = (input: unknown) => keccak256(defaultAbiCoder.encode([paramType as ethers.utils.ParamType], [input]));
-  return new MerkleTree(relayerRefundLeaves, hashFn);
+  return new MerkleTree(relayerRefundLeaves, hashFn) as MerkleTree<unknown>;
 }
 
 /**
@@ -103,7 +103,7 @@ export async function buildPoolRebalanceLeafTree(
   }
   const paramType = await getParamType("MerkleLibTest", "verifyPoolRebalance", "rebalance");
   const hashFn = (input: unknown) => keccak256(defaultAbiCoder.encode([paramType as ethers.utils.ParamType], [input]));
-  return new MerkleTree(poolRebalanceLeaves, hashFn);
+  return new MerkleTree(poolRebalanceLeaves, hashFn) as MerkleTree<unknown>;
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.113-alpha.3",
+  "version": "4.3.113-alpha.4",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -111,7 +111,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.97",
-    "@across-protocol/contracts": "4.1.21-alpha.1",
+    "@across-protocol/contracts": "4.1.21-alpha.2",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
@@ -146,15 +146,20 @@
     "preset": "ts-jest",
     "testEnvironment": "node"
   },
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
-  "types": "./dist/types/index.d.ts",
-  "typings": "./dist/types/index.d.ts",
+  "main": "./dist/cjs/src/index.js",
+  "module": "./dist/esm/src/index.js",
+  "types": "./dist/types/src/index.d.ts",
+  "typings": "./dist/types/src/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/cjs/src/index.js",
+      "import": "./dist/esm/src/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./test-utils": {
+      "require": "./dist/cjs/test-utils.js",
+      "import": "./dist/esm/test-utils.js",
+      "types": "./dist/types/test-utils.d.ts"
     },
     "./dist/cjs/*": {
       "require": "./dist/cjs/*.js",

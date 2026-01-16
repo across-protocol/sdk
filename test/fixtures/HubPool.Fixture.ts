@@ -1,5 +1,9 @@
 // Sets up all contracts necessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
+import "@nomiclabs/hardhat-ethers";
+import "@openzeppelin/hardhat-upgrades";
+import "hardhat-deploy";
 import hre from "hardhat";
+import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Contract } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
 import { EthersTestLibrary } from "../types";
@@ -371,7 +375,7 @@ export const hubPoolFixture = hre.deployments.createFixture(async ({ ethers }) =
 export async function enableTokensForLP(
   owner: SignerWithAddress,
   hubPool: Contract,
-  weth: Contract,
+  _weth: Contract,
   tokens: Contract[]
 ): Promise<Contract[]> {
   const lpTokens: Contract[] = [];

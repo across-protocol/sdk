@@ -6,7 +6,7 @@ import chaiExclude from "chai-exclude";
 import { Contract, providers } from "ethers";
 import _ from "lodash";
 import sinon from "sinon";
-import winston, { LogEntry } from "winston";
+import winston from "winston";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
 import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { Deposit, DepositWithBlock, FillWithBlock, RelayData, SlowFillRequestWithBlock } from "../../src/interfaces";
@@ -76,15 +76,17 @@ export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string
   if (x === undefined || y === undefined || x === null || y === null) {
     return false;
   }
+  const xObj = x as Record<string, unknown>;
+  const yObj = y as Record<string, unknown>;
   const sortedKeysX = Object.fromEntries(
-    Object.keys(x)
+    Object.keys(xObj)
       .sort()
-      .map((key) => [key, x?.[key]])
+      .map((key) => [key, xObj[key]])
   );
   const sortedKeysY = Object.fromEntries(
-    Object.keys(y)
+    Object.keys(yObj)
       .sort()
-      .map((key) => [key, y?.[key]])
+      .map((key) => [key, yObj[key]])
   );
   chaiAssert.deepStrictEqual(_.omit(sortedKeysX, omitKeys), _.omit(sortedKeysY, omitKeys));
   return true;
@@ -524,19 +526,19 @@ export function convertMockedConfigClient(_client: unknown): _client is ConfigSt
 // Iterate over each element in the log and see if it is a big number. if it is, then try casting it to a string to
 // make it more readable. If something goes wrong in parsing the object (it's too large or something else) then simply
 // return the original log entry without modifying it.
-export function bigNumberFormatter(logEntry: LogEntry) {
+export function bigNumberFormatter(logEntry: winston.Logform.TransformableInfo): winston.Logform.TransformableInfo {
   type SymbolRecord = Record<string | symbol, unknown>;
   try {
     // Out is the original object if and only if one or more BigNumbers were replaced.
-    const out = iterativelyReplaceBigNumbers(logEntry);
+    const out = iterativelyReplaceBigNumbers(logEntry as Record<string | symbol, unknown>);
 
     // Because winston depends on some non-enumerable symbol properties, we explicitly copy those over, as they are not
     // handled in iterativelyReplaceBigNumbers. This only needs to happen if logEntry is being replaced.
     if (out !== logEntry)
       Object.getOwnPropertySymbols(logEntry).map(
-        (symbol) => (out[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
+        (symbol) => ((out as SymbolRecord)[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
       );
-    return out as LogEntry;
+    return out as winston.Logform.TransformableInfo;
   } catch (_) {
     return logEntry;
   }
@@ -544,12 +546,13 @@ export function bigNumberFormatter(logEntry: LogEntry) {
 
 // Traverse a potentially nested object and replace any element that is either a Ethers BigNumber or web3 BigNumber
 // with the string version of it for easy logging.
-const iterativelyReplaceBigNumbers = (obj: Record<string | symbol, unknown> | object) => {
+const iterativelyReplaceBigNumbers = (obj: Record<string, unknown>) => {
   // This does a DFS, recursively calling this function to find the desired value for each key.
   // It doesn't modify the original object. Instead, it creates an array of keys and updated values.
   const replacements = Object.entries(obj).map(([key, value]): [string, unknown] => {
     if (BigNumber.isBigNumber(value)) return [key, value.toString()];
-    else if (typeof value === "object" && value !== null) return [key, iterativelyReplaceBigNumbers(value)];
+    else if (typeof value === "object" && value !== null)
+      return [key, iterativelyReplaceBigNumbers(value as Record<string, unknown>)];
     else return [key, value];
   });
 

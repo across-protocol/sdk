@@ -1,8 +1,9 @@
+import "@nomiclabs/hardhat-ethers";
 import fs from "fs";
 import path from "path";
 import { ethers } from "hardhat";
-import { ContractFactory, Signer } from "ethers";
-import { FactoryOptions } from "hardhat/types";
+import { ContractFactory, Signer, ContractInterface } from "ethers";
+import type { FactoryOptions } from "@nomiclabs/hardhat-ethers/types";
 import { getAbi, getBytecode } from "@uma/contracts-node";
 
 function isFactoryOptions(signerOrFactoryOptions: Signer | FactoryOptions): signerOrFactoryOptions is FactoryOptions {
@@ -113,7 +114,7 @@ export async function getContractFactory(
   // 2. Try to get from @across-protocol/contracts package
   try {
     const artifact = getAcrossContractsArtifact(name);
-    return new ContractFactory(artifact.abi, artifact.bytecode, signer);
+    return new ContractFactory(artifact.abi as ContractInterface, artifact.bytecode, signer);
   } catch (_) {
     // Continue to other sources
   }
@@ -123,7 +124,8 @@ export async function getContractFactory(
     if (isFactoryOptions(signerOrFactoryOptions)) {
       throw new Error("Cannot pass FactoryOptions to a contract imported from UMA");
     }
-    return new ContractFactory(getAbi(name), getBytecode(name), signerOrFactoryOptions);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return new ContractFactory(getAbi(name as any), getBytecode(name as any), signerOrFactoryOptions);
   } catch (_) {
     // Continue
   }

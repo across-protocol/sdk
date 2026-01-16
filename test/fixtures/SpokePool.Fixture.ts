@@ -1,3 +1,6 @@
+import "@nomiclabs/hardhat-ethers";
+import "@openzeppelin/hardhat-upgrades";
+import "hardhat-deploy";
 import hre from "hardhat";
 import { Contract } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";
