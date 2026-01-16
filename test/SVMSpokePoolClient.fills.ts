@@ -110,7 +110,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     expect(fill).to.not.be.undefined;
     fill = fill!;
 
-    expect(fill.depositId).to.equal(relayData.depositId);
+    expect(fill.depositId).to.equal(BigNumber.from(relayData.depositId));
 
     // Looking for a fill can return undefined:
     const missingFill = await findFillEvent(
