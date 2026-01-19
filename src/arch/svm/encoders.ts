@@ -62,6 +62,10 @@ export function getHandlerMessageEncoder(): Encoder<Array<CompiledIx>> {
   return getArrayEncoder(getCompiledIxEncoder());
 }
 
+export function getHandlerMessageDecoder(): Decoder<Array<CompiledIx>> {
+  return getArrayDecoder(getCompiledIxDecoder());
+}
+
 export function getCompiledIxEncoder(): Encoder<CompiledIx> {
   return getStructEncoder([
     ["program_id_index", getU8Encoder()],
