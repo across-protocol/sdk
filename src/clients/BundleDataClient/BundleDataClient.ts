@@ -455,7 +455,7 @@ export class BundleDataClient {
     };
 
     const _depositIsExpired = (deposit: DepositWithBlock): boolean => {
-      return deposit.fillDeadline < bundleBlockTimestamps[deposit.destinationChainId][1];
+      return deposit.fillDeadline <= bundleBlockTimestamps[deposit.destinationChainId][1];
     };
 
     const _getFillStatusForDeposit = (deposit: Deposit, queryBlock: number): Promise<FillStatus> => {
