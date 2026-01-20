@@ -105,25 +105,15 @@ function _getEthersGasPriceEstimate(
   // There shouldn't be any chains in here that we have a Viem adapter for because we'll always use Viem in that case.
   assert(!VIEM_CHAINS.includes(chainId), `Chain ID ${chainId} will use Viem gas price estimation`);
   const gasPriceFeeds = {
-    [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BSC]: ethereum.eip1559,
-    [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.MEGAETH]: ethereum.eip1559,
-    [CHAIN_IDs.MONAD]: ethereum.eip1559,
-    [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
-    [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
-
-    // Testnet Chains
-    [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
+    // Testnet
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
-    [CHAIN_IDs.SEPOLIA]: ethereum.eip1559,
   } as const;
 
   let gasPriceFeed = gasPriceFeeds[chainId];
   assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
-  gasPriceFeed ??= chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
+  gasPriceFeed ??= ethereum.eip1559;
 
   return gasPriceFeed(provider, opts);
 }
