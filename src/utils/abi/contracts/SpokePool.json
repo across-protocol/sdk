@@ -1,0 +1,2953 @@
+[
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "EMPTY_MSG_BYTES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "EMPTY_RELAYER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "EMPTY_REPAYMENT_CHAIN_ID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "INFINITE_FILL_DEADLINE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_EXCLUSIVITY_PERIOD_SECONDS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_TRANSFER_SIZE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "OFT_DST_EID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "OFT_FEE_CAP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "UPDATE_BYTES32_DEPOSIT_DETAILS_HASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "__SpokePool_init",
+    "inputs": [
+      {
+        "name": "_initialDepositId",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "_crossDomainAdmin",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_withdrawalRecipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "chainId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "claimRelayerRefund",
+    "inputs": [
+      {
+        "name": "l2TokenAddress",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "refundAddress",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "crossDomainAdmin",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityParameter",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositDeprecated_5947912356",
+    "inputs": [
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "originToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "relayerFeePct",
+        "type": "int64",
+        "internalType": "int64"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositFor",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "originToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "relayerFeePct",
+        "type": "int64",
+        "internalType": "int64"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositNow",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "fillDeadlineOffset",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityParameter",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositQuoteTimeBuffer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "depositV3",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "inputToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "outputToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityParameter",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositV3Now",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "inputToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "outputToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "fillDeadlineOffset",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityParameter",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyDeleteRootBundle",
+    "inputs": [
+      {
+        "name": "rootBundleId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeExternalCall",
+    "inputs": [
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "returnData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeRelayerRefundLeaf",
+    "inputs": [
+      {
+        "name": "rootBundleId",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "relayerRefundLeaf",
+        "type": "tuple",
+        "internalType": "struct SpokePoolInterface.RelayerRefundLeaf",
+        "components": [
+          {
+            "name": "amountToReturn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "chainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "refundAmounts",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "leafId",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "l2TokenAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "refundAddresses",
+            "type": "address[]",
+            "internalType": "address[]"
+          }
+        ]
+      },
+      {
+        "name": "proof",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "executeSlowRelayLeaf",
+    "inputs": [
+      {
+        "name": "slowFillLeaf",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3SlowFill",
+        "components": [
+          {
+            "name": "relayData",
+            "type": "tuple",
+            "internalType": "struct V3SpokePoolInterface.V3RelayData",
+            "components": [
+              {
+                "name": "depositor",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "recipient",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "exclusiveRelayer",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "inputToken",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "outputToken",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "inputAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "outputAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "originChainId",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "depositId",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "fillDeadline",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "exclusivityDeadline",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "message",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "chainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "updatedOutputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "rootBundleId",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "proof",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fill",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "originData",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "fillerData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fillDeadlineBuffer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "fillRelay",
+    "inputs": [
+      {
+        "name": "relayData",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3RelayData",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "recipient",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "exclusiveRelayer",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "outputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "originChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "depositId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "exclusivityDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "message",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      },
+      {
+        "name": "repaymentChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "repaymentAddress",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fillRelayWithUpdatedDeposit",
+    "inputs": [
+      {
+        "name": "relayData",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3RelayData",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "recipient",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "exclusiveRelayer",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "outputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "originChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "depositId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "exclusivityDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "message",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      },
+      {
+        "name": "repaymentChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "repaymentAddress",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "updatedOutputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "updatedRecipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "updatedMessage",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fillStatuses",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "fillV3Relay",
+    "inputs": [
+      {
+        "name": "relayData",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3RelayDataLegacy",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "exclusiveRelayer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "inputToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "outputToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "inputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "originChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "depositId",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "fillDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "exclusivityDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "message",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      },
+      {
+        "name": "repaymentChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentTime",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRelayerRefund",
+    "inputs": [
+      {
+        "name": "l2TokenAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "refundAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUnsafeDepositId",
+    "inputs": [
+      {
+        "name": "msgSender",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositNonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "getV3RelayHash",
+    "inputs": [
+      {
+        "name": "relayData",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3RelayData",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "recipient",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "exclusiveRelayer",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "outputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "originChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "depositId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "exclusivityDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "message",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "multicall",
+    "inputs": [
+      {
+        "name": "data",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "results",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "numberOfDeposits",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "oftMessengers",
+    "inputs": [
+      {
+        "name": "l2TokenAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "l2OftMessenger",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseDeposits",
+    "inputs": [
+      {
+        "name": "pause",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pauseFills",
+    "inputs": [
+      {
+        "name": "pause",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pausedDeposits",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pausedFills",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proxiableUUID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "relayRootBundle",
+    "inputs": [
+      {
+        "name": "relayerRefundRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slowRelayRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "relayerRefund",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "requestSlowFill",
+    "inputs": [
+      {
+        "name": "relayData",
+        "type": "tuple",
+        "internalType": "struct V3SpokePoolInterface.V3RelayData",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "recipient",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "exclusiveRelayer",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "outputToken",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "inputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "originChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "depositId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "exclusivityDeadline",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "message",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rootBundles",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "slowRelayRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "relayerRefundRoot",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setCrossDomainAdmin",
+    "inputs": [
+      {
+        "name": "newCrossDomainAdmin",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setOftMessenger",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "messenger",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setWithdrawalRecipient",
+    "inputs": [
+      {
+        "name": "newWithdrawalRecipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "speedUpDeposit",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "updatedOutputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "updatedRecipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "updatedMessage",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "speedUpV3Deposit",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "updatedOutputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "updatedRecipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "updatedMessage",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "tryMulticall",
+    "inputs": [
+      {
+        "name": "data",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "results",
+        "type": "tuple[]",
+        "internalType": "struct MultiCallerUpgradeable.Result[]",
+        "components": [
+          {
+            "name": "success",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "returnData",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "unsafeDeposit",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositNonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityParameter",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeTo",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeToAndCall",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawalRecipient",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "wrappedNativeToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract WETH9Interface"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "AdminChanged",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AdminExternalCallExecuted",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "data",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BeaconUpgraded",
+    "inputs": [
+      {
+        "name": "beacon",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ClaimedRelayerRefund",
+    "inputs": [
+      {
+        "name": "l2TokenAddress",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "refundAddress",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EmergencyDeletedRootBundle",
+    "inputs": [
+      {
+        "name": "rootBundleId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EnabledDepositRoute",
+    "inputs": [
+      {
+        "name": "originToken",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExecutedRelayerRefundRoot",
+    "inputs": [
+      {
+        "name": "amountToReturn",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "refundAmounts",
+        "type": "uint256[]",
+        "indexed": false,
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "rootBundleId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "leafId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "l2TokenAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "refundAddresses",
+        "type": "address[]",
+        "indexed": false,
+        "internalType": "address[]"
+      },
+      {
+        "name": "deferredRefunds",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FilledRelay",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "repaymentChainId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "originChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "relayer",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "messageHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "relayExecutionInfo",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct V3SpokePoolInterface.V3RelayExecutionEventInfo",
+        "components": [
+          {
+            "name": "updatedRecipient",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "updatedMessageHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "updatedOutputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillType",
+            "type": "uint8",
+            "internalType": "enum V3SpokePoolInterface.FillType"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FilledV3Relay",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "outputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "repaymentChainId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "originChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "relayer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "relayExecutionInfo",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct V3SpokePoolInterface.LegacyV3RelayExecutionEventInfo",
+        "components": [
+          {
+            "name": "updatedRecipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "updatedMessage",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "updatedOutputAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fillType",
+            "type": "uint8",
+            "internalType": "enum V3SpokePoolInterface.FillType"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FundsDeposited",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Initialized",
+    "inputs": [
+      {
+        "name": "version",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PausedDeposits",
+    "inputs": [
+      {
+        "name": "isPaused",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PausedFills",
+    "inputs": [
+      {
+        "name": "isPaused",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RelayedRootBundle",
+    "inputs": [
+      {
+        "name": "rootBundleId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "relayerRefundRoot",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slowRelayRoot",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestedSlowFill",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "outputToken",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "originChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "recipient",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "messageHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestedSpeedUpDeposit",
+    "inputs": [
+      {
+        "name": "updatedOutputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositor",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "updatedRecipient",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "updatedMessage",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignature",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestedSpeedUpV3Deposit",
+    "inputs": [
+      {
+        "name": "updatedOutputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "updatedRecipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "updatedMessage",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "depositorSignature",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestedV3SlowFill",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "outputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "originChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetOFTMessenger",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "messenger",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetWithdrawalRecipient",
+    "inputs": [
+      {
+        "name": "newWithdrawalRecipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SetXDomainAdmin",
+    "inputs": [
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TokensBridged",
+    "inputs": [
+      {
+        "name": "amountToReturn",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "leafId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "l2TokenAddress",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Upgraded",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "V3FundsDeposited",
+    "inputs": [
+      {
+        "name": "inputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "outputToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "inputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "outputAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "destinationChainId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "depositId",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "quoteTimestamp",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "fillDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "exclusivityDeadline",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "exclusiveRelayer",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "message",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ClaimedMerkleLeaf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DepositsArePaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DisabledRoute",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ExpiredFillDeadline",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ExternalCallExecutionFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FillsArePaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientSpokePoolBalanceToExecuteLeaf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidBytes32",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidChainId",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidCrossDomainAdmin",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidDepositorSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidExclusiveRelayer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidFillDeadline",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidMerkleLeaf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidMerkleProof",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPayoutAdjustmentPct",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidQuoteTimestamp",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidRelayerFeePct",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSlowFillRequest",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidWithdrawalRecipient",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LowLevelCallFailed",
+    "inputs": [
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "MaxTransferSizeExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MessageTooShort",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MsgValueDoesNotMatchInputAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoRelayerRefundToClaim",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoSlowFillsInExclusivityWindow",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotEOA",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotExclusiveRelayer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OFTFeeUnderpaid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OFTTokenMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OftFeeCapExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OftIncorrectAmountReceivedLD",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OftIncorrectAmountSentLD",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OftInsufficientBalanceForFee",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OftLzFeeNotZero",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RelayFilled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WrongERC7683OrderId",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddressTarget",
+    "inputs": []
+  }
+]

@@ -21,16 +21,14 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.97.tgz#a9df3ca45475863b809622cdac4d2a411e0d3450"
   integrity sha512-W2Q6bxcKNJ2QHtgIfOuCWOv/AmUyhPlXoJSiYZ9C3Ldk+fWupHkvbQ+4Ngg+1CCGD4HJLhyF1eLyxL3zg9tkUA==
 
-"@across-protocol/contracts@4.1.20":
-  version "4.1.20"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.20.tgz#32569e134f9fa5dfe85058c52bf47af785b54b6a"
-  integrity sha512-j34ROZUdFuZNydDCF2NJWTuKUW4kQi5gpP52QAqvlCcby/v4FMTUuvNLBMeDGC3tbD3VXetmqciimgEqmhjScA==
+"@across-protocol/contracts@4.1.22-alpha.1":
+  version "4.1.22-alpha.1"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.22-alpha.1.tgz#1b0cff5ad01cce9d00ed64342d0ea9992b8cb933"
+  integrity sha512-thHORuDZw4Is6XgvF88OvjHcv6bjLeQyA6Lk8Z6dZlUd0YQIErQjmhLfi9U0wnHO+Y6qjKuxuzpVlsLUCTeHmA==
   dependencies:
     "@across-protocol/constants" "^3.1.95"
     "@coral-xyz/anchor" "^0.31.1"
     "@eth-optimism/contracts" "^0.5.40"
-    "@ethersproject/abstract-provider" "5.7.0"
-    "@ethersproject/abstract-signer" "5.7.0"
     "@ethersproject/bignumber" "5.7.0"
     "@openzeppelin/contracts" "5.5.0"
     "@openzeppelin/contracts-upgradeable" "5.5.0"
@@ -39,7 +37,6 @@
     "@openzeppelin/foundry-upgrades" "^0.4.0"
     "@safe-global/protocol-kit" "^6.1.1"
     "@scroll-tech/contracts" "^0.1.0"
-    "@solana-developers/helpers" "^2.4.0"
     "@solana-program/address-lookup-table" "^0.7.0"
     "@solana-program/token" "^0.5.1"
     "@solana/kit" "^2.3.0"
@@ -48,7 +45,6 @@
     "@types/yargs" "^17.0.33"
     "@uma/common" "^2.37.3"
     "@uma/contracts-node" "^0.4.17"
-    axios "^1.7.4"
     bs58 "^6.0.0"
     yargs "^17.7.2"
     zksync-web3 "^0.14.3"
@@ -1630,28 +1626,6 @@
   dependencies:
     "@nomicfoundation/ethereumjs-rlp" "5.0.4"
     ethereum-cryptography "0.1.3"
-
-"@nomicfoundation/hardhat-chai-matchers@^1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@nomicfoundation/hardhat-chai-matchers/-/hardhat-chai-matchers-1.0.6.tgz#72a2e312e1504ee5dd73fe302932736432ba96bc"
-  integrity sha512-f5ZMNmabZeZegEfuxn/0kW+mm7+yV7VNDxLpMOMGXWFJ2l/Ct3QShujzDRF9cOkK9Ui/hbDeOWGZqyQALDXVCQ==
-  dependencies:
-    "@ethersproject/abi" "^5.1.2"
-    "@types/chai-as-promised" "^7.1.3"
-    chai-as-promised "^7.1.1"
-    deep-eql "^4.0.1"
-    ordinal "^1.0.3"
-
-"@nomicfoundation/hardhat-chai-matchers@^1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@nomicfoundation/hardhat-chai-matchers/-/hardhat-chai-matchers-1.0.6.tgz#72a2e312e1504ee5dd73fe302932736432ba96bc"
-  integrity sha512-f5ZMNmabZeZegEfuxn/0kW+mm7+yV7VNDxLpMOMGXWFJ2l/Ct3QShujzDRF9cOkK9Ui/hbDeOWGZqyQALDXVCQ==
-  dependencies:
-    "@ethersproject/abi" "^5.1.2"
-    "@types/chai-as-promised" "^7.1.3"
-    chai-as-promised "^7.1.1"
-    deep-eql "^4.0.1"
-    ordinal "^1.0.3"
 
 "@nomicfoundation/hardhat-chai-matchers@^1.0.6":
   version "1.0.6"

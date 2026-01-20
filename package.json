@@ -37,7 +37,8 @@
     "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
-    "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\"",
+    "stage-artifacts": "node scripts/stage-typechain-artifacts.js",
+    "typechain": "yarn stage-artifacts && typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\"",
     "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --ignore src/utils/abi/ --exec 'yalc publish --push --changed'"
   },
   "lint-staged": {
@@ -109,7 +110,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.97",
-    "@across-protocol/contracts": "4.1.20",
+    "@across-protocol/contracts": "4.1.22-alpha.1",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
