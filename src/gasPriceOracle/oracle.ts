@@ -83,9 +83,7 @@ export async function getGasPriceEstimate(
 
   // We only use the unsignedTx in the viem flow.
   const useViem = VIEM_CHAINS.includes(chainId);
-  return useViem
-    ? getGasPriceViem(chainId, optsWithDefaults)
-    : getGasPriceEthers(provider, optsWithDefaults);
+  return useViem ? getGasPriceViem(chainId, optsWithDefaults) : getGasPriceEthers(provider, optsWithDefaults);
 }
 
 /**
@@ -95,10 +93,7 @@ export async function getGasPriceEstimate(
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
  * @returns An object of type GasPriceEstimate.
  */
-function getGasPriceEthers(
-  provider: providers.Provider,
-  opts: GasPriceEstimateOptions
-): Promise<GasPriceEstimate> {
+function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const { chainId, legacyFallback } = opts;
 
   // There shouldn't be any chains in here that we have a Viem adapter for because we'll always use Viem in that case.
