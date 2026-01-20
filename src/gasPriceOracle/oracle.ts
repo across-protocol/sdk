@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
+import { BigNumber, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
