@@ -119,16 +119,10 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
  * @param unsignedTx Only used in Linea provider to estimate priority gas fee.
  * @returns An object of type GasPriceEstimate.
  */
-async function getGasPriceViem(
-  providerOrChainId: providers.Provider | number,
-  opts: GasPriceEstimateOptions
-): Promise<GasPriceEstimate> {
+async function getGasPriceViem(chainId: number, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const { baseFeeMultiplier, transport } = opts;
 
-  const chainId =
-    typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
   const viemProvider = getPublicClient(chainId, transport);
-
   const gasPriceFeeds = {
     [CHAIN_IDs.LINEA]: lineaViem.eip1559,
   };
