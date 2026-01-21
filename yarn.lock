@@ -3871,11 +3871,6 @@
   resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.4.25.tgz#d5c82f1f2c7e0dc2dec26fe876db73ba3f0689d7"
   integrity sha512-WaFojX4qyMmXpy5MBS7g0M0KnWESGusdSfTmlkZpCh65TksGaJwAyOM1YBRLL3xm3xSgxPoG+n6tTilSomUmOw==
 
-"@uma/contracts-node@^0.4.26":
-  version "0.4.26"
-  resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.4.26.tgz#2c967e10c41292eeaafeb6b458525138e06ea0d8"
-  integrity sha512-o+wzScJB9xVavQwQWkAA8ZXBT9tCqyrhJOBdcyxaKmTTZmPPjAW52V5IVKwcmEOykFOliDjvRtFZIfWjwzUwcA==
-
 "@uma/core@^2.18.0":
   version "2.56.0"
   resolved "https://registry.yarnpkg.com/@uma/core/-/core-2.56.0.tgz#c19aa427f08691a85e99ec523d23abf359a6b0c3"
