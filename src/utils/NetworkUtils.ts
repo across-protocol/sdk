@@ -155,7 +155,14 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
 export function chainIsOFTEnabled(chainId: number): boolean {
   // Add chainIds to oftEnabled as they are supported by the protocol.
   // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
-  const oftEnabled = [CHAIN_IDs.ARBITRUM, CHAIN_IDs.POLYGON, CHAIN_IDs.HYPEREVM, CHAIN_IDs.MONAD, CHAIN_IDs.PLASMA];
+  const oftEnabled = [
+    CHAIN_IDs.ARBITRUM,
+    CHAIN_IDs.POLYGON,
+    CHAIN_IDs.HYPEREVM,
+    CHAIN_IDs.MONAD,
+    CHAIN_IDs.PLASMA,
+    CHAIN_IDs.MEGAETH,
+  ];
   return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
 

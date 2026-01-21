@@ -27,7 +27,7 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
   constructor(
     logger: winston.Logger,
     chainId: number,
-    programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+    programId: Address = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     deploymentBlock: number = 1,
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     opts: { hubPoolClient: HubPoolClient | null } = { hubPoolClient: null }
