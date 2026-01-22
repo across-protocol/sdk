@@ -1,6 +1,5 @@
 import assert from "assert";
 import {
-  getComputeUnitEstimateForTransactionMessageFactory,
   TransactionSigner,
   fetchEncodedAccount,
   isSome,
@@ -9,8 +8,9 @@ import {
   appendTransactionMessageInstruction,
   compileTransaction,
   getBase64EncodedWireTransaction,
-  type CompilableTransactionMessage,
+  type TransactionMessage,
   type TransactionMessageWithBlockhashLifetime,
+  type TransactionMessageWithFeePayer,
 } from "@solana/kit";
 import {
   SVMProvider,
@@ -33,7 +33,7 @@ import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
-import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
+import { getSetComputeUnitLimitInstruction, estimateComputeUnitLimitFactory } from "@solana-program/compute-budget";
 import { arch } from "../..";
 
 /**
@@ -64,7 +64,7 @@ export class SvmQuery implements QueryInterface {
     readonly fixedGasPrice?: BigNumberish,
     readonly coingeckoBaseCurrency: string = "eth"
   ) {
-    this.computeUnitEstimator = getComputeUnitEstimateForTransactionMessageFactory({
+    this.computeUnitEstimator = estimateComputeUnitLimitFactory({
       rpc: provider,
     });
   }
@@ -224,7 +224,7 @@ export class SvmQuery implements QueryInterface {
     signer: TransactionSigner,
     repaymentChainId: number,
     repaymentAddress: Address
-  ): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+  ): Promise<TransactionMessage & TransactionMessageWithBlockhashLifetime & TransactionMessageWithFeePayer> {
     return await getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 

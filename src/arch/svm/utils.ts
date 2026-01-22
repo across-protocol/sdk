@@ -2,7 +2,7 @@ import { MessageTransmitterClient, SpokePool__factory, SvmSpokeClient } from "@a
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
-  IInstruction,
+  Instruction,
   KeyPairSigner,
   address,
   appendTransactionMessageInstruction,
@@ -18,6 +18,9 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Commitment,
+  type TransactionMessage,
+  type TransactionMessageWithBlockhashLifetime,
+  type TransactionMessageWithFeePayer,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
@@ -411,7 +414,7 @@ export const createDefaultTransaction = async (
   rpcClient: SVMProvider,
   signer: TransactionSigner,
   latestBlockhash?: LatestBlockhash
-) => {
+): Promise<TransactionMessage & TransactionMessageWithBlockhashLifetime & TransactionMessageWithFeePayer> => {
   latestBlockhash = isDefined(latestBlockhash) ? latestBlockhash : (await rpcClient.getLatestBlockhash().send()).value;
   return pipe(
     createTransactionMessage({ version: 0 }),
@@ -430,7 +433,7 @@ export const createDefaultTransaction = async (
  */
 export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
   solanaClient: SVMProvider,
-  ix: IInstruction,
+  ix: Instruction,
   signer: KeyPairSigner,
   parser: P,
   latestBlockhash?: LatestBlockhash
