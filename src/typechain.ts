@@ -19,10 +19,7 @@ export type {
   AcrossMerkleDistributor,
   AcrossMerkleDistributorInterface,
 } from "./utils/abi/typechain/AcrossMerkleDistributor";
-export type {
-  AcrossConfigStore,
-  AcrossConfigStoreInterface,
-} from "./utils/abi/typechain/AcrossConfigStore";
+export type { AcrossConfigStore, AcrossConfigStoreInterface } from "./utils/abi/typechain/AcrossConfigStore";
 export type { HubPool, HubPoolInterface } from "./utils/abi/typechain/HubPool";
 export type {
   SpokePool,
