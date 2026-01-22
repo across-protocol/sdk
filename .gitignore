@@ -14,8 +14,8 @@ dist
 
 # Generated typechain artifacts (generated during build)
 src/utils/abi/contracts/*.json
-!src/utils/abi/contracts/Multicall3.json
 src/utils/abi/typechain
+
 .ledger
 /target
 *.tar.gz
