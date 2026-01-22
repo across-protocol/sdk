@@ -26,7 +26,14 @@ import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
-import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
+import {
+  AttestedCCTPMessage,
+  EventName,
+  SVMEventNames,
+  SVMProvider,
+  LatestBlockhash,
+  SolanaTransaction,
+} from "./types";
 import winston from "winston";
 /**
  * Basic void TransactionSigner type

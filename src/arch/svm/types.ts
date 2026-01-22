@@ -19,7 +19,9 @@ import {
  * A Solana transaction message ready to be signed and sent.
  * Includes fee payer and blockhash lifetime information.
  */
-export type SolanaTransaction = TransactionMessage & TransactionMessageWithBlockhashLifetime & TransactionMessageWithFeePayer;
+export type SolanaTransaction = TransactionMessage &
+  TransactionMessageWithBlockhashLifetime &
+  TransactionMessageWithFeePayer;
 
 export type EventData =
   | SvmSpokeClient.BridgedToHubPool
