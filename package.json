@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.116-alpha.1",
+  "version": "4.3.116-alpha.2",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -60,7 +60,6 @@
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.1.7",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@openzeppelin/hardhat-upgrades": "^1.28.0",
     "@size-limit/preset-small-lib": "^7.0.8",
     "@solana/web3.js": "^1.31.0",

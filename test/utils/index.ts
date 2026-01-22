@@ -1,7 +1,6 @@
 import "@nomiclabs/hardhat-ethers";
-import "@nomiclabs/hardhat-waffle";
 export * as contractsV2Utils from "@across-protocol/contracts/dist/test-utils";
-export { ethers, waffle } from "hardhat";
+export { ethers } from "hardhat";
 export { smock } from "@defi-wonderland/smock";
 
 export * from "./utils";
