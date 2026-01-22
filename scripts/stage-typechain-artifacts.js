@@ -4,8 +4,6 @@ const path = require("path");
 const CONTRACTS_OUT_DIR = "node_modules/@across-protocol/contracts/out";
 const STAGE_DIR = "src/utils/abi/contracts";
 
-// Contracts that already exist locally (don't overwrite)
-const LOCAL_CONTRACTS = ["Multicall3"];
 
 // Patterns to exclude (mocks, tests, scripts)
 const EXCLUDE_PATTERNS = [
@@ -40,12 +38,6 @@ function main() {
   let skippedCount = 0;
 
   for (const contractName of contractDirs) {
-    // Skip local contracts
-    if (LOCAL_CONTRACTS.includes(contractName)) {
-      skippedCount++;
-      continue;
-    }
-
     // Skip mocks, tests, and scripts
     if (shouldExclude(contractName)) {
       skippedCount++;
