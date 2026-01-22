@@ -18,9 +18,6 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Commitment,
-  type TransactionMessage,
-  type TransactionMessageWithBlockhashLifetime,
-  type TransactionMessageWithFeePayer,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
@@ -29,7 +26,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
-import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
+import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
 import winston from "winston";
 /**
  * Basic void TransactionSigner type
@@ -414,7 +411,7 @@ export const createDefaultTransaction = async (
   rpcClient: SVMProvider,
   signer: TransactionSigner,
   latestBlockhash?: LatestBlockhash
-): Promise<TransactionMessage & TransactionMessageWithBlockhashLifetime & TransactionMessageWithFeePayer> => {
+): Promise<SolanaTransaction> => {
   latestBlockhash = isDefined(latestBlockhash) ? latestBlockhash : (await rpcClient.getLatestBlockhash().send()).value;
   return pipe(
     createTransactionMessage({ version: 0 }),

@@ -8,9 +8,7 @@ import {
   appendTransactionMessageInstruction,
   compileTransaction,
   getBase64EncodedWireTransaction,
-  type TransactionMessage,
-  type TransactionMessageWithBlockhashLifetime,
-  type TransactionMessageWithFeePayer,
+  type Instruction,
 } from "@solana/kit";
 import {
   SVMProvider,
@@ -22,6 +20,7 @@ import {
   createDefaultTransaction,
   getAssociatedTokenAddress,
   isSVMFillTooLarge,
+  SolanaTransaction,
 } from "../../arch/svm";
 import { JitoInterface } from "../../providers/solana";
 import { Coingecko } from "../../coingecko";
@@ -224,7 +223,7 @@ export class SvmQuery implements QueryInterface {
     signer: TransactionSigner,
     repaymentChainId: number,
     repaymentAddress: Address
-  ): Promise<TransactionMessage & TransactionMessageWithBlockhashLifetime & TransactionMessageWithFeePayer> {
+  ): Promise<SolanaTransaction> {
     return await getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 
@@ -290,7 +289,7 @@ export class SvmQuery implements QueryInterface {
     const computeUnitLimitIx = getSetComputeUnitLimitInstruction({ units: 10_000_000 });
     const fillRelayTx = pipe(_fillRelayTx, (tx) => appendTransactionMessageInstruction(computeUnitLimitIx, tx));
 
-    const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix) => {
+    const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix: Instruction) => {
       return pipe(await createDefaultTransaction(provider, voidSigner), (tx) =>
         appendTransactionMessageInstruction(ix, tx)
       );
