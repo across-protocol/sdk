@@ -135,7 +135,7 @@ export abstract class Address {
   }
 
   static isAddress(obj: unknown): obj is Address {
-    return "__address_type_brand" in (obj as { __address_type_brand: boolean });
+    return typeof obj === "object" && obj !== null && "__address_type_brand" in obj;
   }
 
   public toJSON() {
@@ -212,8 +212,8 @@ export abstract class Address {
   }
 
   // Checks if the other address is equivalent to this address.
-  eq(other: Address): boolean {
-    return this.toString() === other.toString();
+  eq(other?: Address): boolean {
+    return this.toString() === other?.toString();
   }
 
   // Compares Addresses by first converting them to BigNumbers.
