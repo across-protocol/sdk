@@ -18,8 +18,9 @@ import {
 /**
  * A Solana transaction message ready to be signed and sent.
  * Includes fee payer and blockhash lifetime information.
+ * Always uses version 0 (not legacy format).
  */
-export type SolanaTransaction = TransactionMessage &
+export type SolanaTransaction = Extract<TransactionMessage, { version: 0 }> &
   TransactionMessageWithBlockhashLifetime &
   TransactionMessageWithFeePayer;
 
