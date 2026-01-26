@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.115-alpha.2",
+  "version": "4.3.117",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -120,7 +120,6 @@
     "@solana-program/token-2022": "^0.4.0",
     "@solana-program/compute-budget": "^0.8.0",
     "@solana/kit": "^2.3.0",
-    "@uma/contracts-node": "^0.4.26",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
     "axios": "^0.27.2",
