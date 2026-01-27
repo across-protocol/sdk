@@ -113,6 +113,27 @@ export function unpackFillEvent(rawEvent: SortableEvent, destinationChainId: num
   } satisfies FillWithBlock;
 }
 
+const RELAYDATA_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { type: "bytes32", name: "depositor" },
+      { type: "bytes32", name: "recipient" },
+      { type: "bytes32", name: "exclusiveRelayer" },
+      { type: "bytes32", name: "inputToken" },
+      { type: "bytes32", name: "outputToken" },
+      { type: "uint256", name: "inputAmount" },
+      { type: "uint256", name: "outputAmount" },
+      { type: "uint256", name: "originChainId" },
+      { type: "uint256", name: "depositId" },
+      { type: "uint32", name: "fillDeadline" },
+      { type: "uint32", name: "exclusivityDeadline" },
+      { type: "bytes", name: "message" },
+    ],
+  },
+  { type: "uint256", name: "destinationChainId" },
+];
+
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.
@@ -120,26 +141,11 @@ export function unpackFillEvent(rawEvent: SortableEvent, destinationChainId: num
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const abi = [
-    {
-      type: "tuple",
-      components: [
-        { type: "bytes32", name: "depositor" },
-        { type: "bytes32", name: "recipient" },
-        { type: "bytes32", name: "exclusiveRelayer" },
-        { type: "bytes32", name: "inputToken" },
-        { type: "bytes32", name: "outputToken" },
-        { type: "uint256", name: "inputAmount" },
-        { type: "uint256", name: "outputAmount" },
-        { type: "uint256", name: "originChainId" },
-        { type: "uint256", name: "depositId" },
-        { type: "uint32", name: "fillDeadline" },
-        { type: "uint32", name: "exclusivityDeadline" },
-        { type: "bytes", name: "message" },
-      ],
-    },
-    { type: "uint256", name: "destinationChainId" },
-  ];
+
+  if (chainIsSvm(destinationChainId)) {
+    const messageHash = getMessageHash(relayData.message);
+    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
+  }
 
   const _relayData = {
     ...relayData,
@@ -149,11 +155,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     outputToken: relayData.outputToken.toBytes32(),
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
-  if (chainIsSvm(destinationChainId)) {
-    const messageHash = getMessageHash(relayData.message);
-    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
-  }
-  return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
+  return keccak256(encodeAbiParameters(RELAYDATA_ABI, [_relayData, destinationChainId]));
 }
 
 export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
