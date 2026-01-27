@@ -18,6 +18,7 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
     switch (typeof args[key]) {
       case "boolean": // fallthrough
       case "number":
+      case "bigint":
       case "string":
         returnedObject[key] = args[key];
         break;
