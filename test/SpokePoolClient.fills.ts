@@ -7,11 +7,12 @@ import {
   getMessageHash,
   getNetworkName,
   deploy as deployMulticall,
+  randomAddress,
   toAddressType,
   EvmAddress,
   SvmAddress,
 } from "../src/utils";
-import { CHAIN_IDs, EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { CHAIN_IDs, EMPTY_MESSAGE } from "../src/constants";
 import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -79,7 +80,7 @@ describe("SpokePoolClient: Fills", function () {
       messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
-      exclusiveRelayer: toAddressType(ZERO_ADDRESS, destinationChainId),
+      exclusiveRelayer: toAddressType(randomAddress(), destinationChainId),
       fromLiteChain: false,
       toLiteChain: false,
     };
@@ -123,7 +124,7 @@ describe("SpokePoolClient: Fills", function () {
       if (blockNumber === targetDepositBlock - 1) {
         const inputToken = toAddressType(erc20.address, originChainId);
         const inputAmount = bnOne;
-        const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
+        const outputToken = toAddressType(randomAddress(), destinationChainId);
         const outputAmount = bnOne;
         const { depositId: _depositId, blockNumber: depositBlockNumber } = await deposit(
           spokePool,
@@ -210,7 +211,7 @@ describe("SpokePoolClient: Fills", function () {
 
     const inputToken = toAddressType(erc20.address, originChainId);
     const inputAmount = bnOne;
-    const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
+    const outputToken = toAddressType(randomAddress(), destinationChainId);
     const outputAmount = bnOne;
 
     const { depositId, blockNumber } = await deposit(
