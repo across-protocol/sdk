@@ -6,7 +6,7 @@ import chaiExclude from "chai-exclude";
 import { Contract, providers } from "ethers";
 import _ from "lodash";
 import sinon from "sinon";
-import winston, { LogEntry } from "winston";
+import winston from "winston";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
 import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { Deposit, DepositWithBlock, FillWithBlock, RelayData, SlowFillRequestWithBlock } from "../../src/interfaces";
@@ -41,18 +41,28 @@ const chaiAssert = chai.assert;
 
 export type SignerWithAddress = utils.SignerWithAddress;
 
-export const {
+// Import fixtures that don't use getContractFactory from @across-protocol/contracts
+export const { getDepositParams, getUpdatedV3DepositSignature, modifyRelayHelper, randomAddress, zeroAddress } = utils;
+
+// Import local Merkle utilities that use our local getContractFactory
+export {
   buildPoolRebalanceLeafTree,
   buildPoolRebalanceLeaves,
-  deploySpokePool,
-  getContractFactory,
-  getDepositParams,
-  getUpdatedV3DepositSignature,
-  hubPoolFixture,
-  modifyRelayHelper,
-  randomAddress,
-  zeroAddress,
-} = utils;
+  buildRelayerRefundTree,
+  buildRelayerRefundLeaves,
+  buildSlowRelayTree,
+  buildV3SlowRelayTree,
+  getParamType,
+} from "./MerkleLib.utils";
+
+// Import and export the local getContractFactory
+import { getContractFactory } from "./getContractFactory";
+export { getContractFactory };
+
+// Import local fixtures that use our local getContractFactory
+import { hubPoolFixture, deployHubPool } from "../fixtures/HubPool.Fixture";
+import { spokePoolFixture, deploySpokePool } from "../fixtures/SpokePool.Fixture";
+export { hubPoolFixture, deployHubPool, spokePoolFixture, deploySpokePool };
 
 export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
@@ -66,15 +76,17 @@ export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string
   if (x === undefined || y === undefined || x === null || y === null) {
     return false;
   }
+  const xObj = x as Record<string, unknown>;
+  const yObj = y as Record<string, unknown>;
   const sortedKeysX = Object.fromEntries(
-    Object.keys(x)
+    Object.keys(xObj)
       .sort()
-      .map((key) => [key, x?.[key]])
+      .map((key) => [key, xObj[key]])
   );
   const sortedKeysY = Object.fromEntries(
-    Object.keys(y)
+    Object.keys(yObj)
       .sort()
-      .map((key) => [key, y?.[key]])
+      .map((key) => [key, yObj[key]])
   );
   chaiAssert.deepStrictEqual(_.omit(sortedKeysX, omitKeys), _.omit(sortedKeysY, omitKeys));
   return true;
@@ -139,7 +151,7 @@ export function createSpyLogger(): SpyLoggerResult {
 }
 
 export async function deploySpokePoolWithToken(fromChainId = 0): Promise<SpokePoolDeploymentResult> {
-  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await utils.deploySpokePool(utils.ethers);
+  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await deploySpokePool(utils.ethers);
   const receipt = await spokePool.deployTransaction.wait();
 
   await spokePool.setChainId(fromChainId == 0 ? utils.originChainId : fromChainId);
@@ -155,9 +167,7 @@ export async function deployConfigStore(
   rateModel: unknown = sampleRateModel,
   additionalChainIdIndices?: number[]
 ): Promise<{ configStore: AcrossConfigStore; deploymentBlock: number }> {
-  const configStore = (await (
-    await utils.getContractFactory("AcrossConfigStore", signer)
-  ).deploy()) as AcrossConfigStore;
+  const configStore = (await (await getContractFactory("AcrossConfigStore", signer)).deploy()) as AcrossConfigStore;
   const { blockNumber: deploymentBlock } = await configStore.deployTransaction.wait();
 
   for (const token of tokensToAdd) {
@@ -198,21 +208,21 @@ export async function deployAndConfigureHubPool(
   l1Token_2: utils.Contract;
   hubPoolDeploymentBlock: number;
 }> {
-  const lpTokenFactory = await (await utils.getContractFactory("LpTokenFactory", signer)).deploy();
+  const lpTokenFactory = await (await getContractFactory("LpTokenFactory", signer)).deploy();
   const hubPool = await (
-    await utils.getContractFactory("HubPool", signer)
+    await getContractFactory("HubPool", signer)
   ).deploy(lpTokenFactory.address, finderAddress, zeroAddress, timerAddress);
   const receipt = await hubPool.deployTransaction.wait();
 
-  const mockAdapter = await (await utils.getContractFactory("Mock_Adapter", signer)).deploy();
+  const mockAdapter = await (await getContractFactory("Mock_Adapter", signer)).deploy();
 
   for (const spokePool of spokePools) {
     await hubPool.setCrossChainContracts(spokePool.l2ChainId, mockAdapter.address, spokePool.spokePool.address);
   }
 
-  const l1Token_1 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
+  const l1Token_1 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
   await l1Token_1.addMember(TokenRolesEnum.MINTER, signer.address);
-  const l1Token_2 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
+  const l1Token_2 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
   await l1Token_2.addMember(TokenRolesEnum.MINTER, signer.address);
 
   return { hubPool, mockAdapter, l1Token_1, l1Token_2, hubPoolDeploymentBlock: receipt.blockNumber };
@@ -516,19 +526,19 @@ export function convertMockedConfigClient(_client: unknown): _client is ConfigSt
 // Iterate over each element in the log and see if it is a big number. if it is, then try casting it to a string to
 // make it more readable. If something goes wrong in parsing the object (it's too large or something else) then simply
 // return the original log entry without modifying it.
-export function bigNumberFormatter(logEntry: LogEntry) {
+export function bigNumberFormatter(logEntry: winston.Logform.TransformableInfo): winston.Logform.TransformableInfo {
   type SymbolRecord = Record<string | symbol, unknown>;
   try {
     // Out is the original object if and only if one or more BigNumbers were replaced.
-    const out = iterativelyReplaceBigNumbers(logEntry);
+    const out = iterativelyReplaceBigNumbers(logEntry as Record<string | symbol, unknown>);
 
     // Because winston depends on some non-enumerable symbol properties, we explicitly copy those over, as they are not
     // handled in iterativelyReplaceBigNumbers. This only needs to happen if logEntry is being replaced.
     if (out !== logEntry)
       Object.getOwnPropertySymbols(logEntry).map(
-        (symbol) => (out[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
+        (symbol) => ((out as SymbolRecord)[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
       );
-    return out as LogEntry;
+    return out as winston.Logform.TransformableInfo;
   } catch (_) {
     return logEntry;
   }
@@ -536,12 +546,13 @@ export function bigNumberFormatter(logEntry: LogEntry) {
 
 // Traverse a potentially nested object and replace any element that is either a Ethers BigNumber or web3 BigNumber
 // with the string version of it for easy logging.
-const iterativelyReplaceBigNumbers = (obj: Record<string | symbol, unknown> | object) => {
+const iterativelyReplaceBigNumbers = (obj: Record<string, unknown>) => {
   // This does a DFS, recursively calling this function to find the desired value for each key.
   // It doesn't modify the original object. Instead, it creates an array of keys and updated values.
   const replacements = Object.entries(obj).map(([key, value]): [string, unknown] => {
     if (BigNumber.isBigNumber(value)) return [key, value.toString()];
-    else if (typeof value === "object" && value !== null) return [key, iterativelyReplaceBigNumbers(value)];
+    else if (typeof value === "object" && value !== null)
+      return [key, iterativelyReplaceBigNumbers(value as Record<string, unknown>)];
     else return [key, value];
   });
 
