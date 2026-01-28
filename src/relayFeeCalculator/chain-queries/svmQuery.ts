@@ -1,6 +1,5 @@
 import assert from "assert";
 import {
-  getComputeUnitEstimateForTransactionMessageFactory,
   TransactionSigner,
   fetchEncodedAccount,
   isSome,
@@ -9,8 +8,7 @@ import {
   appendTransactionMessageInstruction,
   compileTransaction,
   getBase64EncodedWireTransaction,
-  type CompilableTransactionMessage,
-  type TransactionMessageWithBlockhashLifetime,
+  type Instruction,
 } from "@solana/kit";
 import {
   SVMProvider,
@@ -22,6 +20,7 @@ import {
   createDefaultTransaction,
   getAssociatedTokenAddress,
   isSVMFillTooLarge,
+  SolanaTransaction,
 } from "../../arch/svm";
 import { JitoInterface } from "../../providers/solana";
 import { Coingecko } from "../../coingecko";
@@ -33,7 +32,7 @@ import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
-import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
+import { getSetComputeUnitLimitInstruction, estimateComputeUnitLimitFactory } from "@solana-program/compute-budget";
 import { arch } from "../..";
 
 /**
@@ -64,7 +63,7 @@ export class SvmQuery implements QueryInterface {
     readonly fixedGasPrice?: BigNumberish,
     readonly coingeckoBaseCurrency: string = "eth"
   ) {
-    this.computeUnitEstimator = getComputeUnitEstimateForTransactionMessageFactory({
+    this.computeUnitEstimator = estimateComputeUnitLimitFactory({
       rpc: provider,
     });
   }
@@ -224,7 +223,7 @@ export class SvmQuery implements QueryInterface {
     signer: TransactionSigner,
     repaymentChainId: number,
     repaymentAddress: Address
-  ): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+  ): Promise<SolanaTransaction> {
     return await getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 
@@ -290,7 +289,7 @@ export class SvmQuery implements QueryInterface {
     const computeUnitLimitIx = getSetComputeUnitLimitInstruction({ units: 10_000_000 });
     const fillRelayTx = pipe(_fillRelayTx, (tx) => appendTransactionMessageInstruction(computeUnitLimitIx, tx));
 
-    const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix) => {
+    const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix: Instruction) => {
       return pipe(await createDefaultTransaction(provider, voidSigner), (tx) =>
         appendTransactionMessageInstruction(ix, tx)
       );
