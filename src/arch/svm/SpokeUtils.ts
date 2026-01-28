@@ -13,11 +13,11 @@ import {
 } from "@solana-program/token";
 import {
   Account,
+  AccountMeta,
   AccountRole,
   Address,
   FetchAccountConfig,
-  IAccountMeta,
-  IInstruction,
+  Instruction,
   KeyPairSigner,
   ReadonlyUint8Array,
   appendTransactionMessageInstruction,
@@ -37,8 +37,6 @@ import {
   type WritableAccount,
   type ReadonlyAccount,
   type Commitment,
-  type CompilableTransactionMessage,
-  type TransactionMessageWithBlockhashLifetime,
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
@@ -89,7 +87,7 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -504,7 +502,7 @@ export async function fillRelayInstruction(
   recipientTokenAccount: Address<string>,
   repaymentAddress: EvmAddress | SvmAddress,
   repaymentChainId: number
-): Promise<IInstruction> {
+): Promise<Instruction> {
   const program = toAddress(spokePool);
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
@@ -579,7 +577,7 @@ export async function getFillRelayTx(
   signer: TransactionSigner,
   repaymentChainId: number,
   repaymentAddress: SdkAddress
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+): Promise<SolanaTransaction> {
   const svmRelayData = toSvmRelayData(relayData);
 
   assert(
@@ -674,7 +672,7 @@ export async function getIPFillRelayTx(
   signer: TransactionSigner,
   repaymentChainId: number,
   repaymentAddress: SdkAddress
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+): Promise<SolanaTransaction> {
   const program = toAddress(spokePoolAddr);
   const _relayDataHash = getRelayDataHash(
     { ...relayData, messageHash: getMessageHash(relayData.message) },
@@ -765,7 +763,7 @@ export const createFillInstruction = async (
   tokenDecimals: number,
   createRecipientAta: boolean = false,
   remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
+): Promise<SolanaTransaction> => {
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
@@ -833,7 +831,7 @@ export const createDepositInstruction = async (
   depositInput: SvmSpokeClient.DepositInput,
   tokenDecimals: number,
   createVaultAtaIfNeeded: boolean = true
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
+): Promise<SolanaTransaction> => {
   const getCreateAssociatedTokenIdempotentIx = () =>
     getCreateAssociatedTokenIdempotentInstruction({
       payer: signer,
@@ -878,7 +876,7 @@ export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
+): Promise<SolanaTransaction> => {
   const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
@@ -903,7 +901,7 @@ export async function getSlowFillRequestTx(
     outputToken: SvmAddress;
   },
   signer: TransactionSigner
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+): Promise<SolanaTransaction> {
   const program = toAddress(spokePoolAddr);
   const messageHash = getMessageHash(relayData.message);
   const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, relayData.destinationChainId);
@@ -940,7 +938,7 @@ export const createCloseFillPdaInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   fillStatusPda: Address
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
+): Promise<SolanaTransaction> => {
   const closeFillPdaIx = SvmSpokeClient.getCloseFillPdaInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
@@ -955,10 +953,10 @@ export const createReceiveMessageInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   input: MessageTransmitterClient.ReceiveMessageInput,
-  remainingAccounts: IAccountMeta<string>[]
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> => {
+  remainingAccounts: AccountMeta<string>[]
+): Promise<SolanaTransaction> => {
   const receiveMessageIx = MessageTransmitterClient.getReceiveMessageInstruction(input);
-  (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
+  (receiveMessageIx.accounts as AccountMeta<string>[]).push(...remainingAccounts);
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(receiveMessageIx, tx)
   );
@@ -1094,7 +1092,7 @@ export async function getIPForFillRelayTxs(
   repaymentAddress: SdkAddress,
   signer: TransactionSigner<string>,
   provider: SVMProvider
-) {
+): Promise<Array<SolanaTransaction>> {
   const ixs = await getFillRelayViaInstructionParamsInstructions(
     toAddress(spokePool),
     relayData,
@@ -1126,7 +1124,7 @@ export async function getFillRelayViaInstructionParamsInstructions(
   signer: TransactionSigner<string>,
   provider: SVMProvider,
   maxWriteSize = 450
-): Promise<IInstruction[]> {
+): Promise<Instruction[]> {
   const instructionParams = await getInstructionParamsPda(spokePool, signer.address);
   const encodedInstructionParams = await fetchEncodedAccount(provider, instructionParams);
 
@@ -1143,7 +1141,7 @@ export async function getFillRelayViaInstructionParamsInstructions(
     instructionParams,
     totalSize: encodedRelayData.length,
   });
-  const instructions: IInstruction[] = [initInstructionParamsIx];
+  const instructions: Instruction[] = [initInstructionParamsIx];
 
   for (let i = 0; i <= encodedRelayData.length / maxWriteSize; ++i) {
     const offset = i * maxWriteSize;
@@ -1328,7 +1326,7 @@ export async function getAccountMetasForTokenlessMessage(
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   messageBytes: string
-): Promise<IAccountMeta<string>[]> {
+): Promise<AccountMeta<string>[]> {
   const messageHex = messageBytes.slice(2);
   const messageHeader = decodeMessageHeader(Buffer.from(messageHex, "hex"));
   const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
@@ -1336,7 +1334,7 @@ export async function getAccountMetasForTokenlessMessage(
   const selfAuthority = await getSelfAuthority();
   const eventAuthority = await getEventAuthority(programAddress);
 
-  const base: IAccountMeta<string>[] = [
+  const base: AccountMeta<string>[] = [
     { address: statePda, role: AccountRole.READONLY },
     { address: selfAuthority, role: AccountRole.READONLY },
     { address: programAddress, role: AccountRole.READONLY },
@@ -1455,7 +1453,7 @@ export async function getCCTPDepositAccounts(
  * @returns Object containing a boolean if the input deposit requires a multipart fill, false otherwise and
  * the number of bytes in the serialized transaction.
  */
-export function isSVMFillTooLarge(fillRelayTx: CompilableTransactionMessage): {
+export function isSVMFillTooLarge(fillRelayTx: SolanaTransaction): {
   tooLarge: boolean;
   sizeBytes: number;
 } {
@@ -1483,7 +1481,7 @@ export function base64StrToByteSize(base64TxString: string): number {
  * @param fillTx The compilable fill relay transaction.
  * @returns The number of bytes in the serialized fillRelay transaction.
  */
-export function calculateFillSizeBytes(fillTx: CompilableTransactionMessage): number {
+export function calculateFillSizeBytes(fillTx: SolanaTransaction): number {
   const signedTransaction = compileTransaction(fillTx);
   const serializedTx = getBase64EncodedWireTransaction(signedTransaction);
   return base64StrToByteSize(serializedTx);
@@ -1502,7 +1500,7 @@ async function getAccountMetasForDepositMessage(
   hubChainId: number,
   tokenMessengerMinter: Address,
   recipientAta: SvmAddress
-): Promise<IAccountMeta<string>[]> {
+): Promise<AccountMeta<string>[]> {
   const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
   const l2Usdc = SvmAddress.from(
     TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
@@ -1577,7 +1575,7 @@ export async function getCCTPV1ReceiveMessageTx(
   message: AttestedCCTPMessage,
   hubChainId: number,
   recipientAta: SvmAddress
-): Promise<CompilableTransactionMessage & TransactionMessageWithBlockhashLifetime> {
+): Promise<SolanaTransaction> {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["message_transmitter"],
@@ -1601,7 +1599,7 @@ export async function getCCTPV1ReceiveMessageTx(
   const usedNonces = await getCCTPNoncePda(solanaClient, signer, message.nonce, message.sourceDomain);
 
   // Notice: for Svm tokenless messages, we currently only support very specific finalizations: Hub -> Spoke relayRootBundle calls
-  const accountMetas: IAccountMeta<string>[] = isDepositForBurnEvent(message)
+  const accountMetas: AccountMeta<string>[] = isDepositForBurnEvent(message)
     ? await getAccountMetasForDepositMessage(
         message,
         hubChainId,
