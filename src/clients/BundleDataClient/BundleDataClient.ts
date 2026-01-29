@@ -55,9 +55,6 @@ import {
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 
-// max(uint256) - 1
-export const INFINITE_FILL_DEADLINE = bnUint32Max;
-
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
