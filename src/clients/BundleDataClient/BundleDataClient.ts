@@ -847,41 +847,38 @@ export class BundleDataClient {
 
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
-            // We can skip this step if the deposit's fill deadline is not infinite, because we can assume that the
-            // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
             // We do not need to handle the case where the deposit ID is > uint32 (in which case we wouldn't
             // want to perform a binary search lookup for it because the deposit ID is "unsafe" and cannot be
             // found using such a method) because infinite fill deadlines cannot be produced from the unsafeDepositV3()
             // function.
-            if (slowFillRequest.blockNumber >= destinationChainBlockRange[0]) {
-              if (!INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline)) {
-                bundleInvalidSlowFillRequests.push(slowFillRequest);
-                return;
-              }
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, slowFillRequest);
-              if (!historicalDeposit.found) {
-                bundleInvalidSlowFillRequests.push(slowFillRequest);
-                return;
-              }
-              const matchedDeposit: V3DepositWithBlock = historicalDeposit.deposit;
-              // If deposit is in a following bundle, then this slow fill request will have to be created
-              // once that deposit is in the current bundle.
-              if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
-                bundleInvalidSlowFillRequests.push(slowFillRequest);
-                return;
-              }
-              // @dev Since queryHistoricalDepositForFill validates the slow fill request by checking individual
-              // object property values against the deposit's, we
-              // sanity check it here by comparing the full relay hashes. If there's an error here then the
-              // historical deposit query is not working as expected.
-              assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Deposit relay hashes should match.");
-              v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
-
-              if (!_canCreateSlowFillLeaf(matchedDeposit) || _depositIsExpired(matchedDeposit)) {
-                return;
-              }
-              validatedBundleSlowFills.push(matchedDeposit);
+            if (slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
+              return;
             }
+
+            const historicalDeposit = await queryHistoricalDepositForFill(originClient, slowFillRequest);
+            if (!historicalDeposit.found) {
+              bundleInvalidSlowFillRequests.push(slowFillRequest);
+              return;
+            }
+            const matchedDeposit: V3DepositWithBlock = historicalDeposit.deposit;
+            // If deposit is in a following bundle, then this slow fill request will have to be created
+            // once that deposit is in the current bundle.
+            if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
+              bundleInvalidSlowFillRequests.push(slowFillRequest);
+              return;
+            }
+
+            // @dev Since queryHistoricalDepositForFill validates the slow fill request by checking individual
+            // object property values against the deposit's, we
+            // sanity check it here by comparing the full relay hashes. If there's an error here then the
+            // historical deposit query is not working as expected.
+            assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Deposit relay hashes should match.");
+            v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
+
+            if (!_canCreateSlowFillLeaf(matchedDeposit) || _depositIsExpired(matchedDeposit)) {
+              return;
+            }
+            validatedBundleSlowFills.push(matchedDeposit);
           }
         );
 
