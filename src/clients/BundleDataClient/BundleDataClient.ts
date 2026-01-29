@@ -709,10 +709,6 @@ export class BundleDataClient {
               slowFillRequest: undefined,
             };
 
-            // TODO: We can remove the following historical query once we deprecate the deposit()
-            // function since there won't be any old, unexpired deposits anymore assuming the spoke pool client
-            // lookbacks have been validated, which they should be before we run this function.
-
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             if (fill.blockNumber < destinationChainBlockRange[0]) {
