@@ -719,68 +719,66 @@ export class BundleDataClient {
 
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
-            // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
-            // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
-            if (fill.blockNumber >= destinationChainBlockRange[0]) {
-              // If deposit is using the deterministic relay hash feature, then the following binary search-based
-              // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
-              // the unsafeDepositV3 function so there is no need to catch the special case.
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
-              if (!historicalDeposit.found) {
-                bundleInvalidFillsV3.push(fill);
-                return;
-              }
+            // queryHistoricalDepositForFill handles deterministic depositIds, so it's OK not to filter them here.
+            if (fill.blockNumber < destinationChainBlockRange[0]) {
+              return;
+            }
 
-              // If deposit is in a following bundle, then this fill will have to be refunded once that deposit
-              // is in the current bundle.
-              const matchedDeposit = historicalDeposit.deposit;
-              if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
-                bundleInvalidFillsV3.push(fill);
-                return;
-              }
+            const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
+            if (!historicalDeposit.found) {
+              bundleInvalidFillsV3.push(fill);
+              return;
+            }
 
-              v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
+            // If deposit is in a following bundle, then this fill will have to be refunded once that deposit
+            // is in the current bundle.
+            const matchedDeposit = historicalDeposit.deposit;
+            if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
+              bundleInvalidFillsV3.push(fill);
+              return;
+            }
 
-              let provider;
-              if (isEVMSpokePoolClient(destinationClient)) {
-                provider = destinationClient.spokePool.provider;
-              } else if (isSVMSpokePoolClient(destinationClient)) {
-                provider = destinationClient.svmEventsClient.getRpc();
-              }
+            v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
 
-              const fillToRefund = await verifyFillRepayment(
-                fill,
-                provider!,
-                matchedDeposit,
-                this.clients.hubPoolClient,
-                bundleEndBlockForMainnet
-              );
-              if (!isDefined(fillToRefund)) {
-                bundleUnrepayableFillsV3.push(fill);
-                // Don't return yet as we still need to mark down any unexecutable slow fill leaves
-                // in case this fast fill replaced a slow fill request.
-              } else {
-                // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
-                // object property values against the deposit's, we
-                // sanity check it here by comparing the full relay hashes. If there's an error here then the
-                // historical deposit query is not working as expected.
-                assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Relay hashes should match.");
-                validatedBundleV3Fills.push({
-                  ...fillToRefund,
-                  quoteTimestamp: matchedDeposit.quoteTimestamp,
-                });
-                v3RelayHashes[relayDataHash].fill = fillToRefund;
+            let provider;
+            if (isEVMSpokePoolClient(destinationClient)) {
+              provider = destinationClient.spokePool.provider;
+            } else if (isSVMSpokePoolClient(destinationClient)) {
+              provider = destinationClient.svmEventsClient.getRpc();
+            }
 
-                // No need to check for duplicate deposits here since duplicate deposits with
-                // infinite deadlines are impossible to send via unsafeDeposit().
-              }
+            const fillToRefund = await verifyFillRepayment(
+              fill,
+              provider!,
+              matchedDeposit,
+              this.clients.hubPoolClient,
+              bundleEndBlockForMainnet
+            );
+            if (!isDefined(fillToRefund)) {
+              bundleUnrepayableFillsV3.push(fill);
+              // Don't return yet as we still need to mark down any unexecutable slow fill leaves
+              // in case this fast fill replaced a slow fill request.
+            } else {
+              // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
+              // object property values against the deposit's, we
+              // sanity check it here by comparing the full relay hashes. If there's an error here then the
+              // historical deposit query is not working as expected.
+              assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Relay hashes should match.");
+              validatedBundleV3Fills.push({
+                ...fillToRefund,
+                quoteTimestamp: matchedDeposit.quoteTimestamp,
+              });
+              v3RelayHashes[relayDataHash].fill = fillToRefund;
 
-              if (
-                fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
-                _canCreateSlowFillLeaf(matchedDeposit)
-              ) {
-                fastFillsReplacingSlowFills.push(relayDataHash);
-              }
+              // No need to check for duplicate deposits here since duplicate deposits with
+              // infinite deadlines are impossible to send via unsafeDeposit().
+            }
+
+            if (
+              fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
+              _canCreateSlowFillLeaf(matchedDeposit)
+            ) {
+              fastFillsReplacingSlowFills.push(relayDataHash);
             }
           }
         );
