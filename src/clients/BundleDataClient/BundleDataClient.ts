@@ -32,7 +32,6 @@ import {
   getRelayEventKey,
   isSlowFill,
   mapAsync,
-  bnUint32Max,
   isZeroValueDeposit,
   isZeroValueFillOrSlowFillRequest,
   duplicateEvent,
@@ -716,11 +715,11 @@ export class BundleDataClient {
 
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
-            // queryHistoricalDepositForFill handles deterministic depositIds, so it's OK not to filter them here.
             if (fill.blockNumber < destinationChainBlockRange[0]) {
               return;
             }
 
+            // queryHistoricalDepositForFill handles deterministic depositIds, so it's OK not to filter them here.
             const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
             if (!historicalDeposit.found) {
               bundleInvalidFillsV3.push(fill);
