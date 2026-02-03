@@ -45,7 +45,8 @@ import winston from "winston";
 import {
   BundleDataSS,
   getRefundInformationFromFill,
-  isChainDisabled,
+  isChainDisabledAtBlock,
+  isChainPaused,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
@@ -409,8 +410,8 @@ export class BundleDataClient {
       throw new Error("HubPoolClient not updated");
     }
 
-    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(blockRangesForChains[0][0]);
-    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
+    const [bundleStartBlockForMainnet, bundleEndBlockForMainnet] = blockRangesForChains[0];
+    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(bundleStartBlockForMainnet);
 
     if (blockRangesForChains.length > chainIds.length) {
       throw new Error(
@@ -435,8 +436,12 @@ export class BundleDataClient {
     // destination chain where the slow fill would have been executed.
 
     const _isChainDisabled = (chainId: number): boolean => {
+      return isChainDisabledAtBlock(chainId, bundleStartBlockForMainnet, this.clients.configStoreClient);
+    };
+
+    const _isChainPaused = (chainId: number): boolean => {
       const blockRangeForChain = getBlockRangeForChain(blockRangesForChains, chainId, chainIds);
-      return isChainDisabled(blockRangeForChain);
+      return isChainPaused(blockRangeForChain);
     };
 
     const _canCreateSlowFillLeaf = (deposit: DepositWithBlock): boolean => {
@@ -606,9 +611,11 @@ export class BundleDataClient {
     const validatedBundleSlowFills: V3DepositWithBlock[] = [];
     const validatedBundleUnexecutableSlowFills: V3DepositWithBlock[] = [];
     let fillCounter = 0;
-    for (const originChainId of allChainIds) {
+    // Only evaluate fills and slow fills for chains that are unpaused.
+    const allFillChainIds = allChainIds.filter((chainId) => !_isChainPaused(chainId));
+    for (const originChainId of allFillChainIds) {
       const originClient = spokePoolClients[originChainId];
-      for (const destinationChainId of allChainIds) {
+      for (const destinationChainId of allFillChainIds) {
         const destinationClient = spokePoolClients[destinationChainId];
         const destinationChainBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
         const originChainBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
