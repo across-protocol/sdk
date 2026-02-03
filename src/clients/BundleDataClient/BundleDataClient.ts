@@ -581,7 +581,7 @@ export class BundleDataClient {
             }
             // Only save a bundle deposit if the chain is unpaused, otherwise we've already processed a deposit
             // in a paused block range in the previous bundle.
-            if (!_isChainPaused(destinationChainId)) {
+            if (!_isChainPaused(originChainId)) {
               bundleDepositHashes.push(newBundleDepositHash);
               updateBundleDepositsV3(bundleDepositsV3, deposit);
             }
