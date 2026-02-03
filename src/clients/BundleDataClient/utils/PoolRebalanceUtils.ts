@@ -98,12 +98,8 @@ export async function getWidestPossibleExpectedBlockRange(
   });
 }
 
-export function isChainDisabledAtBlock(
-  chainId: number,
-  mainnetBlock: number,
-  configStoreClient: AcrossConfigStoreClient
-): boolean {
-  return configStoreClient.getDisabledChainsForBlock(mainnetBlock).includes(chainId);
+export function isChainDisabled(blockRangeForChain: number[]): boolean {
+  return blockRangeForChain[0] === blockRangeForChain[1];
 }
 
 // Note: this function computes the intended transfer amount before considering the transfer threshold.
