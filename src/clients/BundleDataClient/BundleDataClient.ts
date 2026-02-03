@@ -579,8 +579,12 @@ export class BundleDataClient {
               });
               throw new Error("Duplicate deposit detected");
             }
-            bundleDepositHashes.push(newBundleDepositHash);
-            updateBundleDepositsV3(bundleDepositsV3, deposit);
+            // Only save a bundle deposit if the chain is unpaused, otherwise we've already processed a deposit
+            // in a paused block range in the previous bundle.
+            if (!_isChainPaused(destinationChainId)) {
+              bundleDepositHashes.push(newBundleDepositHash);
+              updateBundleDepositsV3(bundleDepositsV3, deposit);
+            }
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
             olderDepositHashes.push(newBundleDepositHash);
           }
