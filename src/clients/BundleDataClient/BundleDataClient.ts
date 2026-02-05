@@ -46,6 +46,7 @@ import {
   BundleDataSS,
   getRefundInformationFromFill,
   isChainDisabledAtBlock,
+  isChainPaused,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
@@ -434,6 +435,15 @@ export class BundleDataClient {
     // (2) the fill deadline has passed. We'll need to decrement running balances for these deposits on the
     // destination chain where the slow fill would have been executed.
 
+    const _isChainDisabled = (chainId: number): boolean => {
+      return isChainDisabledAtBlock(chainId, bundleStartBlockForMainnet, this.clients.configStoreClient);
+    };
+
+    const _isChainPaused = (chainId: number): boolean => {
+      const blockRangeForChain = getBlockRangeForChain(blockRangesForChains, chainId, chainIds);
+      return isChainPaused(blockRangeForChain);
+    };
+
     const _canCreateSlowFillLeaf = (deposit: DepositWithBlock): boolean => {
       return (
         // Cannot slow fill when input and output tokens are not equivalent.
@@ -469,11 +479,7 @@ export class BundleDataClient {
     // Infer chain ID's to load from number of block ranges passed in.
     const allChainIds = blockRangesForChains
       .map((_blockRange, index) => chainIds[index])
-      .filter(
-        (chainId) =>
-          !isChainDisabledAtBlock(chainId, bundleStartBlockForMainnet, this.clients.configStoreClient) &&
-          spokePoolClients[chainId] !== undefined
-      );
+      .filter((chainId) => !_isChainDisabled(chainId) && spokePoolClients[chainId] !== undefined);
     allChainIds.forEach((chainId) => {
       const spokePoolClient = spokePoolClients[chainId];
       if (!spokePoolClient.isUpdated) {
@@ -573,8 +579,13 @@ export class BundleDataClient {
               });
               throw new Error("Duplicate deposit detected");
             }
-            bundleDepositHashes.push(newBundleDepositHash);
-            updateBundleDepositsV3(bundleDepositsV3, deposit);
+            // Only save a bundle deposit if the chain is unpaused, otherwise we've already processed this deposit
+            // as a "bundle deposit" in the previous bundle because the "paused block range" is equal to the
+            // previous bundle's end block.
+            if (!_isChainPaused(originChainId)) {
+              bundleDepositHashes.push(newBundleDepositHash);
+              updateBundleDepositsV3(bundleDepositsV3, deposit);
+            }
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
             olderDepositHashes.push(newBundleDepositHash);
           }
@@ -605,9 +616,11 @@ export class BundleDataClient {
     const validatedBundleSlowFills: V3DepositWithBlock[] = [];
     const validatedBundleUnexecutableSlowFills: V3DepositWithBlock[] = [];
     let fillCounter = 0;
-    for (const originChainId of allChainIds) {
+    // Only evaluate fills and slow fills for chains that are unpaused.
+    const allFillChainIds = allChainIds.filter((chainId) => !_isChainPaused(chainId));
+    for (const originChainId of allFillChainIds) {
       const originClient = spokePoolClients[originChainId];
-      for (const destinationChainId of allChainIds) {
+      for (const destinationChainId of allFillChainIds) {
         const destinationClient = spokePoolClients[destinationChainId];
         const destinationChainBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
         const originChainBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
@@ -1061,6 +1074,12 @@ export class BundleDataClient {
       }
       const deposit = deposits[index];
       const { destinationChainId } = deposit;
+
+      // On the off chance the destination chain is paused at the exact block where the deposit.fillDeadline expires,
+      // where the deposit.fillDeadline expires, then we should not process it.
+      if (_isChainPaused(destinationChainId)) {
+        return;
+      }
       const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
 
       // Only look for deposits that were mined before this bundle and that are newly expired.
