@@ -579,8 +579,9 @@ export class BundleDataClient {
               });
               throw new Error("Duplicate deposit detected");
             }
-            // Only save a bundle deposit if the chain is unpaused, otherwise we've already processed a deposit
-            // in a paused block range in the previous bundle.
+            // Only save a bundle deposit if the chain is unpaused, otherwise we've already processed this deposit
+            // as a "bundle deposit" in the previous bundle because the "paused block range" is equal to the
+            // previous bundle's end block.
             if (!_isChainPaused(originChainId)) {
               bundleDepositHashes.push(newBundleDepositHash);
               updateBundleDepositsV3(bundleDepositsV3, deposit);
@@ -1073,6 +1074,12 @@ export class BundleDataClient {
       }
       const deposit = deposits[index];
       const { destinationChainId } = deposit;
+
+      // On the off chance the destination chain is paused at the exact block where the deposit.fillDeadline expires,
+      // where the deposit.fillDeadline expires, then we should not process it.
+      if (_isChainPaused(destinationChainId)) {
+        return;
+      }
       const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
 
       // Only look for deposits that were mined before this bundle and that are newly expired.
