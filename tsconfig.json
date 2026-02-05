@@ -1,6 +1,6 @@
 {
   // see https://www.typescriptlang.org/tsconfig to better understand tsconfigs
-  "include": ["src", "types"],
+  "include": ["src", "types", "./test-utils.ts",],
   "compilerOptions": {
     "module": "CommonJS",
     "target": "ES5",

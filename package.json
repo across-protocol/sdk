@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.117",
+  "version": "4.3.118",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -72,6 +72,7 @@
     "@types/lodash.get": "^4.4.7",
     "@types/mocha": "^10.0.1",
     "@types/node": "^24.3.0",
+    "@types/sinon": "^21.0.0",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
     "arlocal": "^1.1.65",
@@ -144,15 +145,20 @@
     "preset": "ts-jest",
     "testEnvironment": "node"
   },
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
-  "types": "./dist/types/index.d.ts",
-  "typings": "./dist/types/index.d.ts",
+  "main": "./dist/cjs/src/index.js",
+  "module": "./dist/esm/src/index.js",
+  "types": "./dist/types/src/index.d.ts",
+  "typings": "./dist/types/src/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/cjs/src/index.js",
+      "import": "./dist/esm/src/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./test-utils": {
+      "require": "./dist/cjs/test-utils.js",
+      "import": "./dist/esm/test-utils.js",
+      "types": "./dist/types/test-utils.d.ts"
     },
     "./dist/cjs/*": {
       "require": "./dist/cjs/*.js",
