@@ -3,10 +3,11 @@
  * These are reimplementations of the utilities from @across-protocol/contracts
  * to avoid dependency on their getContractFactory which looks for Hardhat artifacts.
  */
-import { BigNumber, ethers } from "ethers";
+import { BigNumber, Contract, ethers } from "ethers";
 import { getContractFactory } from "./getContractFactory";
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { expect } from "chai";
+import { amountToReturn, repaymentChainId } from "../constants";
 
 const { keccak256, defaultAbiCoder } = ethers.utils;
 
@@ -156,4 +157,71 @@ export async function buildV3SlowRelayTree(slowFills: unknown[]): Promise<Merkle
   const paramType = await getParamType("MerkleLibTest", "verifyV3SlowRelayFulfillment", "slowFill");
   const hashFn = (input: unknown) => keccak256(defaultAbiCoder.encode([paramType as ethers.utils.ParamType], [input]));
   return new MerkleTree(slowFills, hashFn);
+}
+
+/**
+ * Construct a single-leaf relayer refund tree.
+ */
+export async function constructSingleRelayerRefundTree(
+  l2Token: Contract | string,
+  destinationChainId: number,
+  amount?: BigNumber
+): Promise<{
+  leaves: {
+    leafId: BigNumber;
+    chainId: BigNumber;
+    amountToReturn: BigNumber;
+    l2TokenAddress: string;
+    refundAddresses: string[];
+    refundAmounts: BigNumber[];
+  }[];
+  tree: MerkleTree<unknown>;
+}> {
+  const amountToUse = amount !== undefined ? amount : amountToReturn;
+  const l2TokenAddress = typeof l2Token === "string" ? l2Token : l2Token.address;
+  const leaves = buildRelayerRefundLeaves(
+    [destinationChainId],
+    [amountToUse],
+    [l2TokenAddress],
+    [[]],
+    [[]]
+  );
+  const tree = await buildRelayerRefundTree(leaves);
+  return { leaves, tree };
+}
+
+/**
+ * Construct a single-chain pool rebalance tree.
+ */
+export async function constructSingleChainTree(
+  token: string,
+  scalingSize = 1,
+  repaymentChain = repaymentChainId,
+  decimals = 18
+): Promise<{
+  tokensSendToL2: BigNumber;
+  realizedLpFees: BigNumber;
+  leaves: {
+    leafId: BigNumber;
+    chainId: BigNumber;
+    groupIndex: BigNumber;
+    bundleLpFees: BigNumber[];
+    netSendAmounts: BigNumber[];
+    runningBalances: BigNumber[];
+    l1Tokens: string[];
+  }[];
+  tree: MerkleTree<unknown>;
+}> {
+  const tokensSendToL2 = ethers.utils.parseUnits((100 * scalingSize).toString(), decimals);
+  const realizedLpFees = ethers.utils.parseUnits((10 * scalingSize).toString(), decimals);
+  const leaves = buildPoolRebalanceLeaves(
+    [repaymentChain],
+    [[token]],
+    [[realizedLpFees]],
+    [[tokensSendToL2]],
+    [[tokensSendToL2]],
+    [0]
+  );
+  const tree = await buildPoolRebalanceLeafTree(leaves);
+  return { tokensSendToL2, realizedLpFees, leaves, tree };
 }

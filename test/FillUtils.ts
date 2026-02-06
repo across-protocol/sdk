@@ -13,7 +13,7 @@ import {
 } from "./utils";
 import { verifyFillRepayment } from "../src/clients/BundleDataClient";
 import { MockedProvider } from "../src/providers/mocks";
-import { createRandomBytes32 } from "@across-protocol/contracts/dist/test-utils";
+import { createRandomBytes32 } from "./utils";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
 import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 
