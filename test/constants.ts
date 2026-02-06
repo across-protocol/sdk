@@ -1,5 +1,5 @@
 import { BigNumber, ethers } from "ethers";
-import { toWei, toBN, toBNWei, utf8ToHex } from "../src/utils";
+import { toWei, toBN, utf8ToHex } from "../src/utils";
 import { ZERO_ADDRESS } from "../src/constants";
 import { DEFAULT_CONFIG_STORE_VERSION } from "./mocks";
 
@@ -41,9 +41,7 @@ export const totalPostModifiedFeesPct = toBN(oneHundredPct).sub(toBN(modifiedRel
 export const amountToRelayPreFees = toBN(amountToRelay).mul(toBN(oneHundredPct)).div(totalPostFeesPct);
 export const amountReceived = toBN(amountToDeposit).mul(toBN(totalPostFeesPct)).div(toBN(oneHundredPct));
 export const amountToRelayPreModifiedFees = toBN(amountToRelay).mul(toBN(oneHundredPct)).div(totalPostModifiedFeesPct);
-export const amountToRelayPreLPFee = amountToRelayPreFees
-  .mul(oneHundredPct.sub(realizedLpFeePct))
-  .div(oneHundredPct);
+export const amountToRelayPreLPFee = amountToRelayPreFees.mul(oneHundredPct.sub(realizedLpFeePct)).div(oneHundredPct);
 
 // Deposit ID
 export const firstDepositId = toBN(0);
