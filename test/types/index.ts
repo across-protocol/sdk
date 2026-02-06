@@ -1,6 +1,5 @@
 import { HardhatEthersHelpers } from "@nomiclabs/hardhat-ethers/types";
-import type { ethers } from "ethers";
-import { Contract, BigNumber } from "ethers";
+import type { ethers, Contract, BigNumber } from "ethers";
 import winston from "winston";
 import { sinon } from "../utils";
 

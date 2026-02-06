@@ -179,10 +179,7 @@ export async function seedContract(
 // ---------------------------------------------------------------------------
 
 export async function createFake(contractName: string, targetAddress = ""): Promise<FakeContract<BaseContract>> {
-  const contractFactory = await getContractFactory(
-    contractName,
-    new ethers.VoidSigner(ethers.constants.AddressZero)
-  );
+  const contractFactory = await getContractFactory(contractName, new ethers.VoidSigner(ethers.constants.AddressZero));
   return smock.fake(contractFactory.interface.fragments, {
     address: targetAddress === "" ? undefined : targetAddress,
     provider: contractFactory.signer.provider,
@@ -190,7 +187,7 @@ export async function createFake(contractName: string, targetAddress = ""): Prom
 }
 
 export async function createFakeFromABI(abi: unknown[], targetAddress = ""): Promise<FakeContract<BaseContract>> {
-  return createTypedFakeFromABI<BaseContract>(abi, targetAddress);
+  return await createTypedFakeFromABI<BaseContract>(abi, targetAddress);
 }
 
 export async function createTypedFakeFromABI<T extends BaseContract>(
@@ -198,7 +195,7 @@ export async function createTypedFakeFromABI<T extends BaseContract>(
   targetAddress = ""
 ): Promise<FakeContract<T>> {
   const signer = new ethers.VoidSigner(ethers.constants.AddressZero);
-  return smock.fake<T>(abi as never[], {
+  return await smock.fake<T>(abi as never[], {
     address: !targetAddress ? undefined : targetAddress,
     provider: signer.provider,
   });

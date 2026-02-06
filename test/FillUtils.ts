@@ -10,10 +10,10 @@ import {
   randomAddress,
   SignerWithAddress,
   ethers,
+  createRandomBytes32,
 } from "./utils";
 import { verifyFillRepayment } from "../src/clients/BundleDataClient";
 import { MockedProvider } from "../src/providers/mocks";
-import { createRandomBytes32 } from "./utils";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
 import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 
