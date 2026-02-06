@@ -19,6 +19,10 @@ src/utils/abi/typechain
 .ledger
 /target
 *.tar.gz
+test/**/*.d.ts
+test/**/*.d.ts.map
+/test-utils.d.ts
+/test-utils.d.ts.map
 
 # production
 /build
