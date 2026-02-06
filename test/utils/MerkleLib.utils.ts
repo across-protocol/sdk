@@ -179,13 +179,7 @@ export async function constructSingleRelayerRefundTree(
 }> {
   const amountToUse = amount !== undefined ? amount : amountToReturn;
   const l2TokenAddress = typeof l2Token === "string" ? l2Token : l2Token.address;
-  const leaves = buildRelayerRefundLeaves(
-    [destinationChainId],
-    [amountToUse],
-    [l2TokenAddress],
-    [[]],
-    [[]]
-  );
+  const leaves = buildRelayerRefundLeaves([destinationChainId], [amountToUse], [l2TokenAddress], [[]], [[]]);
   const tree = await buildRelayerRefundTree(leaves);
   return { leaves, tree };
 }
