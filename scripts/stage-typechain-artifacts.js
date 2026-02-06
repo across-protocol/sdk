@@ -59,10 +59,10 @@ function main() {
         }
       } catch (err) {
         console.error(`Error processing ${contractName}: ${err.message}`);
-        skippedCount++;
+        throw err;
       }
     } else {
-      // The JSON might be named differently, skip silently
+      console.error(`Error: ${sourcePath} not found.`);
       skippedCount++;
     }
   }
