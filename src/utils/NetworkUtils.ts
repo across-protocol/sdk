@@ -162,6 +162,8 @@ export function chainIsOFTEnabled(chainId: number): boolean {
     CHAIN_IDs.MONAD,
     CHAIN_IDs.PLASMA,
     CHAIN_IDs.MEGAETH,
+    CHAIN_IDs.UNICHAIN,
+    CHAIN_IDs.INK,
   ];
   return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
