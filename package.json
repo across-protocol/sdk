@@ -161,6 +161,11 @@
       "import": "./dist/esm/test-utils.js",
       "types": "./dist/types/test-utils.d.ts"
     },
+    "./src/utils/abi/typechain": {
+      "require": "./dist/cjs/src/utils/abi/typechain/index.js",
+      "import": "./dist/esm/src/utils/abi/typechain/index.js",
+      "types": "./dist/types/src/utils/abi/typechain/index.d.ts"
+    },
     "./dist/cjs/*": {
       "require": "./dist/cjs/*.js",
       "import": "./dist/esm/*.js"
