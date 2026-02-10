@@ -140,9 +140,7 @@ export class PriceClient implements PriceFeedAdapter {
       try {
         const feedPricesResponse = await priceFeed.getPricesByAddress(addrsToRequest, currency);
         skipped = this.updateCache(priceCache, feedPricesResponse, addrsToRequest);
-        const zeroPriceAddrs = addrsToRequest.filter(
-          (addr) => priceCache[addr.toLowerCase()].price === 0
-        );
+        const zeroPriceAddrs = addrsToRequest.filter((addr) => priceCache[addr.toLowerCase()].price === 0);
         const giveUpAddrs = zeroPriceAddrs.filter((addr) => consecutiveZeroAddrs.has(addr));
         if (giveUpAddrs.length > 0) {
           this.logger.debug({

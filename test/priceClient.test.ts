@@ -39,6 +39,7 @@ class MockPriceFeed implements PriceFeedAdapter {
     return tokenPrice;
   }
 
+  // eslint-disable-next-line require-await
   async getPricesByAddress(addresses: string[], _currency: string): Promise<TokenPrice[]> {
     this.requestLog.push([...addresses]);
     const response = this.responsePerCall.shift();
