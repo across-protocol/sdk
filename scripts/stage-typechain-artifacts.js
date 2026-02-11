@@ -8,7 +8,6 @@ const STAGE_DIR = "src/utils/abi/contracts";
 // Patterns to exclude (mocks, tests, scripts)
 const EXCLUDE_PATTERNS = [
   /Mock/i,
-  /Test/,
   /Stub/i,
   /\.t$/,   // Foundry test files (ContractName.t.sol)
   /\.s$/,   // Foundry script files (ContractName.s.sol)
@@ -44,10 +43,19 @@ function main() {
       continue;
     }
 
-    const sourcePath = path.join(CONTRACTS_OUT_DIR, `${contractName}.sol`, `${contractName}.json`);
-    const destPath = path.join(STAGE_DIR, `${contractName}.json`);
+    const solDir = path.join(CONTRACTS_OUT_DIR, `${contractName}.sol`);
+    const jsonFiles = fs.readdirSync(solDir).filter((f) => f.endsWith(".json"));
 
-    if (fs.existsSync(sourcePath)) {
+    for (const jsonFile of jsonFiles) {
+      const innerName = jsonFile.replace(".json", "");
+      if (shouldExclude(innerName)) {
+        skippedCount++;
+        continue;
+      }
+
+      const sourcePath = path.join(solDir, jsonFile);
+      const destPath = path.join(STAGE_DIR, jsonFile);
+
       try {
         const artifact = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
         // Only stage if it has an ABI with content
@@ -58,12 +66,9 @@ function main() {
           skippedCount++;
         }
       } catch (err) {
-        console.error(`Error processing ${contractName}: ${err.message}`);
+        console.error(`Error processing ${innerName}: ${err.message}`);
         throw err;
       }
-    } else {
-      console.error(`Error: ${sourcePath} not found.`);
-      skippedCount++;
     }
   }
 
