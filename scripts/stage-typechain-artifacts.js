@@ -8,7 +8,6 @@ const STAGE_DIR = "src/utils/abi/contracts";
 // Patterns to exclude (mocks, tests, scripts)
 const EXCLUDE_PATTERNS = [
   /Mock/i,
-  /Test/,
   /Stub/i,
   /\.t$/,   // Foundry test files (ContractName.t.sol)
   /\.s$/,   // Foundry script files (ContractName.s.sol)
