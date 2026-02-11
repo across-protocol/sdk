@@ -135,6 +135,15 @@ export function chainIsSvm(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID has a native gas token.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if the chain corresponding to chainId has a native gas token.
+ */
+export function chainHasNativeToken(chainId: number): boolean {
+  return ![CHAIN_IDs.TEMPO].includes(chainId);
+}
+
+/**
  * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.

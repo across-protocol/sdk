@@ -113,6 +113,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
+    [CHAIN_IDs.TEMPO]: ethereum.eip1559,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
 
     // Testnet Chains
