@@ -134,7 +134,7 @@
     "node-gyp": "^11.0.0",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2",
-    "viem": "~2.37.0",
+    "viem": "~2.46.0",
     "winston": "^3.17.0",
     "winston-transport": "^4.9.0"
   },
