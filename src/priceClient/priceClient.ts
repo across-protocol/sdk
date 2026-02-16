@@ -125,10 +125,13 @@ export class PriceClient implements PriceFeedAdapter {
 
   private async updatePrices(currency: string): Promise<void> {
     const priceCache = this.getPriceCache(currency);
-    let skipped: string[] = [];
+    let addrsToRequest = Object.entries(priceCache).map((entry: [string, TokenPrice]) => entry[1].address);
+    let skipped: string[] = addrsToRequest;
+    let consecutiveZeroAddrs = new Set<string>();
 
-    const addrsToRequest = Object.entries(priceCache).map((entry: [string, TokenPrice]) => entry[1].address);
     for (const priceFeed of this.priceFeeds) {
+      if (addrsToRequest.length === 0) break;
+
       this.logger.debug({
         at: "PriceClient#updatePrices",
         message: `Looking up prices via ${priceFeed.name}.`,
@@ -137,7 +140,20 @@ export class PriceClient implements PriceFeedAdapter {
       try {
         const feedPricesResponse = await priceFeed.getPricesByAddress(addrsToRequest, currency);
         skipped = this.updateCache(priceCache, feedPricesResponse, addrsToRequest);
-        if (skipped.length === 0) break; // All done
+        const zeroPriceAddrs = addrsToRequest.filter((addr) => priceCache[addr.toLowerCase()].price === 0);
+        const giveUpAddrs = zeroPriceAddrs.filter((addr) => consecutiveZeroAddrs.has(addr));
+        if (giveUpAddrs.length > 0) {
+          this.logger.debug({
+            at: "PriceClient#updatePrices",
+            message: "Giving up on addresses with price of 0 from 2 consecutive providers.",
+            tokens: giveUpAddrs,
+          });
+        }
+        consecutiveZeroAddrs = new Set(zeroPriceAddrs);
+        addrsToRequest = Array.from(
+          new Set([...skipped, ...zeroPriceAddrs.filter((addr) => !giveUpAddrs.includes(addr))])
+        );
+        if (addrsToRequest.length === 0) break;
       } catch (err) {
         this.logger.debug({
           at: "PriceClient#updatePrices",

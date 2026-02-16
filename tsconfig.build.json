@@ -1,5 +1,22 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
   "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/*.e2e.ts"],
-  "include": ["src"]
+  "include": [
+    "src",
+    "test-utils.ts",
+    "test/fixtures",
+    "test/utils/utils.ts",
+    "test/utils/MerkleLib.utils.ts",
+    "test/utils/getContractFactory.ts",
+    "test/utils/SpyTransport.ts",
+    "test/utils/BlockchainUtils.ts",
+    "test/utils/SpokePoolUtils.ts",
+    "test/utils/transport.ts",
+    "test/constants.ts",
+    "test/types",
+    "test/mocks"
+  ]
 }

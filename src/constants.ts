@@ -82,7 +82,7 @@ export const STABLE_COIN_SYMBOLS = [
   TOKEN_SYMBOLS_MAP.DAI.symbol,
   TOKEN_SYMBOLS_MAP.GHO.symbol,
   TOKEN_SYMBOLS_MAP.WGHO.symbol,
-  TOKEN_SYMBOLS_MAP.USDM.symbol,
+  TOKEN_SYMBOLS_MAP.pathUSD.symbol,
 ];
 
 const resolveCustomGasTokens = (): { [chainId: number]: string } => {
