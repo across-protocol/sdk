@@ -3,7 +3,7 @@
   "include": ["src", "types", "./test-utils.ts",],
   "compilerOptions": {
     "module": "CommonJS",
-    "target": "ES5",
+    "target": "ES2020",
     "lib": ["dom", "esnext"],
     // allow bundling of json files
     "resolveJsonModule": true,
