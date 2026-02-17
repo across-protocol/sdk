@@ -100,6 +100,8 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
   assert(!VIEM_CHAINS.includes(chainId), `Chain ID ${chainId} will use Viem gas price estimation`);
   const gasPriceFeeds = {
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
+    [CHAIN_IDs.SCROLL]: ethereum.legacy,
+    [CHAIN_IDs.TEMPO]: ethereum.eip1559,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
     // Testnet
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
