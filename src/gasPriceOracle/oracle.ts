@@ -6,6 +6,7 @@ import { BigNumber, fixedPointAdjustment, isEvmProvider, toBNWei } from "../util
 import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
+import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
@@ -99,6 +100,7 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
   // There shouldn't be any chains in here that we have a Viem adapter for because we'll always use Viem in that case.
   assert(!VIEM_CHAINS.includes(chainId), `Chain ID ${chainId} will use Viem gas price estimation`);
   const gasPriceFeeds = {
+    [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.TEMPO]: ethereum.eip1559,
