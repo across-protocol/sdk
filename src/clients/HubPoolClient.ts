@@ -996,13 +996,19 @@ export class HubPoolClient extends BaseAbstractClient {
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
     if (eventsToQuery.includes("L1TokenEnabledForLiquidityProvision")) {
-      const uniqueL1Tokens = dedupArray(
+      const uniqueL1Tokens: string[] = dedupArray(
         events["L1TokenEnabledForLiquidityProvision"].map((event) => String(event.args["l1Token"]))
       );
 
-      const [tokenInfo, lpTokenInfo] = await Promise.all([
+      const { hubPool } = this;
+
+      // Generate multicall input for pooledTokens query.
+      const pooledTokensFn = "pooledTokens";
+      const multicall = uniqueL1Tokens.map((token) => hubPool.interface.encodeFunctionData(pooledTokensFn, [token]));
+
+      const [tokenInfo, lpTokenMulticall] = await Promise.all([
         Promise.all(
-          uniqueL1Tokens.map(async (l1Token: string) => {
+          uniqueL1Tokens.map(async (l1Token) => {
             const tokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
             return {
               ...tokenInfo,
@@ -1010,12 +1016,12 @@ export class HubPoolClient extends BaseAbstractClient {
             };
           })
         ),
-        Promise.all(
-          uniqueL1Tokens.map(
-            async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
-          )
-        ),
+        hubPool.callStatic.multicall(multicall, { blockTag: update.searchEndBlock }),
       ]);
+      const lpTokenInfo = lpTokenMulticall.map((result: string) =>
+        hubPool.interface.decodeFunctionResult(pooledTokensFn, result)
+      );
+
       for (const info of tokenInfo) {
         if (!this.l1Tokens.find((token) => token.address.eq(info.address))) {
           if (info.decimals > 0 && info.decimals <= 18) {
@@ -1026,7 +1032,7 @@ export class HubPoolClient extends BaseAbstractClient {
         }
       }
 
-      uniqueL1Tokens.forEach((token: string, i) => {
+      uniqueL1Tokens.forEach((token, i) => {
         this.lpTokens[token] = {
           lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate,
           liquidReserves: lpTokenInfo[i].liquidReserves,
