@@ -59,6 +59,11 @@ export class CacheProvider extends RateLimitedProvider {
     // Cache does not have the result. Query it directly and cache.
     const result = await super.send(method, params);
 
+    // eth_getTransactionReceipt returns null for unmined/replaced txs; not cacheable.
+    if (method === "eth_getTransactionReceipt" && result == null) {
+      return result;
+    }
+
     if (cacheType === CacheType.DECIDE_TTL_POST_SEND) {
       const blockNumber = this.getBlockNumberFromRpcResponse(method, result);
       cacheType = await this.cacheTypeForBlock(blockNumber);
