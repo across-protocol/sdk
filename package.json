@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.128",
+  "version": "4.3.129",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -11,7 +11,9 @@
   "files": [
     "dist",
     "scripts",
-    "src"
+    "src",
+    "test-utils.ts",
+    "typechain.ts"
   ],
   "engines": {
     "node": ">=22.18.0"
@@ -160,6 +162,11 @@
       "require": "./dist/cjs/test-utils.js",
       "import": "./dist/esm/test-utils.js",
       "types": "./dist/types/test-utils.d.ts"
+    },
+    "./typechain": {
+      "require": "./dist/cjs/typechain.js",
+      "import": "./dist/esm/typechain.js",
+      "types": "./dist/types/typechain.d.ts"
     },
     "./src/utils/abi/typechain": {
       "require": "./dist/cjs/src/utils/abi/typechain/index.js",
