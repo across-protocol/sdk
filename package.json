@@ -12,7 +12,8 @@
     "dist",
     "scripts",
     "src",
-    "test-utils.ts"
+    "test-utils.ts",
+    "typechain.ts"
   ],
   "engines": {
     "node": ">=22.18.0"
@@ -161,6 +162,11 @@
       "require": "./dist/cjs/test-utils.js",
       "import": "./dist/esm/test-utils.js",
       "types": "./dist/types/test-utils.d.ts"
+    },
+    "./typechain": {
+      "require": "./dist/cjs/typechain.js",
+      "import": "./dist/esm/typechain.js",
+      "types": "./dist/types/typechain.d.ts"
     },
     "./src/utils/abi/typechain": {
       "require": "./dist/cjs/src/utils/abi/typechain/index.js",
