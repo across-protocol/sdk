@@ -11,7 +11,8 @@
   "files": [
     "dist",
     "scripts",
-    "src"
+    "src",
+    "test-utils.ts"
   ],
   "engines": {
     "node": ">=22.18.0"
