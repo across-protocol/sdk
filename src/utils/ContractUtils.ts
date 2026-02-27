@@ -1,4 +1,4 @@
-import * as typechain from "@across-protocol/contracts/dist/typechain"; // Import the typechain module
+import * as typechain from "../../src/utils/abi/typechain"; // Import the typechain module
 
 export function getParamType(contractName: string, functionName: string, paramName: string): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
