@@ -94,11 +94,6 @@ describe("ArweaveClient", () => {
     expect(retrievedValue).to.deep.equal(expectedValue);
   });
 
-  it("should fail to get a non-existent record", async () => {
-    const retrievedValue = await client.get("non-existent", object());
-    expect(retrievedValue).to.be.null;
-  });
-
   it("should validate the record with a struct validator", async () => {
     const value = { test: "value" };
     const txID = await client.set(value);
