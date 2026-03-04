@@ -13,8 +13,8 @@ export class ArweaveClient {
   public constructor(
     private arweaveJWT: JWKInterface,
     private logger: winston.Logger,
-    gatewayURL = "arweave.net",
-    protocol = "https",
+    public gatewayURL = "arweave.net",
+    public protocol = "https",
     port = 443,
     private readonly retries = 2,
     private readonly retryDelaySeconds = 1
