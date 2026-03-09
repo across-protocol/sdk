@@ -20,8 +20,8 @@ import {
   expect,
   getContractFactory,
   zeroAddress,
+  createRandomBytes32,
 } from "./utils";
-import { createRandomBytes32 } from "@across-protocol/contracts/dist/test-utils";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { EvmAddress, SvmAddress, toAddressType } from "../src/utils/AddressUtils";
 

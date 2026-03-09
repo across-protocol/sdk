@@ -11,7 +11,9 @@
   "files": [
     "dist",
     "scripts",
-    "src"
+    "src",
+    "test-utils.ts",
+    "typechain.ts"
   ],
   "engines": {
     "node": ">=22.18.0"
@@ -110,7 +112,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.98",
+    "@across-protocol/constants": "^3.1.100",
     "@across-protocol/contracts": "4.1.24",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
@@ -160,6 +162,11 @@
       "require": "./dist/cjs/test-utils.js",
       "import": "./dist/esm/test-utils.js",
       "types": "./dist/types/test-utils.d.ts"
+    },
+    "./typechain": {
+      "require": "./dist/cjs/typechain.js",
+      "import": "./dist/esm/typechain.js",
+      "types": "./dist/types/typechain.d.ts"
     },
     "./src/utils/abi/typechain": {
       "require": "./dist/cjs/src/utils/abi/typechain/index.js",
