@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
+import { BigNumber, fixedPointAdjustment, isEvmProvider, toBNWei, isDefined } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
@@ -24,8 +24,17 @@ export interface GasPriceEstimateOptions {
   chainId: number;
   // unsignedTx The unsigned transaction used for simulation by Linea's Viem provider to produce the priority gas fee, or alternatively, by Solana's provider to determine the base/priority fee.
   unsignedTx?: unknown;
+  // feeHistoryOptions A set of configuration used to derive an appropriate gas price based on fee history rewiards.
+  feeHistoryOptions?: FeeHistoryOptions;
   // transport Viem Transport object to use for querying gas fees used for testing.
   transport?: Transport;
+}
+
+export interface FeeHistoryOptions {
+  estimator?: (rewards: BigNumber[]) => BigNumber;
+  percentile?: number;
+  blockLookback?: number;
+  minimumPriority?: BigNumber;
 }
 
 const GAS_PRICE_ESTIMATE_DEFAULTS = {
@@ -109,7 +118,9 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
   } as const;
 
-  let gasPriceFeed = gasPriceFeeds[chainId];
+  // If we have specified feeHistory parameters, then assume we want to take the feeHistory estimation path.
+  let gasPriceFeed = isDefined(opts.feeHistoryOptions) ? ethereum.feeHistory : gasPriceFeeds[chainId];
+
   assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
   gasPriceFeed ??= ethereum.eip1559;
 
