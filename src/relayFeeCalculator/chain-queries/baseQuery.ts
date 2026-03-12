@@ -193,6 +193,7 @@ export class QueryBase implements QueryInterface {
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
+      nonce: 0xffffffff, // prevents implicit eth_getTransactionCount; slightly overestimates serialized tx size
       gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
     });
     const l1DataFee = await (this.provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
