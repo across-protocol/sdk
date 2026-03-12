@@ -1,6 +1,6 @@
 import assert from "assert";
 import { providers } from "ethers";
-import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, bnOne, isDefined } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, bnOne, isDefined, toBN } from "../../utils";
 import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -61,13 +61,18 @@ export async function feeHistory(
 
   const [{ baseFeePerGas }, feeHistory] = await Promise.all([
     provider.getBlock("latest"),
-    (provider as providers.JsonRpcProvider).send("eth_feeHistory", [blockLookback, "latest", [percentile]]),
+    (provider as providers.JsonRpcProvider).send("eth_feeHistory", [
+      Number(blockLookback),
+      "latest",
+      [Number(percentile)],
+    ]),
   ]);
   assert(BigNumber.isBigNumber(baseFeePerGas), "No baseFeePerGas received on latest block query.");
 
   // Default estimator based on https://github.com/alloy-rs/alloy/blob/6f20815b657f60de454bed5010e3b9a6883ac70f/crates/provider/src/utils.rs#L90
-  const defaultEstimator = (rewards: BigNumber[]): BigNumber => {
+  const defaultEstimator = (rewards: string[]): BigNumber => {
     const sortedRewards = rewards
+      .map((reward) => toBN(reward))
       .filter((reward) => reward.gt(bnZero))
       .sort((r1, r2) => {
         if (r1.gt(r2)) {
@@ -87,7 +92,7 @@ export async function feeHistory(
   };
 
   const { estimator = defaultEstimator } = feeHistoryOptions;
-  const maxPriorityFeePerGas = estimator(feeHistory.rewards);
+  const maxPriorityFeePerGas = estimator(feeHistory.reward);
   const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
 
   return {
