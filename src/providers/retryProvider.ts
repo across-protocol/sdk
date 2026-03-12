@@ -23,7 +23,8 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     standardTtlBlockDistance?: number,
     noTtlBlockDistance?: number,
     providerCacheTtl = PROVIDER_CACHE_TTL,
-    readonly logger?: Logger
+    readonly logger?: Logger,
+    pollingInterval?: number
   ) {
     // Initialize the super just with the chainId, which stops it from trying to immediately send out a .send before
     // this derived class is initialized.
@@ -43,10 +44,10 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         )
     );
 
-    if (chainId !== CHAIN_IDs.MAINNET) {
-      this.pollingInterval = 1000;
-      this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
-    }
+    // Default to 1s for non-mainnet chains (ethers default is 4s).
+    // An explicit pollingInterval overrides both defaults.
+    this.pollingInterval  = (pollingInterval ??= (chainId === CHAIN_IDs.MAINNET ? 4_000: 1_000));
+    this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
 
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
       throw new Error(
