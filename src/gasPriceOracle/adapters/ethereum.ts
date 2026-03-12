@@ -1,6 +1,6 @@
 import assert from "assert";
 import { providers } from "ethers";
-import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, bnOne, isDefined } from "../../utils";
 import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -42,6 +42,57 @@ export async function eip1559Raw(
   return {
     maxFeePerGas: scaledPriorityFee.add(scaledBaseFee),
     maxPriorityFeePerGas: scaledPriorityFee,
+  };
+}
+
+/**
+ * @notice Derives an appropriate maxPriorityFeePerGas by applying a predicate to historical rewards specified by eth_feeHistory.
+ * @param provider ethers RPC provider instance.
+ * @param {GasPriceEstimateOptions} Gas scaling options.
+ */
+export async function feeHistory(
+  provider: providers.Provider,
+  opts: GasPriceEstimateOptions
+): Promise<EvmGasPriceEstimate> {
+  // Get the fee history options and populate unspecified properties with defaults.
+  const { baseFeeMultiplier, feeHistoryOptions } = opts;
+  assert(isDefined(feeHistoryOptions)); // We can only get here normally if feeHistoryOptions is defined.
+  const { percentile = 20, blockLookback = 10, minimumPriority = bnOne } = feeHistoryOptions;
+
+  const [{ baseFeePerGas }, feeHistory] = await Promise.all([
+    provider.getBlock("latest"),
+    (provider as providers.JsonRpcProvider).send("eth_feeHistory", [blockLookback, "latest", [percentile]]),
+  ]);
+  assert(BigNumber.isBigNumber(baseFeePerGas), "No baseFeePerGas received on latest block query.");
+
+  // Default estimator based on https://github.com/alloy-rs/alloy/blob/6f20815b657f60de454bed5010e3b9a6883ac70f/crates/provider/src/utils.rs#L90
+  const defaultEstimator = (rewards: BigNumber[]): BigNumber => {
+    const sortedRewards = rewards
+      .filter((reward) => reward.gt(bnZero))
+      .sort((r1, r2) => {
+        if (r1.gt(r2)) {
+          return 1;
+        }
+        return r1.eq(r2) ? 0 : -1;
+      });
+
+    // If all historical rewards are 0, then return the specified minimum.
+    if (sortedRewards.length === 0) {
+      return minimumPriority;
+    }
+
+    const n = sortedRewards.length;
+    const median = n % 2 === 0 ? sortedRewards[n / 2 - 1].add(sortedRewards[n / 2].div(2)) : sortedRewards[n / 2];
+    return median.gt(minimumPriority) ? median : minimumPriority;
+  };
+
+  const { estimator = defaultEstimator } = feeHistoryOptions;
+  const maxPriorityFeePerGas = estimator(feeHistory.rewards);
+  const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
+
+  return {
+    maxFeePerGas: scaledBaseFee.add(maxPriorityFeePerGas),
+    maxPriorityFeePerGas,
   };
 }
 
