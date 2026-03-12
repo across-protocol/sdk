@@ -87,7 +87,7 @@ export async function feeHistory(
     }
 
     const n = sortedRewards.length;
-    const median = n % 2 === 0 ? sortedRewards[n / 2 - 1].add(sortedRewards[n / 2].div(2)) : sortedRewards[n / 2];
+    const median = n % 2 === 0 ? sortedRewards[n / 2 - 1].add(sortedRewards[n / 2]).div(2) : sortedRewards[n / 2];
     return median.gt(minimumPriority) ? median : minimumPriority;
   };
 
