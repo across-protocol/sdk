@@ -46,7 +46,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     // Default to 1s for non-mainnet chains (ethers default is 4s).
     // An explicit pollingInterval overrides both defaults.
-    this.pollingInterval  = (pollingInterval ??= (chainId === CHAIN_IDs.MAINNET ? 4_000: 1_000));
+    this.pollingInterval = pollingInterval ??= chainId === CHAIN_IDs.MAINNET ? 4_000 : 1_000;
     this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
 
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
