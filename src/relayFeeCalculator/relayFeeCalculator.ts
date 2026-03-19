@@ -36,11 +36,13 @@ export interface QueryInterface {
   getGasCosts: (
     deposit: RelayData & { destinationChainId: number },
     relayer: Address,
-    options?: Partial<GasPriceEstimateOptions & {
-      gasPrice: BigNumberish;
-      gasUnits: BigNumberish;
-      opStackL1GasCostMultiplier: BigNumber;
-    }>
+    options?: Partial<
+      GasPriceEstimateOptions & {
+        gasPrice: BigNumberish;
+        gasUnits: BigNumberish;
+        opStackL1GasCostMultiplier: BigNumber;
+      }
+    >
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getNativeGasCost: (deposit: RelayData & { destinationChainId: number }, relayer: Address) => Promise<BigNumber>;
