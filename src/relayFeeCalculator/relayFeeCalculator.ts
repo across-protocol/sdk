@@ -5,6 +5,7 @@ import {
   DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
   TOKEN_SYMBOLS_MAP,
 } from "../constants";
+import { GasPriceEstimateOptions } from "../gasPriceOracle";
 import { RelayData, TokenInfo } from "../interfaces";
 import {
   BigNumber,
@@ -35,13 +36,10 @@ export interface QueryInterface {
   getGasCosts: (
     deposit: RelayData & { destinationChainId: number },
     relayer: Address,
-    options?: Partial<{
+    options?: Partial<GasPriceEstimateOptions & {
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
-      baseFeeMultiplier: BigNumber;
-      priorityFeeMultiplier: BigNumber;
       opStackL1GasCostMultiplier: BigNumber;
-      transport: Transport;
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
