@@ -23,8 +23,7 @@ import {
 import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { LoggerLike } from "../../interfaces";
+import { FillType, RelayData, RelayDataWithMessageHash, LoggerLike } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils/browser";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {

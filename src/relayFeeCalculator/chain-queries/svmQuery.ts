@@ -27,7 +27,15 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN, mapAsync } from "../../utils/browser";
+import {
+  Address,
+  BigNumber,
+  BigNumberish,
+  SvmAddress,
+  TransactionCostEstimate,
+  toBN,
+  mapAsync,
+} from "../../utils/browser";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";

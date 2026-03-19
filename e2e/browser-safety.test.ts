@@ -106,4 +106,4 @@ async function verifyBrowserSafety() {
   console.log("Browser safety check passed: no Node-only modules resolved.");
 }
 
-verifyBrowserSafety();
+void verifyBrowserSafety();
