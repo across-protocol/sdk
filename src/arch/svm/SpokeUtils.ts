@@ -39,13 +39,13 @@ import {
   type Commitment,
 } from "@solana/kit";
 import assert from "assert";
-import winston from "winston";
 import { arrayify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import {
   DepositWithBlock,
   FillStatus,
   FillWithBlock,
+  LoggerLike,
   RelayData,
   RelayDataWithMessageHash,
   SortableEvent,
@@ -66,7 +66,7 @@ import {
   mapAsync,
   unpackDepositEvent,
   unpackFillEvent,
-} from "../../utils";
+} from "../../utils/browser";
 import {
   createDefaultTransaction,
   getCCTPNoncePda,
@@ -119,14 +119,14 @@ type CCTPDepositAccounts = {
   messageTransmitter: Address;
 };
 
-export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: winston.Logger): Promise<bigint> {
+export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: LoggerLike): Promise<bigint> {
   return _callGetSlotWithRetry(provider, commitment, logger);
 }
 
 async function _callGetSlotWithRetry(
   provider: SVMProvider,
   commitment: Commitment,
-  logger?: winston.Logger
+  logger?: LoggerLike
 ): Promise<bigint> {
   try {
     return await provider.getSlot({ commitment }).send();
@@ -153,7 +153,7 @@ export function getTimestampForSlot(
   provider: SVMProvider,
   slotNumber: bigint,
   maxRetries = 2,
-  logger?: winston.Logger
+  logger?: LoggerLike
 ): Promise<number | undefined> {
   return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0, maxRetries, logger);
 }
@@ -163,7 +163,7 @@ async function _callGetTimestampForSlotWithRetry(
   slotNumber: bigint,
   retryAttempt: number,
   maxRetries: number,
-  logger?: winston.Logger
+  logger?: LoggerLike
 ): Promise<number | undefined> {
   const slot = slotNumber.toString();
   let _timestamp: bigint;
@@ -256,7 +256,7 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
 export async function findDeposit(
   eventClient: SvmCpiEventsClient,
   depositId: BigNumber,
-  logger: winston.Logger,
+  logger: LoggerLike,
   slot?: bigint,
   secondsLookback = 2 * 24 * 60 * 60 // 2 days
 ): Promise<Omit<DepositWithBlock, "originChainId" | "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> | undefined> {
@@ -321,7 +321,7 @@ export async function relayFillStatus(
   relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  logger: winston.Logger,
+  logger: LoggerLike,
   atHeight?: number
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
@@ -372,7 +372,7 @@ export async function fillStatusArray(
   relayData: RelayDataWithMessageHash[],
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  logger: winston.Logger,
+  logger: LoggerLike,
   atHeight?: number
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
@@ -458,7 +458,7 @@ export async function findFillEvent(
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
   toSlot?: number,
-  logger?: winston.Logger
+  logger?: LoggerLike
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const opts = undefined;
@@ -1055,7 +1055,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
   provider: SVMProvider,
   fillStatusPdas: Address[],
   relayDataArray: RelayData[],
-  logger: winston.Logger
+  logger: LoggerLike
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
   const commitment = "confirmed";

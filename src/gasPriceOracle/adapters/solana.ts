@@ -1,5 +1,5 @@
 import { SVMProvider } from "../../arch/svm";
-import { toBN, dedupArray } from "../../utils";
+import { toBN, dedupArray } from "../../utils/browser";
 import { SvmGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
 import {

@@ -6,7 +6,7 @@ import {
   TOKEN_SYMBOLS_MAP,
 } from "../constants";
 import { GasPriceEstimateOptions } from "../gasPriceOracle";
-import { RelayData, TokenInfo } from "../interfaces";
+import { RelayData, TokenInfo, LoggingFunction, LoggerLike } from "../interfaces";
 import {
   BigNumber,
   BigNumberish,
@@ -29,7 +29,7 @@ import {
   EvmAddress,
   SvmAddress,
   toAddressType,
-} from "../utils";
+} from "../utils/browser";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
@@ -102,16 +102,8 @@ export interface RelayerFeeDetails {
   minDeposit: string;
 }
 
-export interface LoggingFunction {
-  (data: { at: string; message: string; [key: string]: unknown }): void;
-}
-
-export interface Logger {
-  debug: LoggingFunction;
-  info: LoggingFunction;
-  warn: LoggingFunction;
-  error: LoggingFunction;
-}
+export { LoggingFunction, LoggerLike };
+export type Logger = LoggerLike;
 
 export const DEFAULT_LOGGER: Logger = {
   debug: (...args) => console.debug(args),

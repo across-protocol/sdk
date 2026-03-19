@@ -1,5 +1,5 @@
 import { providers } from "ethers";
-import { bnOne } from "../../utils";
+import { bnOne } from "../../utils/browser";
 import { EvmGasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 import { GasPriceEstimateOptions } from "../oracle";

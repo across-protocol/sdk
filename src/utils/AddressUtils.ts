@@ -1,7 +1,8 @@
 import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { BigNumber, chainIsEvm, chainIsSvm } from "./";
+import { BigNumber } from "./BigNumberUtils";
+import { chainIsEvm, chainIsSvm } from "./NetworkUtils";
 
 /**
  * Verify whether an address' bytecode resembles an EIP-7702 delegation.

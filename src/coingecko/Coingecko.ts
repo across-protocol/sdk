@@ -1,7 +1,7 @@
 import axios, { AxiosError } from "axios";
 import assert from "assert";
 import get from "lodash.get";
-import { getCoingeckoTokenIdByAddress, retry } from "../utils";
+import { getCoingeckoTokenIdByAddress, retry } from "../utils/browser";
 import { Logger } from "../relayFeeCalculator";
 
 export function msToS(ms: number) {

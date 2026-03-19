@@ -24,7 +24,8 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { LoggerLike } from "../../interfaces";
+import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils/browser";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -34,7 +35,6 @@ import {
   LatestBlockhash,
   SolanaTransaction,
 } from "./types";
-import winston from "winston";
 /**
  * Basic void TransactionSigner type
  */
@@ -73,7 +73,7 @@ export function toAddress(address: SdkAddress): Address<string> {
 export async function getNearestSlotTime(
   provider: SVMProvider,
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
-  logger?: winston.Logger
+  logger?: LoggerLike
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
   let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
@@ -94,7 +94,7 @@ export async function getNearestSlotTime(
  */
 export async function getLatestFinalizedSlotWithBlock(
   provider: SVMProvider,
-  logger: winston.Logger,
+  logger: LoggerLike,
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {

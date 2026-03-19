@@ -4,7 +4,7 @@ import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
 import { InternalGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
-import { fixedPointAdjustment } from "../../utils";
+import { fixedPointAdjustment } from "../../utils/browser";
 
 /**
  * @notice The Linea viem provider calls the linea_estimateGas RPC endpoint to estimate gas. Linea is unique

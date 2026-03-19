@@ -17,7 +17,7 @@ import {
   spreadEventWithBlockNumber,
   Address,
   unpackFillEvent,
-} from "../../utils";
+} from "../../utils/browser";
 
 type BlockTag = providers.BlockTag;
 

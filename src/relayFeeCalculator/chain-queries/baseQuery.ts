@@ -16,12 +16,12 @@ import {
   chainIsOPStack,
   fixedPointAdjustment,
   Address,
-} from "../../utils";
+} from "../../utils/browser";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { getGasPriceEstimate, GasPriceEstimateOptions } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
-import { arch } from "../..";
+import { getAuxiliaryNativeTokenCost as evmGetAuxiliaryNativeTokenCost } from "../../arch/evm/MessageUtils";
 
 export type SymbolMappingType = Record<
   string,
@@ -157,7 +157,7 @@ export class QueryBase implements QueryInterface {
    * @returns Native token cost
    */
   getAuxiliaryNativeTokenCost(_deposit: RelayData): BigNumber {
-    return arch.evm.getAuxiliaryNativeTokenCost(_deposit);
+    return evmGetAuxiliaryNativeTokenCost(_deposit);
   }
 
   /**

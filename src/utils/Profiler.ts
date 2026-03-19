@@ -1,6 +1,4 @@
-import { performance } from "node:perf_hooks";
-import crypto from "crypto";
-import { DefaultLogLevels } from "./LogUtils";
+type DefaultLogLevels = "debug" | "info" | "warn" | "error";
 
 type Logger = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,7 +69,7 @@ export class Profiler {
    * @returns An object containing the start time and a stop function.
    */
   start(task: string, detail?: Detail): { startTime: number; stop: (_detail?: Detail) => number | undefined } {
-    const start = crypto.randomUUID();
+    const start = globalThis.crypto.randomUUID();
     const startTime = this.mark(start, detail);
     return {
       startTime,

@@ -1,6 +1,6 @@
 import assert from "assert";
 import { providers } from "ethers";
-import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, bnOne, isDefined, toBN } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, bnOne, isDefined, toBN } from "../../utils/browser";
 import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";

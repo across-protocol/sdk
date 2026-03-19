@@ -1,5 +1,5 @@
 import { RelayData } from "../../interfaces";
-import { BigNumber, bnZero } from "../../utils";
+import { BigNumber, bnZero } from "../../utils/browser";
 
 /**
  * @notice Return the native token cost of filling a deposit beyond gas cost. We're not using msg.value in our fills,

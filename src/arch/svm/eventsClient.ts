@@ -10,7 +10,7 @@ import {
   GetTransactionApi,
   Signature,
 } from "@solana/kit";
-import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
+import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils/browser";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";

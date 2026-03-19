@@ -1,7 +1,7 @@
 import { utils as ethersUtils } from "ethers";
 import { object, min as Min, define, optional, string, integer, boolean } from "superstruct";
 import { DepositWithBlock } from "../interfaces";
-import { BigNumber } from "../utils";
+import { BigNumber } from "./BigNumberUtils";
 
 const AddressValidator = define<string>("AddressValidator", (v) => ethersUtils.isAddress(String(v)));
 const HexValidator = define<string>("HexValidator", (v) => ethersUtils.isHexString(String(v)));

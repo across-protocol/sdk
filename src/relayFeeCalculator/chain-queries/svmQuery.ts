@@ -22,18 +22,18 @@ import {
   isSVMFillTooLarge,
   SolanaTransaction,
 } from "../../arch/svm";
-import { JitoInterface } from "../../providers/solana";
+import type { JitoInterface } from "../../providers/solana/utils";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN, mapAsync } from "../../utils";
+import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN, mapAsync } from "../../utils/browser";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
 import { getSetComputeUnitLimitInstruction, estimateComputeUnitLimitFactory } from "@solana-program/compute-budget";
-import { arch } from "../..";
+import { getAuxiliaryNativeTokenCost as svmGetAuxiliaryNativeTokenCost } from "../../arch/svm/MessageUtils";
 
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -205,7 +205,7 @@ export class SvmQuery implements QueryInterface {
    * @returns Native token cost
    */
   getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
-    return arch.svm.getAuxiliaryNativeTokenCost(deposit);
+    return svmGetAuxiliaryNativeTokenCost(deposit);
   }
 
   /**

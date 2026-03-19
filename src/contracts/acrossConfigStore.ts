@@ -2,7 +2,7 @@ import { Provider } from "@ethersproject/providers";
 import { AcrossConfigStore, AcrossConfigStore__factory } from "../typechain";
 import { object, string, Infer, assert, mask, record, optional } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
-import { filterFalsyKeys } from "../utils";
+import { filterFalsyKeys } from "../utils/browser";
 
 const RateModelSs = object({
   UBar: string(), // denote the utilization kink along the rate model where the slope of the interest rate model changes.

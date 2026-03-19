@@ -3,7 +3,8 @@ import { Result } from "@ethersproject/abi";
 import { Contract, Event, EventFilter } from "ethers";
 import { Log, SortableEvent } from "../interfaces";
 import { delay } from "./common";
-import { isDefined, toBN, BigNumberish } from "./";
+import { isDefined } from "./TypeGuards";
+import { toBN, BigNumberish } from "./BigNumberUtils";
 
 const maxRetries = 3;
 const retrySleepTime = 10;

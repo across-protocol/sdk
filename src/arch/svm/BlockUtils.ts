@@ -4,9 +4,9 @@ import { BlockFinder, type Block, type BlockTimeAverage, type BlockFinderHints }
 import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
+import { LoggerLike } from "../../interfaces";
 import { SVMProvider } from "./";
 import { getNearestSlotTime } from "./utils";
-import winston from "winston";
 
 interface SVMBlock extends Block {}
 
@@ -35,7 +35,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   constructor(
     private readonly provider: SVMProvider,
     private readonly blocks: SVMBlock[] = [],
-    private readonly logger?: winston.Logger
+    private readonly logger?: LoggerLike
   ) {
     super();
   }

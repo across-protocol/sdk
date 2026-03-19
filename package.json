@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.134",
+  "version": "4.3.999",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -157,6 +157,16 @@
       "require": "./dist/cjs/src/index.js",
       "import": "./dist/esm/src/index.js",
       "types": "./dist/types/src/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/esm/src/browser.js",
+      "require": "./dist/cjs/src/browser.js",
+      "types": "./dist/types/src/browser.d.ts"
+    },
+    "./node": {
+      "import": "./dist/esm/src/node.js",
+      "require": "./dist/cjs/src/node.js",
+      "types": "./dist/types/src/node.d.ts"
     },
     "./test-utils": {
       "require": "./dist/cjs/test-utils.js",

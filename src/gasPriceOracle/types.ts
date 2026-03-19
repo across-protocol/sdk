@@ -1,5 +1,5 @@
 import { type Chain, type Transport, PublicClient, FeeValuesEIP1559 } from "viem";
-import { BigNumber, bnZero, isDefined } from "../utils";
+import { BigNumber, bnZero, isDefined } from "../utils/browser";
 
 export type InternalGasPriceEstimate = FeeValuesEIP1559;
 export type GasPriceEstimate = EvmGasPriceEstimate | SvmGasPriceEstimate;
