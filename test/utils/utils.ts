@@ -1,4 +1,4 @@
-import { AcrossConfigStore } from "@across-protocol/contracts";
+import { AcrossConfigStore } from "../../src/utils/abi/typechain";
 import assert from "assert";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";

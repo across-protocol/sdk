@@ -19,8 +19,7 @@ import {
 } from "../../utils";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
-import { Transport } from "viem";
-import { getGasPriceEstimate } from "../../gasPriceOracle";
+import { getGasPriceEstimate, GasPriceEstimateOptions } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
 import { arch } from "../..";
 
@@ -75,23 +74,15 @@ export class QueryBase implements QueryInterface {
   async getGasCosts(
     relayData: RelayData & { destinationChainId: number },
     relayer = getDefaultRelayer(relayData.destinationChainId),
-    options: Partial<{
-      gasPrice: BigNumberish;
-      gasUnits: BigNumberish;
-      baseFeeMultiplier: BigNumber;
-      priorityFeeMultiplier: BigNumber;
-      opStackL1GasCostMultiplier: BigNumber;
-      transport: Transport;
-    }> = {}
+    options: Partial<
+      GasPriceEstimateOptions & {
+        gasPrice: BigNumberish;
+        gasUnits: BigNumberish;
+        opStackL1GasCostMultiplier: BigNumber;
+      }
+    > = {}
   ): Promise<TransactionCostEstimate> {
-    const {
-      gasPrice = this.fixedGasPrice,
-      gasUnits,
-      baseFeeMultiplier,
-      priorityFeeMultiplier,
-      opStackL1GasCostMultiplier,
-      transport,
-    } = options;
+    const { gasPrice = this.fixedGasPrice, gasUnits, opStackL1GasCostMultiplier } = options;
 
     const { recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isEVM(), `getGasCosts: recipient not an EVM address (${recipient})`);
@@ -105,12 +96,10 @@ export class QueryBase implements QueryInterface {
       gasPrice: impliedGasPrice,
       opStackL1GasCost,
     } = await this.estimateGas(tx, relayer, this.provider, {
+      ...options,
       gasPrice,
       gasUnits,
-      baseFeeMultiplier,
-      priorityFeeMultiplier,
       opStackL1GasCostMultiplier,
-      transport,
     });
 
     return {
@@ -215,14 +204,13 @@ export class QueryBase implements QueryInterface {
     unsignedTx: PopulatedTransaction,
     senderAddress: Address,
     provider: providers.Provider | L2Provider<providers.Provider>,
-    options: Partial<{
-      gasPrice: BigNumberish;
-      gasUnits: BigNumberish;
-      baseFeeMultiplier: BigNumber;
-      priorityFeeMultiplier: BigNumber;
-      opStackL1GasCostMultiplier: BigNumber;
-      transport: Transport;
-    }> = {}
+    options: Partial<
+      GasPriceEstimateOptions & {
+        gasPrice: BigNumberish;
+        gasUnits: BigNumberish;
+        opStackL1GasCostMultiplier: BigNumber;
+      }
+    > = {}
   ): Promise<TransactionCostEstimate> {
     const {
       gasPrice: _gasPrice,
@@ -241,7 +229,14 @@ export class QueryBase implements QueryInterface {
       gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
       _gasPrice
         ? Promise.resolve({ maxFeePerGas: _gasPrice })
-        : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier, transport, unsignedTx }),
+        : getGasPriceEstimate(provider, {
+            ...options,
+            chainId,
+            baseFeeMultiplier,
+            priorityFeeMultiplier,
+            transport,
+            unsignedTx,
+          }),
     ] as const;
     const [nativeGasCost, gasPriceEstimate] = await Promise.all(queries);
 
