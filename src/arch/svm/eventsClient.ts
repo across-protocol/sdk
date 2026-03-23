@@ -1,6 +1,7 @@
 import { Idl } from "@coral-xyz/anchor";
-import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
-import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { getDeployedAddress } from "@across-protocol/contracts";
+import { SvmSpokeIdl } from "../../svm";
+import { getSolanaChainId } from "../../svm/web3-v1/helpers";
 import {
   address,
   Address,

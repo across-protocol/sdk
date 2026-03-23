@@ -1,0 +1,31 @@
+{
+  "address": "HaQe51FWtnmaEcuYEfPA7MRCXKrtqptat4oJdJ8zV5Be",
+  "metadata": {
+    "name": "multicall_handler",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "handle_v3_across_message",
+      "discriminator": [
+        131,
+        141,
+        52,
+        71,
+        16,
+        59,
+        196,
+        92
+      ],
+      "accounts": [],
+      "args": [
+        {
+          "name": "message",
+          "type": "bytes"
+        }
+      ]
+    }
+  ]
+}
