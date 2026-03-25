@@ -166,13 +166,14 @@ export function chainIsOFTEnabled(chainId: number): boolean {
   // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
   const oftEnabled = [
     CHAIN_IDs.ARBITRUM,
-    CHAIN_IDs.POLYGON,
     CHAIN_IDs.HYPEREVM,
+    CHAIN_IDs.INK,
+    CHAIN_IDs.MEGAETH,
     CHAIN_IDs.MONAD,
     CHAIN_IDs.PLASMA,
-    CHAIN_IDs.MEGAETH,
+    CHAIN_IDs.POLYGON,
+    CHAIN_IDs.TRON, // tbd!!!
     CHAIN_IDs.UNICHAIN,
-    CHAIN_IDs.INK,
   ];
   return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
