@@ -3,9 +3,11 @@
 // providers and API's to avoid the API requests.
 
 import dotenv from "dotenv";
+import { TronWeb } from "tronweb";
 import { encodeFunctionData } from "viem";
-import { getGasPriceEstimate } from "../src/gasPriceOracle";
-import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBNWei } from "../src/utils";
+import { getGasPriceEstimate, TvmGasPriceEstimate } from "../src/gasPriceOracle";
+import { isTVMGasPrice } from "../src/gasPriceOracle/types";
+import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBN, toBNWei } from "../src/utils";
 import { expect, makeCustomTransport, randomAddress } from "../test/utils";
 import { MockedProvider } from "../src/providers/mocks";
 import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "../src/gasPriceOracle/adapters/polygon";
@@ -251,5 +253,58 @@ describe("Gas Price Oracle", function () {
     );
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
     delete process.env["TEST_REVERTING_POLYGON_GAS_STATION"];
+  });
+});
+
+// Helper to build a mock TronWeb-like object that satisfies isTvmProvider().
+function makeMockTronWeb(overrides: {
+  energyPrices?: string;
+  chainParameters?: { key: string; value: number }[];
+} = {}): TronWeb {
+  const energyPrices = overrides.energyPrices ?? "1000000:100,2000000:200,3000000:420";
+  const chainParameters = overrides.chainParameters ?? [
+    { key: "getMaintenanceTimeInterval", value: 21600000 },
+    { key: "getTransactionFee", value: 1000 },
+    { key: "getEnergyFee", value: 420 },
+  ];
+
+  return {
+    transactionBuilder: {},
+    trx: {
+      getEnergyPrices: async () => energyPrices,
+      getChainParameters: async () => chainParameters,
+    },
+  } as unknown as TronWeb;
+}
+
+describe("Gas Price Oracle: TRON", function () {
+  it("Returns energy and bandwidth prices", async function () {
+    const tronWeb = makeMockTronWeb();
+    const result = await getGasPriceEstimate(tronWeb);
+    const { energyPrice, bandwidthPrice } = result;
+
+    expect(isTVMGasPrice(result)).to.be.true;
+    expect(energyPrice).to.deep.equal(toBN(420));
+    expect(bandwidthPrice).to.deep.equal(toBN(1000));
+  });
+
+  it("Parses energy price from single-entry string", async function () {
+    const tronWeb = makeMockTronWeb({ energyPrices: "1000000:210" });
+    const { energyPrice } = await getGasPriceEstimate(tronWeb);
+    expect(energyPrice).to.deep.equal(toBN(210));
+  });
+
+  it("Throws on invalid energy price", async function () {
+    const tronWeb = makeMockTronWeb({ energyPrices: "garbage" });
+    await expect(getGasPriceEstimate(tronWeb)).to.be.rejectedWith("unexpected energy price");
+  });
+
+  it("Throws when getTransactionFee is missing from chain parameters", async function () {
+    const tronWeb = makeMockTronWeb({
+      chainParameters: [{ key: "someOtherParam", value: 1 }],
+    });
+    await expect(getGasPriceEstimate(tronWeb)).to.be.rejectedWith(
+      "getTransactionFee not found in chain parameters"
+    );
   });
 });

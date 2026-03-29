@@ -190,7 +190,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return _getTimestampForBlock(this.spokePool.provider, blockNumber);
   }
 
-  private async queryDepositEvents(
+  protected async queryDepositEvents(
     depositId: BigNumber
   ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
     const tStart = Date.now();

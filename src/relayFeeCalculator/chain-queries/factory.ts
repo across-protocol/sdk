@@ -3,13 +3,15 @@ import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
+import { TronWeb } from "tronweb";
 import { CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
+import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, chainIsTvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
+import { TvmQuery } from "./tvmQuery";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -22,14 +24,14 @@ const fixedGasPrice = {
 export class QueryBase__factory {
   static create(
     chainId: number,
-    provider: providers.Provider | svmProvider,
+    provider: providers.Provider | svmProvider | TronWeb,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
     relayerAddress = getDefaultRelayer(chainId),
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     coingeckoBaseCurrency = "eth"
-  ): QueryBase | SvmQuery {
+  ): QueryBase | SvmQuery | TvmQuery {
     assert(isDefined(spokePoolAddress));
 
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
@@ -55,6 +57,19 @@ export class QueryBase__factory {
         provider as svmProvider,
         symbolMapping,
         SvmAddress.from(spokePoolAddress),
+        relayerAddress,
+        logger,
+        coingeckoProApiKey,
+        fixedGasPrice[chainId],
+        coingeckoBaseCurrency
+      );
+    }
+    if (chainIsTvm(chainId)) {
+      assert(relayerAddress.isEVM());
+      return new TvmQuery(
+        provider as TronWeb,
+        symbolMapping,
+        spokePoolAddress,
         relayerAddress,
         logger,
         coingeckoProApiKey,

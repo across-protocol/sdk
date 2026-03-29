@@ -1,5 +1,6 @@
 export * from "./SpokeUtils";
 export * from "./BlockUtils";
-export * from "./UpgradeUtils";
+export * from "./TransactionUtils";
+export * from "./ResourceUtils";
 export * from "./utils";
 export * from "./MessageUtils";

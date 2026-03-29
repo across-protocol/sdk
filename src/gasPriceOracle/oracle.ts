@@ -2,15 +2,17 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, fixedPointAdjustment, isEvmProvider, toBNWei, isDefined } from "../utils";
+import { BigNumber, fixedPointAdjustment, isEvmProvider, isTvmProvider, toBNWei, isDefined } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
-import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
+import { TronWeb } from "tronweb";
+import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate, TvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
 import * as solana from "./adapters/solana";
+import * as tron from "./adapters/tron";
 import { EvmProvider } from "../arch/evm/types";
 
 export interface GasPriceEstimateOptions {
@@ -56,6 +58,12 @@ export async function getGasPriceEstimate(
   opts?: Partial<GasPriceEstimateOptions>
 ): Promise<SvmGasPriceEstimate>;
 
+// Overload For TVM providers
+export async function getGasPriceEstimate(
+  provider: TronWeb,
+  opts?: Partial<GasPriceEstimateOptions>
+): Promise<TvmGasPriceEstimate>;
+
 /**
  * Provide an estimate for the current gas price for a particular chain.
  * @param provider A valid ethers provider.
@@ -63,11 +71,23 @@ export async function getGasPriceEstimate(
  * @returns An  object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
-  provider: EvmProvider | SolanaProvider,
+  provider: EvmProvider | SolanaProvider | TronWeb,
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
   const priorityFeeMultiplier = opts.priorityFeeMultiplier ?? toBNWei("1");
+
+  // Exit here if we need to estimate on TRON.
+  if (isTvmProvider(provider)) {
+    const optsWithDefaults: GasPriceEstimateOptions = {
+      ...GAS_PRICE_ESTIMATE_DEFAULTS,
+      baseFeeMultiplier,
+      priorityFeeMultiplier,
+      ...opts,
+      chainId: opts.chainId ?? CHAIN_IDs.TRON,
+    };
+    return tron.gasPrices(provider, optsWithDefaults);
+  }
 
   // Exit here if we need to estimate on Solana.
   if (!isEvmProvider(provider)) {

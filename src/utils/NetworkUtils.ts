@@ -135,6 +135,15 @@ export function chainIsSvm(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID runs on a TVM-like execution layer (e.g. TRON).
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has a TVM-like execution layer.
+ */
+export function chainIsTvm(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.TVM;
+}
+
+/**
  * Determines whether a chain ID has a native gas token.
  * @param chainId Chain ID to evaluate.
  * @returns True if the chain corresponding to chainId has a native gas token.
