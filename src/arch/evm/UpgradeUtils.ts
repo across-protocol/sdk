@@ -8,11 +8,7 @@ import { paginatedEventQuery } from "../../utils";
  * @param endBlock Optional end of the block range (inclusive). Defaults to latest.
  * @returns An array of block numbers at which upgrades occurred, sorted ascending.
  */
-export async function get1967Upgrades(
-  contract: Contract,
-  startBlock?: number,
-  endBlock?: number
-): Promise<number[]> {
+export async function get1967Upgrades(contract: Contract, startBlock?: number, endBlock?: number): Promise<number[]> {
   const from = startBlock ?? 0;
   const to = endBlock ?? (await contract.provider.getBlockNumber());
 

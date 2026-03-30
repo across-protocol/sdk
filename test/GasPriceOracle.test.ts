@@ -5,7 +5,7 @@
 import dotenv from "dotenv";
 import { TronWeb } from "tronweb";
 import { encodeFunctionData } from "viem";
-import { getGasPriceEstimate, TvmGasPriceEstimate } from "../src/gasPriceOracle";
+import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { isTVMGasPrice } from "../src/gasPriceOracle/types";
 import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBN, toBNWei } from "../src/utils";
 import { expect, makeCustomTransport, randomAddress } from "../test/utils";
@@ -257,10 +257,12 @@ describe("Gas Price Oracle", function () {
 });
 
 // Helper to build a mock TronWeb-like object that satisfies isTvmProvider().
-function makeMockTronWeb(overrides: {
-  energyPrices?: string;
-  chainParameters?: { key: string; value: number }[];
-} = {}): TronWeb {
+function makeMockTronWeb(
+  overrides: {
+    energyPrices?: string;
+    chainParameters?: { key: string; value: number }[];
+  } = {}
+): TronWeb {
   const energyPrices = overrides.energyPrices ?? "1000000:100,2000000:200,3000000:420";
   const chainParameters = overrides.chainParameters ?? [
     { key: "getMaintenanceTimeInterval", value: 21600000 },
@@ -271,8 +273,8 @@ function makeMockTronWeb(overrides: {
   return {
     transactionBuilder: {},
     trx: {
-      getEnergyPrices: async () => energyPrices,
-      getChainParameters: async () => chainParameters,
+      getEnergyPrices: () => Promise.resolve(energyPrices),
+      getChainParameters: () => Promise.resolve(chainParameters),
     },
   } as unknown as TronWeb;
 }
@@ -303,8 +305,6 @@ describe("Gas Price Oracle: TRON", function () {
     const tronWeb = makeMockTronWeb({
       chainParameters: [{ key: "someOtherParam", value: 1 }],
     });
-    await expect(getGasPriceEstimate(tronWeb)).to.be.rejectedWith(
-      "getTransactionFee not found in chain parameters"
-    );
+    await expect(getGasPriceEstimate(tronWeb)).to.be.rejectedWith("getTransactionFee not found in chain parameters");
   });
 });

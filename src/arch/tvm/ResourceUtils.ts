@@ -60,13 +60,7 @@ export async function estimateTransactionFee(
   const tronOwnerAddress = ownerAddress.startsWith("0x") ? evmToTronAddress(ownerAddress) : ownerAddress;
 
   const [estimate, energyPrice] = await Promise.all([
-    tronWeb.transactionBuilder.estimateEnergy(
-      tronContractAddress,
-      functionSelector,
-      {},
-      parameters,
-      tronOwnerAddress
-    ),
+    tronWeb.transactionBuilder.estimateEnergy(tronContractAddress, functionSelector, {}, parameters, tronOwnerAddress),
     getEnergyPrice(tronWeb),
   ]);
 

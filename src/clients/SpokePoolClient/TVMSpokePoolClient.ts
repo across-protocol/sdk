@@ -5,12 +5,7 @@ import {
   relayFillStatus,
 } from "../../arch/tvm";
 import { FillStatus, Log, RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  getNetworkName,
-  paginatedEventQuery,
-  sortEventsAscendingInPlace,
-} from "../../utils";
+import { BigNumber, getNetworkName, paginatedEventQuery, sortEventsAscendingInPlace } from "../../utils";
 import { logToSortableEvent, spreadEventWithBlockNumber } from "../../utils/EventUtils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { EVMSpokePoolClient } from "./EVMSpokePoolClient";
@@ -29,6 +24,7 @@ import { TVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
  * Transaction submission (2) and fee estimation (3) are handled by the arch/tvm utilities.
  */
 export class TVMSpokePoolClient extends EVMSpokePoolClient {
+  // @ts-expect-error: Narrowing the base class literal type from "EVM" to "TVM".
   override readonly type = TVM_SPOKE_POOL_CLIENT_TYPE;
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
@@ -143,9 +139,7 @@ export class TVMSpokePoolClient extends EVMSpokePoolClient {
 
     const currentTime = block.timestamp;
     if (currentTime < this.currentTime) {
-      throw new Error(
-        `TVMSpokePoolClient::update: currentTime: ${currentTime} < ${this.currentTime}`
-      );
+      throw new Error(`TVMSpokePoolClient::update: currentTime: ${currentTime} < ${this.currentTime}`);
     }
 
     events.forEach((events) => sortEventsAscendingInPlace(events.map(logToSortableEvent)));
