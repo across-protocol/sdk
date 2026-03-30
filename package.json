@@ -78,6 +78,7 @@
     "@types/sinon": "^21.0.0",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
+    "@uma/contracts-node": "^0.4.0",
     "arlocal": "^1.1.65",
     "chai": "^4.3.8",
     "chai-exclude": "^2.1.0",

@@ -2893,6 +2893,11 @@
     "@typescript-eslint/types" "6.6.0"
     eslint-visitor-keys "^3.4.1"
 
+"@uma/contracts-node@^0.4.0":
+  version "0.4.28"
+  resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.4.28.tgz#324c5ff8e34507820cfc822b3ac29e3ca63da2c6"
+  integrity sha512-1EVZrAqKayndvMA4X3JvCje66/1nIfZRPn+AhuCKnLnbNmA28/7UFUQjVF8SdeSkHULUnSAJyfCaIntczqcK1Q==
+
 "@wallet-standard/base@^1.0.1":
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/@wallet-standard/base/-/base-1.0.1.tgz#860dd94d47c9e3c5c43b79d91c6afdbd7a36264e"
