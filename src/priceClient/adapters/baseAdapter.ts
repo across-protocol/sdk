@@ -1,5 +1,4 @@
 import assert from "assert";
-import axios from "axios";
 
 export type BaseHTTPAdapterArgs = {
   timeout?: number;
@@ -39,19 +38,27 @@ export class BaseHTTPAdapter {
 
   protected async query(path: string, urlArgs?: object): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
-    const args = {
-      headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
-      timeout: this.timeout,
-      params: urlArgs ?? {},
-    };
+    const params = new URLSearchParams();
+    if (urlArgs) {
+      for (const [key, value] of Object.entries(urlArgs)) {
+        params.append(key, String(value));
+      }
+    }
+    const queryString = params.toString();
+    const fullUrl = queryString ? `${url}?${queryString}` : url;
 
     const errs: string[] = [];
     let tries = 0;
     do {
       try {
-        return (await axios(url, args)).data;
+        const response = await fetch(fullUrl, {
+          headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
+          signal: AbortSignal.timeout(this.timeout),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        return await response.json();
       } catch (err) {
-        const errMsg = axios.isAxiosError(err) || err instanceof Error ? err.message : "unknown error";
+        const errMsg = err instanceof Error ? err.message : "unknown error";
         errs.push(errMsg);
         if (++tries <= this.retries) await this.sleep(Math.pow(1.5, tries) * 1000); // simple backoff
       }

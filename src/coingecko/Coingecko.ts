@@ -1,6 +1,4 @@
-import axios, { AxiosError } from "axios";
 import assert from "assert";
-import get from "lodash.get";
 import { getCoingeckoTokenIdByAddress, retry } from "../utils";
 import { Logger } from "../relayFeeCalculator";
 
@@ -396,7 +394,7 @@ export class Coingecko {
         this.logger.debug({
           at: "sdk/coingecko",
           message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
-          errMessage: (err as AxiosError).message,
+          errMessage: (err as Error).message,
         });
         return await this._callPro(path);
       }
@@ -505,26 +503,25 @@ export class Coingecko {
   private async _callBasic(path: string, timeout?: number) {
     const url = `${this.host}/${path}`;
 
-    try {
-      // Don't use timeout if there is no pro API to fallback to.
-      const result = await axios(url, { timeout });
-      return result.data;
-    } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", (err as AxiosError).message));
-      throw new Error(msg);
+    // Don't use timeout if there is no pro API to fallback to.
+    const response = await fetch(url, timeout ? { signal: AbortSignal.timeout(timeout) } : undefined);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      throw new Error(errorBody?.error ?? response.statusText);
     }
+    return await response.json();
   }
 
   private async _callPro(path: string) {
     const url = `${this.proHost}/${path}`;
+    const separator = url.includes("?") ? "&" : "?";
+    const fullUrl = `${url}${separator}x_cg_pro_api_key=${this.apiKey}`;
 
-    try {
-      // Don't use timeout if there is no pro API to fallback to.
-      const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
-      return result.data;
-    } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", (err as AxiosError).message));
-      throw new Error(msg);
+    const response = await fetch(fullUrl);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      throw new Error(errorBody?.error ?? response.statusText);
     }
+    return await response.json();
   }
 }

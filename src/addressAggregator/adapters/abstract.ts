@@ -1,4 +1,3 @@
-import axios from "axios";
 import { AdapterOptions, AddressListAdapter } from "../types";
 import { Logger } from "../../utils";
 
@@ -28,18 +27,18 @@ export abstract class AbstractAdapter implements AddressListAdapter {
   }
 
   protected async fetch(name: string, url: string, timeout = 2000, retries = 1): Promise<unknown> {
-    const args = {
-      headers: { "User-Agent": ACROSS_USER_AGENT },
-      timeout,
-    };
-
     const errs: string[] = [];
     let tries = 0;
     do {
       try {
-        return (await axios(url, args)).data;
+        const response = await globalThis.fetch(url, {
+          headers: { "User-Agent": ACROSS_USER_AGENT },
+          signal: AbortSignal.timeout(timeout),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        return await response.json();
       } catch (err) {
-        const errMsg = axios.isAxiosError(err) || err instanceof Error ? err.message : "unknown error";
+        const errMsg = err instanceof Error ? err.message : "unknown error";
         errs.push(errMsg);
         if (++tries <= retries) await this.sleep(Math.pow(1.5, tries) * 1000); // simple backoff
       }

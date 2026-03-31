@@ -1,5 +1,4 @@
 import PinataClient from "@pinata/sdk";
-import axios from "axios";
 
 /**
  * Build an IPFS client for interacting with the IPFS API
@@ -19,16 +18,13 @@ export function buildIPFSClient(APIKey: string, secretAPIKey: string): PinataCli
  * @throws Error if the value could not be retrieved
  */
 export async function retrieveValueFromIPFS(contentHash: string, publicGatewayURL: string): Promise<string> {
-  const result = await axios.get(`${publicGatewayURL}/ipfs/${contentHash}`, {
-    // We need to set the Accept header to text/plain to avoid
-    // any anomalies with the response
+  const response = await fetch(`${publicGatewayURL}/ipfs/${contentHash}`, {
     headers: {
       Accept: "text/plain",
     },
-    // We want just the raw response, not the parsed response
-    transformResponse: (r) => r,
   });
-  return result.data;
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return await response.text();
 }
 
 /**

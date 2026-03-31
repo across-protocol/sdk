@@ -1,7 +1,6 @@
 import ArLocal from "arlocal";
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
-import axios from "axios";
 import { expect } from "chai";
 import { object, string } from "superstruct";
 import winston from "winston";
@@ -18,7 +17,7 @@ const LOCAL_ARWEAVE_NODE = {
 };
 const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE.host}:${LOCAL_ARWEAVE_NODE.port}`;
 
-const mineBlock = () => axios.get(`${LOCAL_ARWEAVE_URL}/mine`);
+const mineBlock = () => fetch(`${LOCAL_ARWEAVE_URL}/mine`);
 
 describe("ArweaveClient", () => {
   const arLocal = new ArLocal(LOCAL_ARWEAVE_NODE.port, true);
@@ -35,7 +34,7 @@ describe("ArweaveClient", () => {
     // Resolve the address of the JWK
     const address = await Arweave.init({}).wallets.jwkToAddress(jwk);
     // Call into the local arweave node to fund the address
-    await axios.get(`${LOCAL_ARWEAVE_URL}/mint/${address}/${INITIAL_FUNDING_AMNT}`);
+    await fetch(`${LOCAL_ARWEAVE_URL}/mint/${address}/${INITIAL_FUNDING_AMNT}`);
     // Wait for the transaction to be mined
     await mineBlock();
   });
