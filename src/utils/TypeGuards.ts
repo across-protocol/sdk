@@ -1,7 +1,7 @@
 import { SVMProvider } from "../arch/svm/types";
 import { EvmProvider } from "../arch/evm/types";
-import { TronWeb } from "tronweb";
 import { providers } from "ethers";
+import { TronWeb } from "tronweb";
 
 export function isPromiseFulfilled<T>(
   promiseSettledResult: PromiseSettledResult<T>
@@ -20,7 +20,7 @@ export function isDefined<T>(input: T | null | undefined): input is T {
 }
 
 export function isTvmProvider(provider: EvmProvider | SVMProvider | TronWeb): provider is TronWeb {
-  return isDefined((provider as TronWeb).transactionBuilder);
+  return typeof (provider as TronWeb)?.trx?.getEnergyPrices === "function";
 }
 
 export function isEvmProvider(provider: EvmProvider | SVMProvider | TronWeb): provider is EvmProvider {
