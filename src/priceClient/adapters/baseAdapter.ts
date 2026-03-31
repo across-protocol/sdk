@@ -1,3 +1,4 @@
+import { fetchJsonWithTimeout } from "../../utils";
 import assert from "assert";
 
 export type BaseHTTPAdapterArgs = {
@@ -51,12 +52,12 @@ export class BaseHTTPAdapter {
     let tries = 0;
     do {
       try {
-        const response = await fetch(fullUrl, {
-          headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
-          ...(this.timeout > 0 && { signal: AbortSignal.timeout(this.timeout) }),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        return await response.json();
+        return await fetchJsonWithTimeout(
+          fullUrl,
+          {},
+          { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
+          this.timeout
+        );
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : "unknown error";
         errs.push(errMsg);

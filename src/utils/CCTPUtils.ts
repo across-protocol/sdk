@@ -1,4 +1,5 @@
 import { PUBLIC_NETWORKS, CCTP_NO_DOMAIN, PRODUCTION_NETWORKS, TEST_NETWORKS } from "@across-protocol/constants";
+import { fetchJsonWithTimeout } from "./FetchUtils";
 import { BigNumber, ethers } from "ethers";
 
 import { Log } from "@ethersproject/abstract-provider";
@@ -235,9 +236,9 @@ export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract
  * @link https://developers.circle.com/api-reference/cctp/all/get-fast-burn-usdc-allowance
  */
 export async function getV2FastBurnAllowance(isMainnet: boolean): Promise<string> {
-  const response = await fetch(`https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`);
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  const data: CCTPV2APIGetFastBurnAllowanceResponse = await response.json();
+  const data = await fetchJsonWithTimeout<CCTPV2APIGetFastBurnAllowanceResponse>(
+    `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`
+  );
   return data.allowance.toString();
 }
 
@@ -260,9 +261,7 @@ export async function getV2MinTransferFees(
   const endpoint = `https://iris-api${
     isMainnet ? "" : "-sandbox"
   }.circle.com/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}`;
-  const response = await fetch(endpoint);
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  const data: CCTPV2APIGetFeesResponse = await response.json();
+  const data = await fetchJsonWithTimeout<CCTPV2APIGetFeesResponse>(endpoint);
   const standardFee = data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_STANDARD);
   assert(
     isDefined(standardFee?.minimumFee),
@@ -289,15 +288,11 @@ export async function fetchAttestationsForTxn(
   transactionHash: string,
   isMainnet: boolean
 ): Promise<CCTPV2APIGetAttestationResponse> {
-  const response = await fetch(
+  return await fetchJsonWithTimeout<CCTPV2APIGetAttestationResponse>(
     `https://iris-api${
       isMainnet ? "" : "-sandbox"
     }.circle.com/v2/messages/${sourceDomainId}?transactionHash=${transactionHash}`
   );
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  const data: CCTPV2APIGetAttestationResponse = await response.json();
-
-  return data;
 }
 
 /**
