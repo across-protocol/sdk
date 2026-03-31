@@ -105,7 +105,7 @@ describe("PriceClient: BaseHTTPAdapter", function () {
 
       // Mock fetch to succeed on the final retry.
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+      globalThis.fetch = (...args: Parameters<typeof fetch>) => {
         if (retries && baseAdapter.nRetries === retries) {
           return new Response(JSON.stringify({}), { status: 200 });
         }
