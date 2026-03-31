@@ -17,7 +17,7 @@ const LOCAL_ARWEAVE_NODE = {
 };
 const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE.host}:${LOCAL_ARWEAVE_NODE.port}`;
 
-const mineBlock = () => fetch(`${LOCAL_ARWEAVE_URL}/mine`);
+const mineBlock = () => fetchJsonWithTimeout(`${LOCAL_ARWEAVE_URL}/mine`);
 
 describe("ArweaveClient", () => {
   const arLocal = new ArLocal(LOCAL_ARWEAVE_NODE.port, true);
