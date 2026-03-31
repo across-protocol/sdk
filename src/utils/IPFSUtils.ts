@@ -26,6 +26,7 @@ export async function retrieveValueFromIPFS(contentHash: string, publicGatewayUR
     },
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  // We want just the raw response, not the parsed response, so we use plain fetch()
   return await response.text();
 }
 
