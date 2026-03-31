@@ -513,9 +513,8 @@ export class Coingecko {
   }
 
   private async _callPro(path: string) {
-    const url = `${this.proHost}/${path}`;
-    const separator = url.includes("?") ? "&" : "?";
-    const fullUrl = `${url}${separator}x_cg_pro_api_key=${this.apiKey}`;
+    const fullUrl = new URL(`${this.proHost}/${path}`);
+    fullUrl.searchParams.set("x_cg_pro_api_key", this.apiKey);
 
     const response = await fetch(fullUrl);
     if (!response.ok) {
