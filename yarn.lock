@@ -12,15 +12,17 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.100.tgz#ac7f7910340e62abb66dceea451e96f590742211"
   integrity sha512-HWALdgQHY7Q0IQFMCThi/bcUp1CTgb/sdVmRvj5sLkjz2tFZfCcPA0nKzKK+5pXD3hdd2W44uqQA58Z19XhSSw==
 
-"@across-protocol/contracts@5.0.4-alpha.0":
-  version "5.0.4-alpha.0"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.4-alpha.0.tgz#3e25d4fa0e9f160c09bdc8a9bdba21628e08fc7b"
-  integrity sha512-z1Sb+EErGORdI6623cW+msnfcJT0bxxa02Jl9+owPY0i845dYee0805KskUGsIA95kaK2QTr2MlImlCme3WFXw==
+"@across-protocol/contracts@5.0.4":
+  version "5.0.4"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.4.tgz#1cb63c81538a75f67f8df8421a088b96d51b7c06"
+  integrity sha512-6XADW4ntJZYAH0vYjTazL0lfakwp1uOWHtcrELSdSir4TRSMf9ieaXAHt/oDHkSFQaNSiyJ+xU63cNsdX05CgQ==
   dependencies:
     "@across-protocol/constants" "^3.1.100"
     "@coral-xyz/anchor" "^0.31.1"
     "@eth-optimism/contracts" "^0.5.40"
     "@ethersproject/bignumber" "5.7.0"
+    "@ethersproject/bytes" "5.7.0"
+    "@ethersproject/keccak256" "5.7.0"
     "@openzeppelin/contracts" "5.5.0"
     "@openzeppelin/contracts-upgradeable" "5.5.0"
     "@openzeppelin/contracts-upgradeable-v4" "npm:@openzeppelin/contracts-upgradeable@4.9.6"
