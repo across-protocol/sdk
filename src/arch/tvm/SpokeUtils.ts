@@ -3,6 +3,7 @@ import { Contract, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
 import { FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { get1967Upgrades } from "../evm/UpgradeUtils";
+import { relayFillStatus as evmRelayFillStatus } from "../evm/SpokeUtils";
 import {
   BigNumber,
   getRelayDataHash,
@@ -103,8 +104,10 @@ export async function findDepositBlock(
 
 /**
  * @notice Determine the fill status of a relay at a given block.
- * For "latest" queries, TRON's eth_call works normally. For historical
- * queries the status is reconstructed from on-chain events.
+ * For "latest" queries, delegates to the EVM implementation (TRON's
+ * eth_call works normally for "latest"). For historical queries the
+ * status is reconstructed from on-chain events because TRON does not
+ * support eth_call with historical blockTags.
  */
 export async function relayFillStatus(
   spokePool: Contract,
@@ -112,24 +115,14 @@ export async function relayFillStatus(
   blockTag: BlockTag = "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
+  if (blockTag === "latest") {
+    return evmRelayFillStatus(spokePool, relayData, blockTag, destinationChainId);
+  }
+
   destinationChainId ??= await spokePool.chainId();
   assert(isDefined(destinationChainId));
 
   const hash = getRelayDataHash(relayData, destinationChainId);
-
-  if (blockTag === "latest") {
-    const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
-    const fillStatus = Number(_fillStatus);
-
-    if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
-      const { originChainId, depositId } = relayData;
-      throw new Error(
-        `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId.toString()} (${fillStatus})`
-      );
-    }
-
-    return fillStatus;
-  }
 
   // Historical blockTag: check the current state first as an optimisation.
   // Fill status can only increase (Unfilled -> RequestedSlowFill -> Filled),
