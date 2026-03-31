@@ -29,5 +29,4 @@ export * from "./AddressUtils";
 export * from "./SpokeUtils";
 export * from "./CCTPUtils";
 export * from "./HyperLiquidUtils";
-
 export * from "./FetchUtils";
