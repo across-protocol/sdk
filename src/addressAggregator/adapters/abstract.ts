@@ -33,7 +33,7 @@ export abstract class AbstractAdapter implements AddressListAdapter {
       try {
         const response = await globalThis.fetch(url, {
           headers: { "User-Agent": ACROSS_USER_AGENT },
-          signal: AbortSignal.timeout(timeout),
+          ...(timeout > 0 && { signal: AbortSignal.timeout(timeout) }),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         return await response.json();

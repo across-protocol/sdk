@@ -53,7 +53,7 @@ export class BaseHTTPAdapter {
       try {
         const response = await fetch(fullUrl, {
           headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
-          signal: AbortSignal.timeout(this.timeout),
+          ...(this.timeout > 0 && { signal: AbortSignal.timeout(this.timeout) }),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         return await response.json();
