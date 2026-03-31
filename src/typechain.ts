@@ -8,12 +8,17 @@
 export type { TypedEvent, TypedEventFilter } from "./utils/abi/typechain/common";
 
 // Factories from local typechain (generated from Foundry artifacts)
+export { AcrossMerkleDistributor__factory } from "./utils/abi/typechain/factories/AcrossMerkleDistributor__factory";
 export { AcrossConfigStore__factory } from "./utils/abi/typechain/factories/AcrossConfigStore__factory";
 export { HubPool__factory } from "./utils/abi/typechain/factories/HubPool__factory";
 export { SpokePool__factory } from "./utils/abi/typechain/factories/SpokePool__factory";
 export { ERC20__factory } from "./utils/abi/typechain/factories/ERC20__factory";
 
 // Type exports from local typechain
+export type {
+  AcrossMerkleDistributor,
+  AcrossMerkleDistributorInterface,
+} from "./utils/abi/typechain/AcrossMerkleDistributor";
 export type { AcrossConfigStore, AcrossConfigStoreInterface } from "./utils/abi/typechain/AcrossConfigStore";
 export type { HubPool, HubPoolInterface } from "./utils/abi/typechain/HubPool";
 export type {
