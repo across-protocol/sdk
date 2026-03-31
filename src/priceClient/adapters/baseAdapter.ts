@@ -39,22 +39,14 @@ export class BaseHTTPAdapter {
 
   protected async query(path: string, urlArgs?: object): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
-    const params = new URLSearchParams();
-    if (urlArgs) {
-      for (const [key, value] of Object.entries(urlArgs)) {
-        params.append(key, String(value));
-      }
-    }
-    const queryString = params.toString();
-    const fullUrl = queryString ? `${url}?${queryString}` : url;
 
     const errs: string[] = [];
     let tries = 0;
     do {
       try {
         return await fetchJsonWithTimeout(
-          fullUrl,
-          {},
+          url,
+          urlArgs ?? {},
           { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
           this.timeout
         );
