@@ -235,9 +235,7 @@ export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract
  * @link https://developers.circle.com/api-reference/cctp/all/get-fast-burn-usdc-allowance
  */
 export async function getV2FastBurnAllowance(isMainnet: boolean): Promise<string> {
-  const response = await fetch(
-    `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`
-  );
+  const response = await fetch(`https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`);
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   const data: CCTPV2APIGetFastBurnAllowanceResponse = await response.json();
   return data.allowance.toString();
