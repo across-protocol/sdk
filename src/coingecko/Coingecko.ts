@@ -1,5 +1,5 @@
 import assert from "assert";
-import { getCoingeckoTokenIdByAddress, retry } from "../utils";
+import { fetchJsonWithTimeout, getCoingeckoTokenIdByAddress, retry } from "../utils";
 import { Logger } from "../relayFeeCalculator";
 
 export function msToS(ms: number) {
@@ -504,23 +504,11 @@ export class Coingecko {
     const url = `${this.host}/${path}`;
 
     // Don't use timeout if there is no pro API to fallback to.
-    const response = await fetch(url, timeout ? { signal: AbortSignal.timeout(timeout) } : undefined);
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
-      throw new Error(errorBody?.error ?? response.statusText);
-    }
-    return await response.json();
+    return await fetchJsonWithTimeout(url, {}, {}, timeout);
   }
 
   private async _callPro(path: string) {
-    const fullUrl = new URL(`${this.proHost}/${path}`);
-    fullUrl.searchParams.set("x_cg_pro_api_key", this.apiKey);
-
-    const response = await fetch(fullUrl);
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
-      throw new Error(errorBody?.error ?? response.statusText);
-    }
-    return await response.json();
+    const url = `${this.proHost}/${path}`;
+    return await fetchJsonWithTimeout(url, { x_cg_pro_api_key: this.apiKey });
   }
 }

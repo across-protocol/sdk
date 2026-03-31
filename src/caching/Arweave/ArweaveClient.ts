@@ -4,7 +4,7 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, delay, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import { BigNumber, delay, fetchJsonWithTimeout, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -103,9 +103,7 @@ export class ArweaveClient {
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const request = async () => {
-      const response = await fetch(transactionUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      return await response.json();
+      return await fetchJsonWithTimeout(transactionUrl);
     };
     const data = await this._retryRequest(request, 0);
     try {

@@ -1,5 +1,5 @@
 import { AdapterOptions, AddressListAdapter } from "../types";
-import { Logger } from "../../utils";
+import { Logger, fetchJsonWithTimeout } from "../../utils";
 
 const { ACROSS_USER_AGENT = "across-protocol" } = process.env;
 
@@ -31,12 +31,7 @@ export abstract class AbstractAdapter implements AddressListAdapter {
     let tries = 0;
     do {
       try {
-        const response = await globalThis.fetch(url, {
-          headers: { "User-Agent": ACROSS_USER_AGENT },
-          ...(timeout > 0 && { signal: AbortSignal.timeout(timeout) }),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        return await response.json();
+        return await fetchJsonWithTimeout(url, {}, { "User-Agent": ACROSS_USER_AGENT }, timeout);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : "unknown error";
         errs.push(errMsg);
