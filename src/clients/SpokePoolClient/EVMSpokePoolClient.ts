@@ -212,11 +212,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
    * EVM uses a binary-search over historical numberOfDeposits().
    * TVM overrides this with an event-based lookup.
    */
-  protected _findDepositBlock(
-    depositId: BigNumber,
-    lowBlock: number,
-    highBlock?: number
-  ): Promise<number | undefined> {
+  protected _findDepositBlock(depositId: BigNumber, lowBlock: number, highBlock?: number): Promise<number | undefined> {
     return findDepositBlock(this.spokePool, depositId, lowBlock, highBlock);
   }
 
