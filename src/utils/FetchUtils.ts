@@ -28,7 +28,8 @@ export async function fetchJsonWithTimeout<T = unknown>(
   url: string,
   params: FetchQueryParams = {},
   headers: FetchHeaders = {},
-  timeout?: number
+  timeout?: number,
+  responseType: "json" | "text" = "json"
 ): Promise<T> {
   const fullUrl = applyQueryParams(url, params);
   const response = await fetch(fullUrl, {
@@ -48,6 +49,10 @@ export async function fetchJsonWithTimeout<T = unknown>(
       // Response body wasn't JSON — fall through to default message.
     }
     throw new Error(errorMessage ?? `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  if (responseType === "text") {
+    return text as T;
   }
 
   try {
