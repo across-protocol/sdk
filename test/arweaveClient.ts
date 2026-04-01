@@ -34,13 +34,7 @@ describe("ArweaveClient", () => {
     // Resolve the address of the JWK
     const address = await Arweave.init({}).wallets.jwkToAddress(jwk);
     // Call into the local arweave node to fund the address
-    await fetchWithTimeout(
-      `${LOCAL_ARWEAVE_URL}/mint/${address}/${INITIAL_FUNDING_AMNT}`,
-      {},
-      {},
-      undefined,
-      "text"
-    );
+    await fetchWithTimeout(`${LOCAL_ARWEAVE_URL}/mint/${address}/${INITIAL_FUNDING_AMNT}`, {}, {}, undefined, "text");
     // Wait for the transaction to be mined
     await mineBlock();
   });
