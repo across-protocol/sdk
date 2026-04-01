@@ -50,10 +50,10 @@ export default class ProductionApiClient extends AbstractApiClient {
       `${this.getServerlessApiUrl()}/api/suggested-fees`,
       {
         token: originToken,
-        destinationChainId: String(toChainid),
-        originChainId: String(fromChainid),
+        destinationChainId: toChainid,
+        originChainId: fromChainid,
         amount: amount.toString(),
-        skipAmountLimit: "true",
+        skipAmountLimit: true,
       }
     );
     const relayFeePct = BigNumber.from(result["relayFeePct"]);
