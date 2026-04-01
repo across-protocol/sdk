@@ -1,7 +1,7 @@
 /**
  * This file re-exports some of the typechain bindings so that they can be tree-shaken in the final frontend bundle.
- * Currently, the packages `@across-protocol/contracts` and `@across-protocol/across-token` are not optimized for tree-shaking
- * and contain modules that are not compatible in a browser environment. This is a temporary solution until we can fix the issue upstream.
+ * Currently, the packages `@across-protocol/contracts` is not optimized for tree-shaking and contains modules that
+ * are not compatible in a browser environment. This is a temporary solution until we can fix the issue upstream.
  */
 
 // Common types from local typechain
@@ -27,18 +27,3 @@ export type {
   V3FundsDepositedEvent,
   FilledV3RelayEvent,
 } from "./utils/abi/typechain/SpokePool";
-
-// Continue importing from @across-protocol/across-token (no Foundry artifacts available)
-export { AcceleratingDistributor__factory } from "@across-protocol/across-token/dist/typechain/factories/AcceleratingDistributor__factory";
-export { ClaimAndStake__factory } from "@across-protocol/across-token/dist/typechain/factories/ClaimAndStake__factory";
-export { MerkleDistributor__factory } from "@across-protocol/across-token/dist/typechain/factories/MerkleDistributor__factory";
-
-export type {
-  AcceleratingDistributor,
-  AcceleratingDistributorInterface,
-} from "@across-protocol/across-token/dist/typechain/AcceleratingDistributor";
-export type { ClaimAndStake, ClaimAndStakeInterface } from "@across-protocol/across-token/dist/typechain/ClaimAndStake";
-export type {
-  MerkleDistributor,
-  MerkleDistributorInterface,
-} from "@across-protocol/across-token/dist/typechain/MerkleDistributor";
