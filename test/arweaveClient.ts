@@ -6,7 +6,7 @@ import { object, string } from "superstruct";
 import winston from "winston";
 import { ArweaveClient } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
-import { fetchJsonWithTimeout, toBN } from "../src/utils";
+import { fetchWithTimeout, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
@@ -17,7 +17,7 @@ const LOCAL_ARWEAVE_NODE = {
 };
 const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE.host}:${LOCAL_ARWEAVE_NODE.port}`;
 
-const mineBlock = () => fetchJsonWithTimeout(`${LOCAL_ARWEAVE_URL}/mine`, {}, {}, undefined, "text");
+const mineBlock = () => fetchWithTimeout(`${LOCAL_ARWEAVE_URL}/mine`, {}, {}, undefined, "text");
 
 describe("ArweaveClient", () => {
   const arLocal = new ArLocal(LOCAL_ARWEAVE_NODE.port, true);
@@ -34,7 +34,7 @@ describe("ArweaveClient", () => {
     // Resolve the address of the JWK
     const address = await Arweave.init({}).wallets.jwkToAddress(jwk);
     // Call into the local arweave node to fund the address
-    await fetchJsonWithTimeout(
+    await fetchWithTimeout(
       `${LOCAL_ARWEAVE_URL}/mint/${address}/${INITIAL_FUNDING_AMNT}`,
       {},
       {},

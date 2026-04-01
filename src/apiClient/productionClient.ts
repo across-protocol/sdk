@@ -1,5 +1,5 @@
 import AbstractApiClient from "./abstractClient";
-import { BigNumber, fetchJsonWithTimeout, parseEther } from "../utils";
+import { BigNumber, fetchWithTimeout, parseEther } from "../utils";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,
@@ -31,7 +31,7 @@ export default class ProductionApiClient extends AbstractApiClient {
   }
 
   public async getCoinGeckoData(l1Token: string, baseCurrency: string): Promise<CoingeckoDataReturnType> {
-    const result = await fetchJsonWithTimeout<{ price: string }>(`${this.getServerlessApiUrl()}/api/coingecko`, {
+    const result = await fetchWithTimeout<{ price: string }>(`${this.getServerlessApiUrl()}/api/coingecko`, {
       l1Token,
       baseCurrency,
     });
@@ -46,7 +46,7 @@ export default class ProductionApiClient extends AbstractApiClient {
     toChainid: number,
     fromChainid: number
   ): Promise<SuggestedFeeReturnType> {
-    const result = await fetchJsonWithTimeout<SuggestedFeesApiResponse>(
+    const result = await fetchWithTimeout<SuggestedFeesApiResponse>(
       `${this.getServerlessApiUrl()}/api/suggested-fees`,
       {
         token: originToken,
@@ -93,7 +93,7 @@ export default class ProductionApiClient extends AbstractApiClient {
     fromChainId: string | number,
     toChainId: string | number
   ): Promise<BridgeLimitsReturnType> {
-    const data = await fetchJsonWithTimeout<BridgeLimitsReturnType>(`${this.getServerlessApiUrl()}/api/limits`, {
+    const data = await fetchWithTimeout<BridgeLimitsReturnType>(`${this.getServerlessApiUrl()}/api/limits`, {
       token,
       originChainId: fromChainId,
       destinationChainId: toChainId,
@@ -101,7 +101,7 @@ export default class ProductionApiClient extends AbstractApiClient {
     return data;
   }
   public async getAcrossStats(): Promise<AcrossBridgeStatisticsType> {
-    const data = await fetchJsonWithTimeout<AcrossBridgeStatisticsType>(`${this.getScraperApiUrl()}/deposits/stats`);
+    const data = await fetchWithTimeout<AcrossBridgeStatisticsType>(`${this.getScraperApiUrl()}/deposits/stats`);
     return data;
   }
 }

@@ -1,5 +1,5 @@
 import assert from "assert";
-import { fetchJsonWithTimeout, getCoingeckoTokenIdByAddress, retry } from "../utils";
+import { fetchWithTimeout, getCoingeckoTokenIdByAddress, retry } from "../utils";
 import { Logger } from "../relayFeeCalculator";
 
 export function msToS(ms: number) {
@@ -504,11 +504,11 @@ export class Coingecko {
     const url = `${this.host}/${path}`;
 
     // Don't use timeout if there is no pro API to fallback to.
-    return await fetchJsonWithTimeout<T>(url, {}, {}, timeout);
+    return await fetchWithTimeout<T>(url, {}, {}, timeout);
   }
 
   private async _callPro<T>(path: string): Promise<T> {
     const url = `${this.proHost}/${path}`;
-    return await fetchJsonWithTimeout<T>(url, { x_cg_pro_api_key: this.apiKey });
+    return await fetchWithTimeout<T>(url, { x_cg_pro_api_key: this.apiKey });
   }
 }

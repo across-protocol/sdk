@@ -1,5 +1,5 @@
 import { PUBLIC_NETWORKS, CCTP_NO_DOMAIN, PRODUCTION_NETWORKS, TEST_NETWORKS } from "@across-protocol/constants";
-import { fetchJsonWithTimeout } from "./FetchUtils";
+import { fetchWithTimeout } from "./FetchUtils";
 import { BigNumber, ethers } from "ethers";
 
 import { Log } from "@ethersproject/abstract-provider";
@@ -236,7 +236,7 @@ export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract
  * @link https://developers.circle.com/api-reference/cctp/all/get-fast-burn-usdc-allowance
  */
 export async function getV2FastBurnAllowance(isMainnet: boolean): Promise<string> {
-  const data = await fetchJsonWithTimeout<CCTPV2APIGetFastBurnAllowanceResponse>(
+  const data = await fetchWithTimeout<CCTPV2APIGetFastBurnAllowanceResponse>(
     `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`
   );
   return data.allowance.toString();
@@ -261,7 +261,7 @@ export async function getV2MinTransferFees(
   const endpoint = `https://iris-api${
     isMainnet ? "" : "-sandbox"
   }.circle.com/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}`;
-  const data = await fetchJsonWithTimeout<CCTPV2APIGetFeesResponse>(endpoint);
+  const data = await fetchWithTimeout<CCTPV2APIGetFeesResponse>(endpoint);
   const standardFee = data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_STANDARD);
   assert(
     isDefined(standardFee?.minimumFee),
@@ -288,7 +288,7 @@ export async function fetchAttestationsForTxn(
   transactionHash: string,
   isMainnet: boolean
 ): Promise<CCTPV2APIGetAttestationResponse> {
-  return await fetchJsonWithTimeout<CCTPV2APIGetAttestationResponse>(
+  return await fetchWithTimeout<CCTPV2APIGetAttestationResponse>(
     `https://iris-api${
       isMainnet ? "" : "-sandbox"
     }.circle.com/v2/messages/${sourceDomainId}?transactionHash=${transactionHash}`

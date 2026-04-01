@@ -24,7 +24,7 @@ const applyQueryParams = (url: string, params: FetchQueryParams): string => {
   return parsedUrl.toString();
 };
 
-export async function fetchJsonWithTimeout<T = unknown>(
+export async function fetchWithTimeout<T = unknown>(
   url: string,
   params: FetchQueryParams = {},
   headers: FetchHeaders = {},

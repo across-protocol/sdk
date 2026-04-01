@@ -1,5 +1,5 @@
 import PinataClient from "@pinata/sdk";
-import { fetchJsonWithTimeout } from "./FetchUtils";
+import { fetchWithTimeout } from "./FetchUtils";
 
 /**
  * Build an IPFS client for interacting with the IPFS API
@@ -19,7 +19,7 @@ export function buildIPFSClient(APIKey: string, secretAPIKey: string): PinataCli
  * @throws Error if the value could not be retrieved
  */
 export function retrieveValueFromIPFS(contentHash: string, publicGatewayURL: string): Promise<string> {
-  return fetchJsonWithTimeout<string>(
+  return fetchWithTimeout<string>(
     `${publicGatewayURL}/ipfs/${contentHash}`,
     {},
     { Accept: "text/plain" },

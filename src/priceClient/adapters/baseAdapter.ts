@@ -1,4 +1,4 @@
-import { fetchJsonWithTimeout, FetchQueryParams } from "../../utils";
+import { fetchWithTimeout, FetchQueryParams } from "../../utils";
 import assert from "assert";
 
 export type BaseHTTPAdapterArgs = {
@@ -44,7 +44,7 @@ export class BaseHTTPAdapter {
     let tries = 0;
     do {
       try {
-        return await fetchJsonWithTimeout<unknown>(
+        return await fetchWithTimeout<unknown>(
           url,
           urlArgs ?? {},
           { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
