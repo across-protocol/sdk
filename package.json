@@ -22,7 +22,9 @@
     "build-bigint-buffer": "node scripts/build-bigint-buffer.js",
     "postinstall": "node scripts/build-bigint-buffer.js",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
-    "build": "yarn run clean && yarn typechain && yarn dev",
+    "build": "yarn run clean && yarn typechain && yarn generate-svm-artifacts && yarn dev",
+    "generate-svm-artifacts": "bash scripts/svm/generateSvmAssets.sh && yarn generate-svm-clients",
+    "generate-svm-clients": "ts-node scripts/svm/generateSvmClients.ts && ts-node scripts/svm/renameClientsImports.ts",
     "dev": "concurrently --kill-others-on-fail --names 'cjs,esm,types' --prefix-colors 'blue,magenta,green' 'yarn run build:cjs' 'yarn run build:esm' 'yarn run build:types'",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}' && yarn export-svm-idl:cjs",
     "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}' && yarn export-svm-idl:esm",
@@ -42,7 +44,6 @@
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "stage-artifacts": "node scripts/stage-typechain-artifacts.js",
-    "sync-svm-clients": "bash scripts/sync-svm-clients.sh",
     "typechain": "yarn stage-artifacts && typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json'",
     "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --ignore src/utils/abi/ --exec 'yalc publish --push --changed'"
   },
@@ -62,6 +63,9 @@
     }
   ],
   "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.2.2",
+    "@codama/renderers-js": "^1.3.0",
+    "codama": "^1.3.0",
     "@defi-wonderland/smock": "^2.4.0",
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
@@ -115,7 +119,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.100",
-    "@across-protocol/contracts": "4.1.24",
+    "@across-protocol/contracts": "5.0.4",
     "@coral-xyz/anchor": "^0.30.1",
     "@coral-xyz/borsh": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
