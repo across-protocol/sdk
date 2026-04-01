@@ -22,9 +22,11 @@ export class LargeAccountsCoder<A extends string = string> extends BorshAccounts
   // Getter to access the private accountLayouts property from base class.
   private getAccountLayouts() {
     // Base class has `Map<A, { discriminator: IdlDiscriminator; layout: Layout }`, but we only use layout here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this as any).accountLayouts as Map<A, { layout: Layout }>;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, require-await
   public async encode<T = any>(accountName: A, account: T): Promise<Buffer> {
     const buffer = Buffer.alloc(10240); // We don't currently need anything above instruction data account reallocation limit.
     const layout = this.getAccountLayouts().get(accountName);

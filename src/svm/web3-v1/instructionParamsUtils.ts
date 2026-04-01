@@ -115,7 +115,9 @@ export async function loadFillRelayParams(
   );
   for (let i = 0; i < loadInstructions.length; i += 1) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await sendAndConfirmTransaction(program.provider.connection as any, new Transaction().add(loadInstructions[i]), [signer]);
+    await sendAndConfirmTransaction(program.provider.connection as any, new Transaction().add(loadInstructions[i]), [
+      signer,
+    ]);
   }
 }
 

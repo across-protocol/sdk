@@ -25,6 +25,7 @@ export function findProgramAddress(label: string, program: PublicKey, extraSeeds
       } else if (Buffer.isBuffer(extraSeed)) {
         seeds.push(extraSeed);
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         seeds.push((extraSeed as any).toBuffer());
       }
     }
@@ -53,6 +54,7 @@ export async function readEvents<IDL extends Idl = Idl>(
 /**
  * Processes events from a transaction.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function processEventFromTx(txResult: web3.VersionedTransactionResponse, programs: Program<any>[]) {
   const eventAuthorities: Map<string, PublicKey> = new Map();
   for (const program of programs) {
@@ -124,6 +126,7 @@ export async function readEventsUntilFound<IDL extends Idl = Idl>(
 /**
  * Retrieves a specific event by name from a list of events.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getEvent(events: any[], program: PublicKey, eventName: string) {
   for (const event of events) {
     if (event.name === eventName && program.toString() === event.program.toString()) {
@@ -138,6 +141,7 @@ export function getEvent(events: any[], program: PublicKey, eventName: string) {
  */
 export async function readProgramEvents(
   connection: Connection,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   program: Program<any>,
   finality: Finality = "confirmed",
   options: SignaturesForAddressOptions = { limit: 1000 }
@@ -145,7 +149,7 @@ export async function readProgramEvents(
   const allSignatures: ConfirmedSignatureInfo[] = [];
 
   // Fetch all signatures in sequential batches
-  while (true) {
+  for (;;) {
     const signatures = await connection.getSignaturesForAddress(program.programId, options, finality);
     allSignatures.push(...signatures);
 
@@ -178,9 +182,11 @@ export async function readProgramEvents(
 /**
  * Subscribes to CPI events for a program.
  */
-export async function subscribeToCpiEventsForProgram(
+export function subscribeToCpiEventsForProgram(
   connection: Connection,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   program: Program<any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   callback: (events: any[]) => void
 ) {
   const subscriptionId = connection.onLogs(
@@ -227,6 +233,7 @@ function parseDepositId(value: Uint8Array): string {
 
   // Deserialize the full depositId using the Borsh schema
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const depositId = (deserialize as any)(depositIdSchema, DepositId, Buffer.from(value)) as DepositId;
   return new BN(depositId.value).toString();
 }
@@ -234,6 +241,7 @@ function parseDepositId(value: Uint8Array): string {
 /**
  * Stringifies a CPI event.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function stringifyCpiEvent(obj: any, eventName: string): any {
   if (obj?.constructor?.toString()?.includes("PublicKey")) {
     if (obj.toString().startsWith("111111111111")) {

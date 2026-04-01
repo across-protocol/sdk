@@ -40,11 +40,16 @@ export async function sendTransactionWithLookupTable(
   });
 
   // Submit the ALT creation transaction
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await web3.sendAndConfirmTransaction(connection as any, new web3.Transaction().add(lookupTableInstruction), [sender], {
-    commitment: "confirmed",
-    skipPreflight: true,
-  });
+  await web3.sendAndConfirmTransaction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    connection as any,
+    new web3.Transaction().add(lookupTableInstruction),
+    [sender],
+    {
+      commitment: "confirmed",
+      skipPreflight: true,
+    }
+  );
 
   // Extend the ALT with all accounts making sure not to exceed the maximum number of accounts per transaction.
   for (let i = 0; i < lookupAddresses.length; i += maxExtendedAccounts) {
@@ -86,7 +91,7 @@ export async function sendTransactionWithLookupTable(
   const txSignature = await connection.sendTransaction(versionedTx);
 
   // Confirm the versioned transaction
-  let block = await connection.getLatestBlockhash();
+  const block = await connection.getLatestBlockhash();
   await connection.confirmTransaction(
     { signature: txSignature, blockhash: block.blockhash, lastValidBlockHeight: block.lastValidBlockHeight },
     "confirmed"
@@ -119,7 +124,7 @@ export async function sendTransactionWithExistingLookupTable(
   const txSignature = await connection.sendTransaction(versionedTx);
 
   // Confirm the versioned transaction
-  let block = await connection.getLatestBlockhash();
+  const block = await connection.getLatestBlockhash();
   await connection.confirmTransaction(
     { signature: txSignature, blockhash: block.blockhash, lastValidBlockHeight: block.lastValidBlockHeight },
     "confirmed"

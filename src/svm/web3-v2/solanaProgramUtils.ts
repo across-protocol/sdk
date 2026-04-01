@@ -45,7 +45,7 @@ async function searchSignaturesUntilLimit(
 ): Promise<GetSignaturesForAddressTransaction[]> {
   const allSignatures: GetSignaturesForAddressTransaction[] = [];
   // Fetch all signatures in sequential batches
-  while (true) {
+  for (;;) {
     const signatures = await client.rpc.getSignaturesForAddress(program, options).send();
     allSignatures.push(...signatures);
 
@@ -87,9 +87,11 @@ async function processEventFromTx(
   txResult: GetTransactionReturnType,
   programId: Address,
   programIdl: Idl
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ program: Address; data: any; name: string | undefined }[]> {
   if (!txResult) return [];
   const eventAuthorities: Map<string, Address> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const events: { program: Address; data: any; name: string | undefined }[] = [];
   const [pda] = await web3.getProgramDerivedAddress({ programAddress: programId, seeds: ["__event_authority"] });
   eventAuthorities.set(programId, pda);
@@ -113,7 +115,7 @@ async function processEventFromTx(
       ) {
         const ixData = utils.bytes.bs58.decode(ix.data);
         const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
-        let event = new BorshEventCoder(programIdl).decode(eventData);
+        const event = new BorshEventCoder(programIdl).decode(eventData);
         events.push({
           program: programId,
           data: event?.data,
@@ -134,6 +136,7 @@ export async function readFillEventFromFillStatusPda(
   fillStatusPda: Address,
   programId: Address,
   programIdl: Idl
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ event: any; slot: number }> {
   const signatures = await searchSignaturesUntilLimit(client, fillStatusPda);
   if (signatures.length === 0) return { event: null, slot: 0 };

@@ -1,4 +1,5 @@
 declare module "buffer-layout" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export class Layout<T = any> {
     span: number;
     property?: string;

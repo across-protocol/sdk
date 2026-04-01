@@ -1,6 +1,5 @@
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
-import { BigNumber } from "@ethersproject/bignumber";
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { PublicKey } from "@solana/web3.js";
 import { serialize } from "borsh";
 import { keccak256 } from "ethers/lib/utils";
@@ -255,6 +254,7 @@ class FillDelegateSeedData {
 /**
  * Borsh schema for FillDelegateSeedData
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fillDelegateSeedSchema = new Map<any, any>([
   [
     FillDelegateSeedData,

@@ -19,6 +19,7 @@ export function intToU8Array32(num: number | BN): number[] {
  * Converts a 32-byte Uint8Array to a bigint.
  */
 export function u8Array32ToInt(u8Array: Uint8Array | number[]): bigint {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isValidArray = (arr: any): arr is number[] => Array.isArray(arr) && arr.every(Number.isInteger);
 
   if ((u8Array instanceof Uint8Array || isValidArray(u8Array)) && u8Array.length === 32) {
@@ -32,6 +33,7 @@ export function u8Array32ToInt(u8Array: Uint8Array | number[]): bigint {
  * Converts a 32-byte Uint8Array to a BigNumber.
  */
 export function u8Array32ToBigNumber(u8Array: Uint8Array | number[]): BigNumber {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isValidArray = (arr: any): arr is number[] => Array.isArray(arr) && arr.every(Number.isInteger);
   if ((u8Array instanceof Uint8Array || isValidArray(u8Array)) && u8Array.length === 32) {
     const hexString = "0x" + Buffer.from(u8Array).toString("hex");

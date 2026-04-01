@@ -6,6 +6,7 @@ import { serialize } from "borsh";
 /**
  * Calculates the relay hash from relay data and chain ID.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function calculateRelayHashUint8Array(relayData: any, chainId: BN): Uint8Array {
   const contentToHash = Buffer.concat([
     relayData.depositor.toBuffer(),
@@ -31,6 +32,7 @@ export function calculateRelayHashUint8Array(relayData: any, chainId: BN): Uint8
 /**
  * Calculates the relay event hash from relay event data and chain ID.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function calculateRelayEventHashUint8Array(relayEventData: any, chainId: BN): Uint8Array {
   const contentToHash = Buffer.concat([
     relayEventData.depositor.toBuffer(),
@@ -56,7 +58,7 @@ export function calculateRelayEventHashUint8Array(relayEventData: any, chainId: 
 /**
  * Reads a 256-bit unsigned integer from a buffer.
  */
-export const readUInt256BE = (buffer: Buffer): BigInt => {
+export const readUInt256BE = (buffer: Buffer): bigint => {
   let result = BigInt(0);
   for (let i = 0; i < buffer.length; i++) {
     result = (result << BigInt(8)) + BigInt(buffer[i]);
@@ -80,6 +82,7 @@ export function hashNonEmptyMessage(message: Buffer) {
  * Class for relay data.
  */
 class RelayData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(properties: any) {
     Object.assign(this, properties);
   }
@@ -160,6 +163,7 @@ export const relayerRefundHashFn = (input: RelayerRefundLeaf | RelayerRefundLeaf
  * Class for slow fill data.
  */
 class SlowFillData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(properties: any) {
     Object.assign(this, properties);
   }
