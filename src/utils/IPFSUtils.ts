@@ -18,7 +18,7 @@ export function buildIPFSClient(APIKey: string, secretAPIKey: string): PinataCli
  * @returns The value retrieved from the IPFS gateway
  * @throws Error if the value could not be retrieved
  */
-export async function retrieveValueFromIPFS(contentHash: string, publicGatewayURL: string): Promise<string> {
+export function retrieveValueFromIPFS(contentHash: string, publicGatewayURL: string): Promise<string> {
   return fetchJsonWithTimeout<string>(
     `${publicGatewayURL}/ipfs/${contentHash}`,
     {},
