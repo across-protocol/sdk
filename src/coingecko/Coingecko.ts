@@ -384,19 +384,19 @@ export class Coingecko {
 
       // If no pro api key, only send basic request:
       if (this.apiKey === undefined) {
-        return (await this._callBasic(path)) as T;
+        return await this._callBasic<T>(path);
       }
 
       // If pro api key, try basic and use pro as fallback.
       try {
-        return (await this._callBasic(path, this.basicApiTimeout)) as T;
+        return await this._callBasic<T>(path, this.basicApiTimeout);
       } catch (err) {
         this.logger.debug({
           at: "sdk/coingecko",
           message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
           errMessage: (err as Error).message,
         });
-        return await this._callPro(path);
+        return await this._callPro<T>(path);
       }
     };
 
@@ -500,15 +500,15 @@ export class Coingecko {
     }
   }
 
-  private async _callBasic(path: string, timeout?: number) {
+  private async _callBasic<T>(path: string, timeout?: number): Promise<T> {
     const url = `${this.host}/${path}`;
 
     // Don't use timeout if there is no pro API to fallback to.
-    return await fetchJsonWithTimeout(url, {}, {}, timeout);
+    return await fetchJsonWithTimeout<T>(url, {}, {}, timeout);
   }
 
-  private async _callPro(path: string) {
+  private async _callPro<T>(path: string): Promise<T> {
     const url = `${this.proHost}/${path}`;
-    return await fetchJsonWithTimeout(url, { x_cg_pro_api_key: this.apiKey });
+    return await fetchJsonWithTimeout<T>(url, { x_cg_pro_api_key: this.apiKey });
   }
 }

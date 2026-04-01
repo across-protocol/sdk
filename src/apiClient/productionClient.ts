@@ -46,13 +46,16 @@ export default class ProductionApiClient extends AbstractApiClient {
     toChainid: number,
     fromChainid: number
   ): Promise<SuggestedFeeReturnType> {
-    const result = await fetchJsonWithTimeout<SuggestedFeesApiResponse>(`${this.getServerlessApiUrl()}/api/suggested-fees`, {
-      token: originToken,
-      destinationChainId: String(toChainid),
-      originChainId: String(fromChainid),
-      amount: amount.toString(),
-      skipAmountLimit: "true",
-    });
+    const result = await fetchJsonWithTimeout<SuggestedFeesApiResponse>(
+      `${this.getServerlessApiUrl()}/api/suggested-fees`,
+      {
+        token: originToken,
+        destinationChainId: String(toChainid),
+        originChainId: String(fromChainid),
+        amount: amount.toString(),
+        skipAmountLimit: "true",
+      }
+    );
     const relayFeePct = BigNumber.from(result["relayFeePct"]);
     const relayFeeTotal = BigNumber.from(result["relayFeeTotal"]);
 

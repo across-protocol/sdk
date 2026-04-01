@@ -1,4 +1,4 @@
-import { fetchJsonWithTimeout } from "../../utils";
+import { fetchJsonWithTimeout, FetchQueryParams } from "../../utils";
 import assert from "assert";
 
 export type BaseHTTPAdapterArgs = {
@@ -37,14 +37,14 @@ export class BaseHTTPAdapter {
     this.timeout = timeout; // ms
   }
 
-  protected async query(path: string, urlArgs?: object): Promise<unknown> {
+  protected async query(path: string, urlArgs?: FetchQueryParams): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
 
     const errs: string[] = [];
     let tries = 0;
     do {
       try {
-        return await fetchJsonWithTimeout(
+        return await fetchJsonWithTimeout<unknown>(
           url,
           urlArgs ?? {},
           { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
