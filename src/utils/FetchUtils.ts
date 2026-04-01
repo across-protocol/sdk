@@ -30,15 +30,32 @@ export async function fetchJsonWithTimeout<T = unknown>(
   headers: FetchHeaders = {},
   timeout?: number
 ): Promise<T> {
-  const response = await fetch(applyQueryParams(url, params), {
+  const fullUrl = applyQueryParams(url, params);
+  const response = await fetch(fullUrl, {
     headers: toStringRecord(headers),
     ...(timeout && timeout > 0 && { signal: AbortSignal.timeout(timeout) }),
   });
 
+  // Read body as text first — body can only be consumed once, and we need
+  // the raw text for meaningful error messages if JSON parsing fails.
+  const text = await response.text();
+
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(errorBody?.error ?? `HTTP ${response.status}: ${response.statusText}`);
+    let errorMessage: string | undefined;
+    try {
+      errorMessage = (JSON.parse(text) as { error?: string })?.error;
+    } catch {
+      // Response body wasn't JSON — fall through to default message.
+    }
+    throw new Error(errorMessage ?? `HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return (await response.json()) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const contentType = response.headers.get("content-type") ?? "unknown";
+    throw new Error(
+      `Expected JSON response from ${fullUrl} but received content-type: ${contentType} (body: ${text.slice(0, 256)})`
+    );
+  }
 }
