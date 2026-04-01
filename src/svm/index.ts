@@ -4,20 +4,24 @@
 // Re-export SVM types
 export * from "./types.svm";
 
-// web3-v1 (Anchor/web3.js v1) — selective top-level exports
-// (matches the original @across-protocol/contracts public API)
-// Additional web3-v1 utils are accessible via deep imports:
-//   import { ... } from "@across-protocol/sdk/dist/cjs/src/svm/web3-v1"
-export {
-  AcrossPlusMessageCoder,
-  calculateRelayHashUint8Array,
-  findProgramAddress,
-  MulticallHandlerCoder,
-  relayerRefundHashFn,
-} from "./web3-v1";
+// web3-v1 (Anchor/web3.js v1) — all utils
+export * from "./web3-v1";
 
-// web3-v2 (Solana Kit) — all exports
-export * from "./web3-v2";
+// web3-v2 (Solana Kit) — re-export non-conflicting names directly,
+// alias conflicting ones with V2 suffix to avoid name collision with web3-v1.
+export {
+  readFillEventFromFillStatusPda,
+  signAndSendTransaction,
+  createDefaultTransaction,
+  createLookupTable,
+  extendLookupTable,
+} from "./web3-v2";
+export type { RpcClient } from "./web3-v2";
+export {
+  readProgramEvents as readProgramEventsV2,
+  readEvents as readEventsV2,
+  sendTransactionWithLookupTable as sendTransactionWithLookupTableV2,
+} from "./web3-v2";
 
 // Auto-generated assets (IDL definitions and Anchor types)
 export * from "./assets";
