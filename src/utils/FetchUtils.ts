@@ -24,15 +24,19 @@ const applyQueryParams = (url: string, params: FetchQueryParams): string => {
   return parsedUrl.toString();
 };
 
-export async function fetchWithTimeout<T = unknown>(
+async function baseFetch<T = unknown>(
   url: string,
-  params: FetchQueryParams = {},
-  headers: FetchHeaders = {},
+  method: string,
+  body: string | undefined,
+  params: FetchQueryParams,
+  headers: FetchHeaders,
   timeout?: number,
   responseType: "json" | "text" = "json"
 ): Promise<T> {
   const fullUrl = applyQueryParams(url, params);
   const response = await fetch(fullUrl, {
+    method,
+    body,
     headers: toStringRecord(headers),
     ...(timeout && timeout > 0 && { signal: AbortSignal.timeout(timeout) }),
   });
@@ -63,4 +67,33 @@ export async function fetchWithTimeout<T = unknown>(
       `Expected JSON response from ${fullUrl} but received content-type: ${contentType} (body: ${text.slice(0, 256)})`
     );
   }
+}
+
+export async function fetchWithTimeout<T = unknown>(
+  url: string,
+  params: FetchQueryParams = {},
+  headers: FetchHeaders = {},
+  timeout?: number,
+  responseType: "json" | "text" = "json"
+): Promise<T> {
+  return baseFetch<T>(url, "GET", undefined, params, headers, timeout, responseType);
+}
+
+export async function postWithTimeout<T = unknown>(
+  url: string,
+  body: unknown,
+  params: FetchQueryParams = {},
+  headers: FetchHeaders = {},
+  timeout?: number,
+  responseType: "json" | "text" = "json"
+): Promise<T> {
+  return baseFetch<T>(
+    url,
+    "POST",
+    JSON.stringify(body),
+    params,
+    { "Content-Type": "application/json", ...headers },
+    timeout,
+    responseType
+  );
 }
