@@ -136,7 +136,7 @@
     "@solana-program/address-lookup-table": "^0.10.0",
     "@uma/contracts-node": "^0.4.0",
     "arweave": "^1.14.4",
-    "borsh": "^2.0.0",
+    "borsh": "0.7.0",
     "buffer-layout": "^1.2.2",
     "async": "^3.2.5",
     "axios": "^0.27.2",
