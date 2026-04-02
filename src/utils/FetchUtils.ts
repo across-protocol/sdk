@@ -87,12 +87,13 @@ export async function postWithTimeout<T = unknown>(
   timeout?: number,
   responseType: "json" | "text" = "json"
 ): Promise<T> {
+  const hasContentType = Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
   return baseFetch<T>(
     url,
     "POST",
     JSON.stringify(body),
     params,
-    { "Content-Type": "application/json", ...headers },
+    hasContentType ? headers : { "Content-Type": "application/json", ...headers },
     timeout,
     responseType
   );
