@@ -69,7 +69,7 @@ async function baseFetch<T = unknown>(
   }
 }
 
-export async function fetchWithTimeout<T = unknown>(
+export function fetchWithTimeout<T = unknown>(
   url: string,
   params: FetchQueryParams = {},
   headers: FetchHeaders = {},
@@ -79,7 +79,7 @@ export async function fetchWithTimeout<T = unknown>(
   return baseFetch<T>(url, "GET", undefined, params, headers, timeout, responseType);
 }
 
-export async function postWithTimeout<T = unknown>(
+export function postWithTimeout<T = unknown>(
   url: string,
   body: unknown,
   params: FetchQueryParams = {},
