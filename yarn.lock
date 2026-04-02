@@ -2175,7 +2175,7 @@
   dependencies:
     "@solana/errors" "5.4.0"
 
-"@solana/sysvars@5.4.0", "@solana/sysvars@^5.4.0":
+"@solana/sysvars@5.4.0":
   version "5.4.0"
   resolved "https://registry.yarnpkg.com/@solana/sysvars/-/sysvars-5.4.0.tgz#f9445a210de2232f5d0d8ec42f8298fe1c8c822c"
   integrity sha512-A5NES7sOlFmpnsiEts5vgyL3NXrt/tGGVSEjlEGvsgwl5EDZNv+xWnNA400uMDqd9O3a5PmH7p/6NsgR+kUzSg==
