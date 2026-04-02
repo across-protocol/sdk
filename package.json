@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.136",
+  "version": "4.3.137",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -127,7 +127,6 @@
     "@uma/contracts-node": "^0.4.0",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
-    "axios": "^0.27.2",
     "bs58": "^6.0.0",
     "decimal.js": "^10.3.1",
     "ethers": "^5.7.2",
