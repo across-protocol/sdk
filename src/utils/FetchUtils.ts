@@ -5,7 +5,7 @@ const toStringRecord = (headers: FetchHeaders): Record<string, string> => {
   const normalizedHeaders: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     if (value !== undefined && value !== null) {
-      normalizedHeaders[key] = String(value);
+      normalizedHeaders[key.toLowerCase()] = String(value);
     }
   }
   return normalizedHeaders;
@@ -87,13 +87,12 @@ export async function postWithTimeout<T = unknown>(
   timeout?: number,
   responseType: "json" | "text" = "json"
 ): Promise<T> {
-  const hasContentType = Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
   return baseFetch<T>(
     url,
     "POST",
     JSON.stringify(body),
     params,
-    hasContentType ? headers : { "Content-Type": "application/json", ...headers },
+    { "Content-Type": "application/json", ...headers },
     timeout,
     responseType
   );
