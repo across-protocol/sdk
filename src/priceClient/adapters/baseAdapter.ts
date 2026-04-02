@@ -1,5 +1,5 @@
+import { fetchWithTimeout, FetchQueryParams } from "../../utils";
 import assert from "assert";
-import axios from "axios";
 
 export type BaseHTTPAdapterArgs = {
   timeout?: number;
@@ -37,21 +37,21 @@ export class BaseHTTPAdapter {
     this.timeout = timeout; // ms
   }
 
-  protected async query(path: string, urlArgs?: object): Promise<unknown> {
+  protected async query(path: string, urlArgs?: FetchQueryParams): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
-    const args = {
-      headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
-      timeout: this.timeout,
-      params: urlArgs ?? {},
-    };
 
     const errs: string[] = [];
     let tries = 0;
     do {
       try {
-        return (await axios(url, args)).data;
+        return await fetchWithTimeout<unknown>(
+          url,
+          urlArgs ?? {},
+          { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
+          this.timeout
+        );
       } catch (err) {
-        const errMsg = axios.isAxiosError(err) || err instanceof Error ? err.message : "unknown error";
+        const errMsg = err instanceof Error ? err.message : "unknown error";
         errs.push(errMsg);
         if (++tries <= this.retries) await this.sleep(Math.pow(1.5, tries) * 1000); // simple backoff
       }
