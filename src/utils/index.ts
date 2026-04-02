@@ -12,7 +12,6 @@ export * from "./TokenUtils";
 export * from "./LogUtils";
 export * from "./BundleUtils";
 export * from "./JSONUtils";
-export * from "./IPFSUtils";
 export * from "./NumberUtils";
 export * from "./DeploymentUtils";
 export * from "./FormattingUtils";
