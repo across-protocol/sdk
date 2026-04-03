@@ -31,7 +31,7 @@
     "test:watch": "hardhat watch test",
     "test:run:arweave": "npx -y arlocal",
     "lint": "eslint --fix src test e2e && yarn prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
-    "lint-check": "eslint src test e2e && yarn prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
+    "lint-check": "eslint --max-warnings 0 src test e2e && yarn prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
     "prepare": "yarn build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why",
