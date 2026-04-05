@@ -130,7 +130,7 @@
     "lodash.get": "^4.4.2",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2",
-    "viem": "^2.21.15",
+    "viem": "^2.47.10",
     "winston": "^3.17.0",
     "winston-transport": "^4.9.0"
   },
