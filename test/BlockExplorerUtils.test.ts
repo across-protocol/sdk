@@ -53,9 +53,7 @@ describe("BlockExplorerUtils", () => {
 
     it("TVM: should return <> for hex account strings (addresses must be Base58Check)", () => {
       expect(blockExplorerLink("0x1234567890abcdef1234567890abcdef12345678", TRON_CHAIN_ID)).to.be.eq("<>");
-      expect(
-        blockExplorerLink("0x4184716914c0fdf7110a44030d04d0c4923504d9cc", TRON_CHAIN_ID)
-      ).to.be.eq("<>");
+      expect(blockExplorerLink("0x4184716914c0fdf7110a44030d04d0c4923504d9cc", TRON_CHAIN_ID)).to.be.eq("<>");
     });
 
     it("TVM: should return <> for invalid input (not tx hex, not Tron base58)", () => {
