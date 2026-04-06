@@ -24,7 +24,7 @@ export async function submitTransaction(
   tronWeb: TronWeb,
   populatedTx: PopulatedTransaction,
   feeLimit: number,
-  callValue: number = 0,
+  callValue: number = 0
 ): Promise<TronTransactionResult> {
   const { to, data } = populatedTx;
   if (!to || !data) {
