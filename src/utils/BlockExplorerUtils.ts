@@ -80,7 +80,6 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
     }
   } else if (chainIsTvm(chainId)) {
     // TronScan-style URLs use `/#/transaction/...` and `/#/address/...`.
-    // @TODO: Should we put the `/#/` prefix in the constants?
     const txHexNoPrefix = addr.startsWith("0x") ? addr.slice(2) : addr;
     if (txHexNoPrefix.length === 64 && ethers.utils.isHexString(`0x${txHexNoPrefix}`)) {
       const txIdForUrl = txHexNoPrefix.toLowerCase();
