@@ -38,11 +38,12 @@ export async function submitTransaction(
 
   // Use triggerSmartContract with the `input` option to pass pre-encoded calldata.
   // The function selector is empty — the full calldata (selector + params) is in `input`.
+  const input = data.startsWith("0x") ? data.slice(2) : data;
   const txWrapper = await tronWeb.transactionBuilder.triggerSmartContract(
     tronAddress,
     // Use empty function selector — the `input` option provides the full calldata.
     "",
-    { feeLimit, input: data },
+    { feeLimit, input },
     [],
     ownerAddress
   );
