@@ -23,7 +23,8 @@ export interface TronTransactionResult {
 export async function submitTransaction(
   tronWeb: TronWeb,
   populatedTx: PopulatedTransaction,
-  feeLimit: number
+  feeLimit: number,
+  callValue: number = 0,
 ): Promise<TronTransactionResult> {
   const { to, data } = populatedTx;
   if (!to || !data) {
@@ -43,7 +44,7 @@ export async function submitTransaction(
     tronAddress,
     // Use empty function selector — the `input` option provides the full calldata.
     "",
-    { feeLimit, input },
+    { feeLimit, input, callValue },
     [],
     ownerAddress
   );
