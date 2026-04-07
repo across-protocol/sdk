@@ -8,6 +8,8 @@ export class HttpError extends Error {
   ) {
     super(message);
     this.name = "HttpError";
+    // Restore prototype chain for ES5 targets where extending builtins breaks instanceof.
+    Object.setPrototypeOf(this, HttpError.prototype);
   }
 }
 
