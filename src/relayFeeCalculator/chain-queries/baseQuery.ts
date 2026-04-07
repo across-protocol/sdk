@@ -92,7 +92,7 @@ export class QueryBase implements QueryInterface {
       `getGasCosts: outputToken not an EVM-like address (${outputToken})`
     );
     assert(
-      exclusiveRelayer.isEVM() || outputToken.isTVM(),
+      exclusiveRelayer.isEVM() || exclusiveRelayer.isTVM(),
       `getGasCosts: exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
     );
 
