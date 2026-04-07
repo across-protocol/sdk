@@ -2,7 +2,7 @@ import { type Chain, type Transport, PublicClient, FeeValuesEIP1559 } from "viem
 import { BigNumber, bnZero, isDefined } from "../utils";
 
 export type InternalGasPriceEstimate = FeeValuesEIP1559;
-export type GasPriceEstimate = EvmGasPriceEstimate | SvmGasPriceEstimate | TvmGasPriceEstimate;
+export type GasPriceEstimate = EvmGasPriceEstimate | SvmGasPriceEstimate;
 
 export type EvmGasPriceEstimate = {
   maxFeePerGas: BigNumber;
@@ -12,11 +12,6 @@ export type EvmGasPriceEstimate = {
 export type SvmGasPriceEstimate = {
   baseFee: BigNumber;
   microLamportsPerComputeUnit: BigNumber;
-};
-
-export type TvmGasPriceEstimate = {
-  energyPrice: BigNumber;
-  bandwidthPrice: BigNumber;
 };
 
 export interface GasPriceFeed {
@@ -39,9 +34,4 @@ export function isType2Gas(gas: EvmGasPriceEstimate): boolean {
 export function isSVMGasPrice(gasPrice: GasPriceEstimate): gasPrice is SvmGasPriceEstimate {
   const { baseFee, microLamportsPerComputeUnit } = gasPrice as SvmGasPriceEstimate;
   return isDefined(baseFee) && isDefined(microLamportsPerComputeUnit);
-}
-
-export function isTVMGasPrice(gasPrice: GasPriceEstimate): gasPrice is TvmGasPriceEstimate {
-  const { energyPrice, bandwidthPrice } = gasPrice as TvmGasPriceEstimate;
-  return isDefined(energyPrice) && isDefined(bandwidthPrice);
 }
