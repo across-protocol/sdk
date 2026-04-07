@@ -106,9 +106,9 @@ export function isValidEvmAddress(address: string): boolean {
 export function toAddressType(address: string, chainId: number): Address {
   const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
 
-  if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
+  if (chainIsTvm(chainId)) return TvmAddress.from(address);
+  else if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   else if (chainIsSvm(chainId) && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
-  else if (chainIsTvm(chainId)) return TvmAddress.from(address);
 
   return new RawAddress(rawAddress);
 }

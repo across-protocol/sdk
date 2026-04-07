@@ -5,7 +5,6 @@ import { Deposit, FillStatus, FillWithBlock, RelayData, SpeedUpCommon } from "..
 import {
   bnUint32Max,
   BigNumber,
-  EvmAddress,
   toBN,
   bnZero,
   chunk,
@@ -25,8 +24,8 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
   Pick<Deposit, "speedUpSignature"> &
   Partial<SpeedUpCommon> & {
     destinationChainId: number;
-    recipient: EvmAddress;
-    outputToken: EvmAddress;
+    recipient: Address;
+    outputToken: Address;
   };
 
 /**

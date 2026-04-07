@@ -9,6 +9,7 @@ import { populateV3Relay } from "../../arch/evm";
 import {
   BigNumberish,
   EvmAddress,
+  TvmAddress,
   TransactionCostEstimate,
   BigNumber,
   toBNWei,
@@ -85,9 +86,15 @@ export class QueryBase implements QueryInterface {
     const { gasPrice = this.fixedGasPrice, gasUnits, opStackL1GasCostMultiplier } = options;
 
     const { recipient, outputToken, exclusiveRelayer } = relayData;
-    assert(recipient.isEVM(), `getGasCosts: recipient not an EVM address (${recipient})`);
-    assert(outputToken.isEVM(), `getGasCosts: outputToken not an EVM address (${outputToken})`);
-    assert(exclusiveRelayer.isEVM(), `getGasCosts: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
+    assert(recipient.isEVM() || recipient.isTVM(), `getGasCosts: recipient not an EVM-like address (${recipient})`);
+    assert(
+      outputToken.isEVM() || outputToken.isTVM(),
+      `getGasCosts: outputToken not an EVM-like address (${outputToken})`
+    );
+    assert(
+      exclusiveRelayer.isEVM() || outputToken.isTVM(),
+      `getGasCosts: exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
+    );
 
     const tx = await this.getUnsignedTxFromDeposit({ ...relayData, recipient, outputToken, exclusiveRelayer }, relayer);
     const {
@@ -119,8 +126,8 @@ export class QueryBase implements QueryInterface {
   getUnsignedTxFromDeposit(
     relayData: Omit<RelayData, "recipient" | "outputToken"> & {
       destinationChainId: number;
-      recipient: EvmAddress;
-      outputToken: EvmAddress;
+      recipient: EvmAddress | TvmAddress;
+      outputToken: EvmAddress | TvmAddress;
     },
     relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<PopulatedTransaction> {
@@ -138,9 +145,18 @@ export class QueryBase implements QueryInterface {
     relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = relayData;
-    assert(recipient.isEVM(), `getNativeGasCost: recipient not an EVM address (${recipient})`);
-    assert(outputToken.isEVM(), `getNativeGasCost: outputToken not an EVM address (${outputToken})`);
-    assert(exclusiveRelayer.isEVM(), `getNativeGasCost: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
+    assert(
+      recipient.isEVM() || recipient.isTVM(),
+      `getNativeGasCost: recipient not an EVM-like address (${recipient})`
+    );
+    assert(
+      outputToken.isEVM() || outputToken.isTVM(),
+      `getNativeGasCost: outputToken not an EVM-like address (${outputToken})`
+    );
+    assert(
+      exclusiveRelayer.isEVM() || exclusiveRelayer.isTVM(),
+      `getNativeGasCost: exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
+    );
 
     const unsignedTx = await this.getUnsignedTxFromDeposit(
       { ...relayData, recipient, outputToken, exclusiveRelayer },
