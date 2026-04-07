@@ -64,7 +64,7 @@ export function populateV3Relay(
     assert(isDefined(relayData.updatedOutputAmount));
     assert(isDefined(relayData.updatedMessage));
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      relayData,
+      evmRelayData,
       repaymentChainId,
       repaymentAddress.toBytes32(),
       relayData.updatedOutputAmount,
