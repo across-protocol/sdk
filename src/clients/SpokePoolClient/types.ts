@@ -1,3 +1,2 @@
 export const EVM_SPOKE_POOL_CLIENT_TYPE = "EVM";
 export const SVM_SPOKE_POOL_CLIENT_TYPE = "SVM";
-export const TVM_SPOKE_POOL_CLIENT_TYPE = "TVM";
