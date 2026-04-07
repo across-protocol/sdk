@@ -7,6 +7,12 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
+import {
+  relayFillStatus as relayFillStatusTvm,
+  getMaxFillDeadlineInRange as getMaxFillDeadlineTvm,
+  getTimeAt as _getTimeAtTvm,
+  findDepositBlock as findDepositBlockTvm,
+} from "../../arch/tvm";
 import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
 import {
   BigNumber,
@@ -17,6 +23,7 @@ import {
   toBN,
   EvmAddress,
   unpackDepositEvent,
+  chainIsTvm,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -36,6 +43,8 @@ import { EVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
  */
 export class EVMSpokePoolClient extends SpokePoolClient {
   readonly type = EVM_SPOKE_POOL_CLIENT_TYPE;
+  readonly tvm: boolean;
+
   constructor(
     logger: winston.Logger,
     public readonly spokePool: Contract,
@@ -46,10 +55,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   ) {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
     this.spokePoolAddress = EvmAddress.from(spokePool.address);
+    this.tvm = chainIsTvm(this.chainId);
   }
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, atHeight, this.chainId);
+    const fillStatusHandler = this.tvm ? relayFillStatusTvm : relayFillStatus;
+    return fillStatusHandler(this.spokePool, relayData, atHeight, this.chainId);
   }
 
   public override fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]> {
@@ -57,7 +68,8 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   }
 
   public override getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    return getMaxFillDeadline(this.spokePool, startBlock, endBlock);
+    const maxFillDeadlineInRangeHandler = this.tvm ? getMaxFillDeadlineTvm : getMaxFillDeadline;
+    return maxFillDeadlineInRangeHandler(this.spokePool, startBlock, endBlock);
   }
 
   private _availableEventsOnSpoke(eventNames: string[] = knownEventNames): { [eventName: string]: EventFilter } {
@@ -79,6 +91,14 @@ export class EVMSpokePoolClient extends SpokePoolClient {
    * @returns The on-chain time as a number.
    */
   protected async _getCurrentTime(blockNumber: number): Promise<number> {
+    if (this.tvm) {
+      const block = await this.spokePool.provider.getBlock(blockNumber);
+      const currentTime = block.timestamp;
+      if (currentTime < this.currentTime) {
+        throw new Error(`EVMSpokePoolClient::_getCurrentTimeTvm: currentTime: ${currentTime} < ${this.currentTime}`);
+      }
+      return currentTime;
+    }
     const { spokePool } = this;
     const multicallFunctions = ["getCurrentTime"];
     const multicallOutput = await spokePool.callStatic.multicall(
@@ -162,7 +182,8 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   }
 
   public override getTimeAt(blockNumber: number): Promise<number> {
-    return _getTimeAt(this.spokePool, blockNumber);
+    const getTimeAtHandler = this.tvm ? _getTimeAtTvm : _getTimeAt;
+    return getTimeAtHandler(this.spokePool, blockNumber);
   }
 
   public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
@@ -213,7 +234,8 @@ export class EVMSpokePoolClient extends SpokePoolClient {
    * TVM overrides this with an event-based lookup.
    */
   protected _findDepositBlock(depositId: BigNumber, lowBlock: number, highBlock?: number): Promise<number | undefined> {
-    return findDepositBlock(this.spokePool, depositId, lowBlock, highBlock);
+    const findDepositBlockHandler = this.tvm ? findDepositBlockTvm : findDepositBlock;
+    return findDepositBlockHandler(this.spokePool, depositId, lowBlock, highBlock);
   }
 
   protected async queryDepositEvents(

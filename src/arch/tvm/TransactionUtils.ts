@@ -1,6 +1,6 @@
 import { TronWeb } from "tronweb";
 import { PopulatedTransaction } from "ethers";
-import { evmToTronAddress } from "./utils/address";
+import { TvmAddress } from "../../utils";
 
 export interface TronTransactionResult {
   txid: string;
@@ -31,7 +31,7 @@ export async function submitTransaction(
     throw new Error("submitTransaction: populatedTx must have both 'to' and 'data' fields");
   }
 
-  const tronAddress = evmToTronAddress(to);
+  const tronAddress = TvmAddress.from(to).toNative();
   const ownerAddress = tronWeb.defaultAddress?.base58;
   if (!ownerAddress) {
     throw new Error("submitTransaction: TronWeb instance must have a default address configured");
