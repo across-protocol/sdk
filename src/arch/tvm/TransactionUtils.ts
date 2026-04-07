@@ -23,7 +23,8 @@ export interface TronTransactionResult {
 export async function submitTransaction(
   tronWeb: TronWeb,
   populatedTx: PopulatedTransaction,
-  feeLimit: number
+  feeLimit: number,
+  callValue: number = 0
 ): Promise<TronTransactionResult> {
   const { to, data } = populatedTx;
   if (!to || !data) {
@@ -38,11 +39,12 @@ export async function submitTransaction(
 
   // Use triggerSmartContract with the `input` option to pass pre-encoded calldata.
   // The function selector is empty — the full calldata (selector + params) is in `input`.
+  const input = data.startsWith("0x") ? data.slice(2) : data;
   const txWrapper = await tronWeb.transactionBuilder.triggerSmartContract(
     tronAddress,
     // Use empty function selector — the `input` option provides the full calldata.
     "",
-    { feeLimit, input: data },
+    { feeLimit, input, callValue },
     [],
     ownerAddress
   );

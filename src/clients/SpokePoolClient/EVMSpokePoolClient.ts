@@ -72,6 +72,34 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return Object.keys(this._availableEventsOnSpoke(knownEventNames));
   }
 
+  /**
+   * Retrieve the on-chain time at a specific block.
+   * EVM reads SpokePool.getCurrentTime() via multicall with a historical blockTag.
+   * @param blockNumber The block number to query.
+   * @returns The on-chain time as a number.
+   */
+  protected async _getCurrentTime(blockNumber: number): Promise<number> {
+    const { spokePool } = this;
+    const multicallFunctions = ["getCurrentTime"];
+    const multicallOutput = await spokePool.callStatic.multicall(
+      multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
+      { blockTag: blockNumber }
+    );
+
+    const [currentTime] = multicallFunctions.map(
+      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
+    );
+
+    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
+      const errMsg = BigNumber.isBigNumber(currentTime)
+        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
+        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
+      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
+    }
+
+    return currentTime.toNumber();
+  }
+
   protected override async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
     const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
     if (isUpdateFailureReason(searchConfig)) {
@@ -107,25 +135,14 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     });
 
     const timerStart = Date.now();
-    const multicallFunctions = ["getCurrentTime"];
-    const [multicallOutput, ...events] = await Promise.all([
-      spokePool.callStatic.multicall(
-        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.to }
-      ),
+    const [currentTime, ...events] = await Promise.all([
+      this._getCurrentTime(searchConfig.to),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
 
-    const [currentTime] = multicallFunctions.map(
-      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
-    );
-
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
+    if (currentTime < this.currentTime) {
+      throw new Error(`EVMSpokePoolClient::update: currentTime: ${currentTime} < ${this.currentTime}`);
     }
 
     // Sort all events to ensure they are stored in a consistent order.
@@ -138,7 +155,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
     return {
       success: true,
-      currentTime: currentTime.toNumber(), // uint32
+      currentTime,
       searchEndBlock: searchConfig.to,
       events: eventsWithBlockNumber,
     };
@@ -190,12 +207,21 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return _getTimestampForBlock(this.spokePool.provider, blockNumber);
   }
 
+  /**
+   * Find the block at which a deposit was created.
+   * EVM uses a binary-search over historical numberOfDeposits().
+   * TVM overrides this with an event-based lookup.
+   */
+  protected _findDepositBlock(depositId: BigNumber, lowBlock: number, highBlock?: number): Promise<number | undefined> {
+    return findDepositBlock(this.spokePool, depositId, lowBlock, highBlock);
+  }
+
   protected async queryDepositEvents(
     depositId: BigNumber
   ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
     const tStart = Date.now();
     const upperBound = this.latestHeightSearched || undefined;
-    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const from = await this._findDepositBlock(depositId, this.deploymentBlock, upperBound);
     const chain = getNetworkName(this.chainId);
 
     if (!from) {

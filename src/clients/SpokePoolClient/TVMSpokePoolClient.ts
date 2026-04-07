@@ -4,12 +4,9 @@ import {
   getTimeAt as _getTimeAt,
   relayFillStatus,
 } from "../../arch/tvm";
-import { FillStatus, Log, RelayData } from "../../interfaces";
-import { BigNumber, getNetworkName, paginatedEventQuery, sortEventsAscendingInPlace } from "../../utils";
-import { logToSortableEvent, spreadEventWithBlockNumber } from "../../utils/EventUtils";
-import { isUpdateFailureReason } from "../BaseAbstractClient";
+import { FillStatus, RelayData } from "../../interfaces";
+import { BigNumber } from "../../utils";
 import { EVMSpokePoolClient } from "./EVMSpokePoolClient";
-import { SpokePoolUpdate } from "./SpokePoolClient";
 import { TVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
@@ -40,119 +37,29 @@ export class TVMSpokePoolClient extends EVMSpokePoolClient {
   }
 
   /**
-   * Override queryDepositEvents to use TVM's event-based findDepositBlock
+   * Override to use TVM's event-based findDepositBlock
    * instead of EVM's binary-search over historical numberOfDeposits().
    */
-  protected override async queryDepositEvents(
-    depositId: BigNumber
-  ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
-    const tStart = Date.now();
-    const upperBound = this.latestHeightSearched || undefined;
-    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
-    const chain = getNetworkName(this.chainId);
-
-    if (!from) {
-      return {
-        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${
-          upperBound ?? "latest"
-        }].`,
-      };
-    }
-
-    const to = from;
-
-    const { maxLookBack } = this.eventSearchConfig;
-    const events = (
-      await Promise.all([
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { from, to, maxLookBack }
-        ),
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { from, to, maxLookBack }
-        ),
-      ])
-    )
-      .flat()
-      .filter(({ args }) => args["depositId"].eq(depositId));
-
-    const tStop = Date.now();
-    const [event] = events;
-    if (!event) {
-      return {
-        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${from}, ${upperBound ?? "latest"}].`,
-      };
-    }
-
-    return { event, elapsedMs: tStop - tStart };
+  protected override _findDepositBlock(
+    depositId: BigNumber,
+    lowBlock: number,
+    highBlock?: number
+  ): Promise<number | undefined> {
+    return findDepositBlock(this.spokePool, depositId, lowBlock, highBlock);
   }
 
   /**
-   * Override _update to avoid historical eth_call for getCurrentTime.
+   * Override to avoid historical eth_call for getCurrentTime.
    * TRON does not support eth_call with historical blockTags, so we
    * use the block timestamp from provider.getBlock() instead of
-   * SpokePool.getCurrentTime({ blockTag: searchConfig.to }).
+   * SpokePool.getCurrentTime({ blockTag }).
    */
-  protected override async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
-    if (isUpdateFailureReason(searchConfig)) {
-      const reason = searchConfig;
-      return { success: false, reason };
-    }
-
-    const eventSearchConfigs = eventsToQuery.map((eventName) => {
-      if (!this._queryableEventNames().includes(eventName)) {
-        throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
-      }
-
-      const _searchConfig = { ...searchConfig };
-
-      if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.from = this.deploymentBlock;
-      }
-
-      return {
-        filter: this.spokePool.filters[eventName](),
-        searchConfig: _searchConfig,
-      };
-    });
-
-    const { spokePool } = this;
-    this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
-      eventsToQuery,
-      searchConfig,
-      spokePool: spokePool.address,
-    });
-
-    const timerStart = Date.now();
-
-    // TRON does not support historical eth_call, so instead of multicall({ blockTag }),
-    // retrieve the block timestamp from the provider directly.
-    const [block, ...events] = await Promise.all([
-      spokePool.provider.getBlock(searchConfig.to),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
-    ]);
-    this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
-
+  protected override async _getCurrentTime(blockNumber: number): Promise<number> {
+    const block = await this.spokePool.provider.getBlock(blockNumber);
     const currentTime = block.timestamp;
     if (currentTime < this.currentTime) {
       throw new Error(`TVMSpokePoolClient::update: currentTime: ${currentTime} < ${this.currentTime}`);
     }
-
-    events.forEach((events) => sortEventsAscendingInPlace(events.map(logToSortableEvent)));
-
-    const eventsWithBlockNumber = events.map((eventList) =>
-      eventList.map((event) => spreadEventWithBlockNumber(event))
-    );
-
-    return {
-      success: true,
-      currentTime,
-      searchEndBlock: searchConfig.to,
-      events: eventsWithBlockNumber,
-    };
+    return currentTime;
   }
 }

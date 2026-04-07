@@ -11,8 +11,10 @@ export {
   SpokePoolUpdate,
   EVMSpokePoolClient,
   SVMSpokePoolClient,
+  TVMSpokePoolClient,
   isEVMSpokePoolClient,
   isSVMSpokePoolClient,
+  isTVMSpokePoolClient,
   SpokePoolManager,
 } from "./SpokePoolClient";
 export * as BundleDataClient from "./BundleDataClient";
