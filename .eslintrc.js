@@ -17,7 +17,7 @@ module.exports = {
     project: "./tsconfig.lint.json",
     include: ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.js", "./e2e/**/*.ts"],
   },
-  plugins: ["node", "prettier", "@typescript-eslint", "mocha", "chai-expect"],
+  plugins: ["prettier", "@typescript-eslint", "mocha", "chai-expect"],
   rules: {
     "prettier/prettier": ["warn"],
     indent: 0, // avoid conflict with prettier's indent system
