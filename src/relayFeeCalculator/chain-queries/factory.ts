@@ -3,7 +3,6 @@ import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
-import { TronWeb } from "tronweb";
 import { CUSTOM_GAS_TOKENS } from "../../constants";
 import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
@@ -23,7 +22,7 @@ const fixedGasPrice = {
 export class QueryBase__factory {
   static create(
     chainId: number,
-    provider: providers.Provider | svmProvider | TronWeb,
+    provider: providers.Provider | svmProvider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
     relayerAddress = getDefaultRelayer(chainId),
