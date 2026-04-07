@@ -1,5 +1,6 @@
 import { airdropFactory, createKeyPairSignerFromBytes, lamports } from "@solana/kit";
 import fs from "fs/promises";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createDefaultSolanaClient, generateKeyPairSignerWithSol, initializeSvmSpoke } from "./utils/svm/utils";
 import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
@@ -9,7 +10,13 @@ let signer: Awaited<ReturnType<typeof generateKeyPairSignerWithSol>>;
 
 before(async function () {
   /* Get test signer */
-  const keyFilePath = path.resolve(__dirname, "utils", "svm", "keys", "localnet-wallet.json");
+  const keyFilePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "utils",
+    "svm",
+    "keys",
+    "localnet-wallet.json"
+  );
   const fileContents = await fs.readFile(keyFilePath, "utf-8");
   const secretKey = new Uint8Array(JSON.parse(fileContents));
   signer = await createKeyPairSignerFromBytes(secretKey);

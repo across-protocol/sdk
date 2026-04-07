@@ -3,6 +3,7 @@
   "author": "UMA Team",
   "version": "4.3.139",
   "license": "AGPL-3.0",
+  "type": "module",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
     "type": "git",
