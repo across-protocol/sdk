@@ -1,6 +1,20 @@
 export type FetchHeaders = { [key: string]: unknown };
 export type FetchQueryParams = Record<string, unknown>;
 
+export class HttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+export function isHttpError(error: unknown): error is HttpError {
+  return error instanceof HttpError;
+}
+
 const toStringRecord = (headers: FetchHeaders): Record<string, string> => {
   const normalizedHeaders: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
@@ -52,7 +66,7 @@ async function baseFetch<T = unknown>(
     } catch {
       // Response body wasn't JSON — fall through to default message.
     }
-    throw new Error(errorMessage ?? `HTTP ${response.status}: ${response.statusText}`);
+    throw new HttpError(response.status, errorMessage ?? `HTTP ${response.status}: ${response.statusText}`);
   }
 
   if (responseType === "text") {
