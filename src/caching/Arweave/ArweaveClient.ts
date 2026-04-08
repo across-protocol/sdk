@@ -103,7 +103,7 @@ export class ArweaveClient {
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const request = async () => {
-      return await fetchWithTimeout(transactionUrl);
+      return await fetchWithTimeout(transactionUrl, {}, {}, 20_000);
     };
     const data = await this._retryRequest(request, 0);
     try {
@@ -136,19 +136,21 @@ export class ArweaveClient {
     validator: Struct<T>,
     originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const transactions = await this.client.api.post<{
-      data: {
-        transactions: {
-          edges: {
-            node: {
-              id: string;
+    const transactions = await this._retryRequest(
+      () =>
+        this.client.api.post<{
+          data: {
+            transactions: {
+              edges: {
+                node: {
+                  id: string;
+                };
+              }[];
             };
-          }[];
-        };
-      };
-    }>("/graphql", {
-      query: `
-        { 
+          };
+        }>("/graphql", {
+          query: `
+        {
           transactions (
             owners: ["${originQueryAddress}"]
             tags: [
@@ -157,9 +159,11 @@ export class ArweaveClient {
               { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
               ${tag ? `{ name: "Topic", values: ["${tag}"] } ` : ""}
             ]
-          ) { edges { node { id } } } 
+          ) { edges { node { id } } }
         }`,
-    });
+        }),
+      0
+    );
     const entries = transactions?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
@@ -226,7 +230,7 @@ export class ArweaveClient {
 
   private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
     try {
-      return request();
+      return await request();
     } catch (e) {
       if (retryCount < this.retries) {
         // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
