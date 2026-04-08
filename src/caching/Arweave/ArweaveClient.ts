@@ -153,7 +153,7 @@ export class ArweaveClient {
       const response = await this.client.api.post<{
         data: { transactions: { edges: { node: { id: string } }[] } };
       }>("/graphql", { query });
-      if (response.status >= 500) {
+      if (!response.ok) {
         throw new Error(`Arweave GraphQL request failed with status ${response.status}`);
       }
       return response;
