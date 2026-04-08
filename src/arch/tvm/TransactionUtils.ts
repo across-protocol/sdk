@@ -87,7 +87,8 @@ export async function submitTransaction(
 export async function simulateTransaction(
   tronWeb: TronWeb,
   populatedTx: PopulatedTransaction,
-  feeLimit: number
+  feeLimit: number,
+  callValue: number = 0
 ): Promise<TronSimulationResult> {
   const { to, data } = populatedTx;
   if (!to || !data) {
@@ -107,7 +108,7 @@ export async function simulateTransaction(
   const txWrapper = await tronWeb.transactionBuilder.triggerConstantContract(
     tronAddress,
     "",
-    { feeLimit, input },
+    { feeLimit, input, callValue },
     [],
     ownerAddress
   );
