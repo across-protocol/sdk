@@ -122,8 +122,7 @@ export function chainIsL1(chainId: number): boolean {
  */
 export function chainIsEvm(chainId: number): boolean {
   // TODO: Update when additional execution layers beyond EVM and SVM are supported.
-  const family = PUBLIC_NETWORKS[chainId]?.family;
-  return family !== ChainFamily.SVM && family !== ChainFamily.TVM;
+  return PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM;
 }
 
 /**
