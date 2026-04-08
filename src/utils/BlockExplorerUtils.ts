@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { PUBLIC_NETWORKS } from "../constants";
 import { createShortenedString } from "./FormattingUtils";
-import { chainIsEvm } from "./NetworkUtils";
+import { chainIsEvm, chainIsTvm } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import bs58 from "bs58";
 
@@ -78,6 +78,17 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
         return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
       }
     }
+  } else if (chainIsTvm(chainId)) {
+    // TronScan-style URLs use `/#/transaction/...` and `/#/address/...`.
+    const txHexNoPrefix = addr.startsWith("0x") ? addr.slice(2) : addr;
+    if (txHexNoPrefix.length === 64 && ethers.utils.isHexString(`0x${txHexNoPrefix}`)) {
+      const txIdForUrl = txHexNoPrefix.toLowerCase();
+      return `<${constructURL(explorerDomain, ["#", "transaction", txIdForUrl])} | ${shortURLString}>`;
+    }
+    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)) {
+      return `<${constructURL(explorerDomain, ["#", "address", addr])} | ${shortURLString}>`;
+    }
+    return null;
   } else {
     const addrLength = bs58.decode(addr).length;
     const route = addrLength === 32 ? "account" : "tx";
