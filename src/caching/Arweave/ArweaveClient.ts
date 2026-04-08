@@ -136,35 +136,30 @@ export class ArweaveClient {
     validator: Struct<T>,
     originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const transactions = await this._retryRequest(
-      () =>
-        this.client.api.post<{
-          data: {
-            transactions: {
-              edges: {
-                node: {
-                  id: string;
-                };
-              }[];
-            };
-          };
-        }>("/graphql", {
-          query: `
-        {
-          transactions (
-            owners: ["${originQueryAddress}"]
-            tags: [
-              { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
-              { name: "Content-Type", values: ["application/json"] },
-              { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
-              ${tag ? `{ name: "Topic", values: ["${tag}"] } ` : ""}
-            ]
-          ) { edges { node { id } } }
-        }`,
-        }),
-      0
-    );
-    const entries = transactions?.data?.data?.transactions?.edges ?? [];
+    const topicFilter = tag ? `{ name: "Topic", values: ["${tag}"] }` : "";
+    const query = `{
+      transactions (
+        owners: ["${originQueryAddress}"]
+        tags: [
+          { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
+          { name: "Content-Type", values: ["application/json"] },
+          { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
+          ${topicFilter}
+        ]
+      ) { edges { node { id } } }
+    }`;
+
+    const response = await this._retryRequest(async () => {
+      const response = await this.client.api.post<{
+        data: { transactions: { edges: { node: { id: string } }[] } };
+      }>("/graphql", { query });
+      if (response.status >= 500) {
+        throw new Error(`Arweave GraphQL request failed with status ${response.status}`);
+      }
+      return response;
+    }, 0);
+
+    const entries = response?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
       message: `Retrieved ${entries.length} matching transactions from Arweave`,
