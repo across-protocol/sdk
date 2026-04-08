@@ -59,7 +59,7 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
     return `<unsupported chain/hash ${chainId}:${addr}>}`;
   }
   // Ensure that the first two characters are "0x". If they are not, append them.
-  if (addr.substring(0, 2) !== "0x" && chainIsEvm(chainId)) {
+  if (addr.substring(0, 2) !== "0x" && chainIsEvm(chainId) && !chainIsTvm(chainId)) {
     addr = `0x${addr}`;
     if (!ethers.utils.isHexString(addr)) {
       return null;
@@ -78,8 +78,7 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
       return `<${constructURL(explorerDomain, ["#", "address", addr])} | ${shortURLString}>`;
     }
     return null;
-  }
-  else if (chainIsEvm(chainId)) {
+  } else if (chainIsEvm(chainId)) {
     // Iterate over the two possible addr lengths.
     for (const [length, route] of [
       [66, "tx"],
