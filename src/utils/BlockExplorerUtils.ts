@@ -67,18 +67,7 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
   }
   // Resolve the short URL string.
   const shortURLString = createShortenedString(addr);
-  if (chainIsEvm(chainId)) {
-    // Iterate over the two possible addr lengths.
-    for (const [length, route] of [
-      [66, "tx"],
-      [42, "address"],
-    ] as [number, string][]) {
-      // If the hex string is the correct length, return the link.
-      if (addr.length === length) {
-        return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
-      }
-    }
-  } else if (chainIsTvm(chainId)) {
+  if (chainIsTvm(chainId)) {
     // TronScan-style URLs use `/#/transaction/...` and `/#/address/...`.
     const txHexNoPrefix = addr.startsWith("0x") ? addr.slice(2) : addr;
     if (txHexNoPrefix.length === 64 && ethers.utils.isHexString(`0x${txHexNoPrefix}`)) {
@@ -89,6 +78,18 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
       return `<${constructURL(explorerDomain, ["#", "address", addr])} | ${shortURLString}>`;
     }
     return null;
+  }
+  else if (chainIsEvm(chainId)) {
+    // Iterate over the two possible addr lengths.
+    for (const [length, route] of [
+      [66, "tx"],
+      [42, "address"],
+    ] as [number, string][]) {
+      // If the hex string is the correct length, return the link.
+      if (addr.length === length) {
+        return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
+      }
+    }
   } else {
     const addrLength = bs58.decode(addr).length;
     const route = addrLength === 32 ? "account" : "tx";
