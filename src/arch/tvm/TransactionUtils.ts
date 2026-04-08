@@ -7,6 +7,16 @@ export interface TronTransactionResult {
   result: boolean;
 }
 
+/** Result of an off-chain contract call via `triggerConstantContract` (no broadcast). */
+export interface TronSimulationResult {
+  success: boolean;
+  message?: string;
+  constantResult?: unknown;
+  energyUsed?: number;
+  energyRequired?: number;
+  energyPenalty?: number;
+}
+
 /**
  * Submit a populated EVM transaction to TRON via TronWeb.
  *
@@ -60,5 +70,57 @@ export async function submitTransaction(
   return {
     txid: broadcast.txid ?? signedTx.txID,
     result: broadcast.result ?? false,
+  };
+}
+
+/**
+ * Simulate a populated EVM transaction against TRON via TronWeb (constant call / `eth_call`-style).
+ *
+ * Same calldata path as {@link submitTransaction}: `to` and `data` from the populated tx,
+ * EVM `to` converted to TRON Base58, empty function selector with `{ input: data }`.
+ * Does not sign or broadcast.
+ *
+ * @param tronWeb TronWeb instance with a default address (used as `caller`).
+ * @param populatedTx Must contain `to` and `data`.
+ * @param feeLimit Maximum TRX for energy, in SUN (mirrors `submitTransaction`).
+ */
+export async function simulateTransaction(
+  tronWeb: TronWeb,
+  populatedTx: PopulatedTransaction,
+  feeLimit: number,
+  callValue: number = 0
+): Promise<TronSimulationResult> {
+  const { to, data } = populatedTx;
+  if (!to || !data) {
+    throw new Error("simulateTransaction: populatedTx must have both 'to' and 'data' fields");
+  }
+
+  const tronAddress = TvmAddress.from(to).toNative();
+  const ownerAddress = tronWeb.defaultAddress?.base58;
+  if (!ownerAddress) {
+    throw new Error("simulateTransaction: TronWeb instance must have a default address configured");
+  }
+
+  // `triggerConstantContract` is used to Invoke the readonly function (modified by the view or pure modifier) of a contract for contract data query;
+  // or to Invoke the non-readonly function of a contract for predicting whether the transaction can be successfully executed
+  // and estimating the energy consumption; or to estimate the energy consumption of contract deployment
+  const input = data.startsWith("0x") ? data.slice(2) : data;
+  const txWrapper = await tronWeb.transactionBuilder.triggerConstantContract(
+    tronAddress,
+    "",
+    { feeLimit, input, callValue },
+    [],
+    ownerAddress
+  );
+
+  const success = txWrapper?.result?.result === true;
+
+  return {
+    success,
+    message: txWrapper?.result?.message,
+    constantResult: txWrapper?.constant_result,
+    energyUsed: txWrapper?.energy_used,
+    energyRequired: txWrapper?.energy_required,
+    energyPenalty: txWrapper?.energy_penalty,
   };
 }
