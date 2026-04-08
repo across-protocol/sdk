@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.139",
+  "version": "4.3.140",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -102,8 +102,8 @@
     "typescript": "^5.9"
   },
   "dependencies": {
-    "@across-protocol/constants": "^3.1.108",
-    "@across-protocol/contracts": "5.0.4",
+    "@across-protocol/contracts": "5.0.5",
+    "@across-protocol/constants": "^3.1.109",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
@@ -121,8 +121,9 @@
     "ethers": "^5.7.2",
     "lodash": "^4.18.1",
     "superstruct": "^0.15.4",
+    "tronweb": "^6.2.2",
     "tslib": "^2.6.2",
-    "viem": "^2.21.15",
+    "viem": "^2.47.10",
     "winston": "^3.17.0",
     "winston-transport": "^4.9.0"
   },

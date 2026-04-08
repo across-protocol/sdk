@@ -20,6 +20,7 @@ import {
 import { SpokePoolClient } from "..";
 import { findFillEvent as findEvmFillEvent } from "../../arch/evm";
 import { findFillEvent as findSvmFillEvent } from "../../arch/svm";
+import { findFillEvent as findTvmFillEvent } from "../../arch/tvm";
 import {
   BigNumber,
   bnZero,
@@ -40,6 +41,7 @@ import {
   toBytes32,
   convertRelayDataParamsToBytes32,
   convertFillParamsToBytes32,
+  chainIsTvm,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -1308,7 +1310,8 @@ export class BundleDataClient {
         spokePoolClient.logger
       );
     } else if (isEVMSpokePoolClient(spokePoolClient)) {
-      return await findEvmFillEvent(
+      const findFillEventHandler = chainIsTvm(spokePoolClient.chainId) ? findTvmFillEvent : findEvmFillEvent;
+      return await findFillEventHandler(
         spokePoolClient.spokePool,
         deposit,
         spokePoolClient.deploymentBlock,

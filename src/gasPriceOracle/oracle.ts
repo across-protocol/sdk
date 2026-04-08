@@ -113,6 +113,7 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.TEMPO]: ethereum.eip1559,
+    [CHAIN_IDs.TRON]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
     // Testnet
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
