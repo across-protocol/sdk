@@ -187,9 +187,9 @@ export abstract class Address {
 
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
+    if (chainIsTvm(chainId)) return TvmAddress.validate(this.rawAddress);
     if (chainIsEvm(chainId)) return EvmAddress.validate(this.rawAddress);
     if (chainIsSvm(chainId)) return SvmAddress.validate(this.rawAddress);
-    if (chainIsTvm(chainId)) return TvmAddress.validate(this.rawAddress);
     return false;
   }
 
