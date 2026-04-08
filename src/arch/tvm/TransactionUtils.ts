@@ -103,10 +103,11 @@ export async function simulateTransaction(
   // `triggerConstantContract` is used to Invoke the readonly function (modified by the view or pure modifier) of a contract for contract data query;
   // or to Invoke the non-readonly function of a contract for predicting whether the transaction can be successfully executed
   // and estimating the energy consumption; or to estimate the energy consumption of contract deployment
+  const input = data.startsWith("0x") ? data.slice(2) : data;
   const txWrapper = await tronWeb.transactionBuilder.triggerConstantContract(
     tronAddress,
     "",
-    { feeLimit, input: data },
+    { feeLimit, input },
     [],
     ownerAddress
   );
