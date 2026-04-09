@@ -1,9 +1,9 @@
 import { PUBLIC_NETWORKS, CCTP_NO_DOMAIN, PRODUCTION_NETWORKS, TEST_NETWORKS } from "@across-protocol/constants";
+import { fetchWithTimeout } from "./FetchUtils";
 import { BigNumber, ethers } from "ethers";
 
 import { Log } from "@ethersproject/abstract-provider";
 import { isDefined } from "./TypeGuards";
-import axios from "axios";
 import { chainIsProd } from "./NetworkUtils";
 import assert from "assert";
 import { bnZero } from "./BigNumberUtils";
@@ -236,10 +236,10 @@ export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract
  * @link https://developers.circle.com/api-reference/cctp/all/get-fast-burn-usdc-allowance
  */
 export async function getV2FastBurnAllowance(isMainnet: boolean): Promise<string> {
-  const httpResponse = await axios.get<CCTPV2APIGetFastBurnAllowanceResponse>(
+  const data = await fetchWithTimeout<CCTPV2APIGetFastBurnAllowanceResponse>(
     `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/fastBurn/USDC/allowance`
   );
-  return httpResponse.data.allowance.toString();
+  return data.allowance.toString();
 }
 
 /**
@@ -261,13 +261,13 @@ export async function getV2MinTransferFees(
   const endpoint = `https://iris-api${
     isMainnet ? "" : "-sandbox"
   }.circle.com/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}`;
-  const httpResponse = await axios.get<CCTPV2APIGetFeesResponse>(endpoint);
-  const standardFee = httpResponse.data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_STANDARD);
+  const data = await fetchWithTimeout<CCTPV2APIGetFeesResponse>(endpoint);
+  const standardFee = data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_STANDARD);
   assert(
     isDefined(standardFee?.minimumFee),
     `CCTPUtils#getTransferFees: Standard fee not found in API response: ${endpoint}`
   );
-  const fastFee = httpResponse.data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_FAST);
+  const fastFee = data.find((fee) => fee.finalityThreshold === CCTPV2_FINALITY_THRESHOLD_FAST);
   assert(isDefined(fastFee?.minimumFee), `CCTPUtils#getTransferFees: Fast fee not found in API response: ${endpoint}`);
   return {
     standard: BigNumber.from(standardFee.minimumFee),
@@ -288,13 +288,11 @@ export async function fetchAttestationsForTxn(
   transactionHash: string,
   isMainnet: boolean
 ): Promise<CCTPV2APIGetAttestationResponse> {
-  const httpResponse = await axios.get<CCTPV2APIGetAttestationResponse>(
+  return await fetchWithTimeout<CCTPV2APIGetAttestationResponse>(
     `https://iris-api${
       isMainnet ? "" : "-sandbox"
     }.circle.com/v2/messages/${sourceDomainId}?transactionHash=${transactionHash}`
   );
-
-  return httpResponse.data;
 }
 
 /**

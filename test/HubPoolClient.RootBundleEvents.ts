@@ -19,7 +19,7 @@ import {
   winston,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
-import { EvmAddress, toAddressType } from "../src/utils";
+import { EvmAddress } from "../src/utils";
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
@@ -81,16 +81,22 @@ describe("HubPoolClient: RootBundle Events", function () {
     ).to.equal(undefined);
     await hubPoolClient.update();
 
-    expect(hubPoolClient.getPendingRootBundle()).to.deep.equal({
-      poolRebalanceRoot: tree.getHexRoot(),
-      relayerRefundRoot: constants.mockTreeRoot,
-      slowRelayRoot: constants.mockTreeRoot,
-      proposer: toAddressType(dataworker.address, hubPoolClient.chainId),
-      unclaimedPoolRebalanceLeafCount: 2,
-      challengePeriodEndTimestamp: proposeTime + liveness,
-      bundleEvaluationBlockNumbers: [11, 22],
-      proposalBlockNumber,
-    });
+    let pendingBundle = hubPoolClient.getPendingRootBundle();
+    expect(pendingBundle).to.exist;
+    pendingBundle = pendingBundle!;
+
+    expect(pendingBundle.proposer.eq(EvmAddress.from(dataworker.address))).to.be.true;
+    expect(pendingBundle)
+      .excluding("proposer")
+      .to.deep.equal({
+        poolRebalanceRoot: tree.getHexRoot(),
+        relayerRefundRoot: constants.mockTreeRoot,
+        slowRelayRoot: constants.mockTreeRoot,
+        unclaimedPoolRebalanceLeafCount: 2,
+        challengePeriodEndTimestamp: proposeTime + liveness,
+        bundleEvaluationBlockNumbers: [11, 22],
+        proposalBlockNumber,
+      });
     expect(hubPoolClient.hasPendingProposal()).to.equal(true);
 
     // Ignores root bundles that aren't full executed.

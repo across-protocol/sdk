@@ -10,7 +10,7 @@ import {
   GetTransactionApi,
   Signature,
 } from "@solana/kit";
-import { bs58, chainIsSvm, getMessageHash, toAddressType } from "../../utils";
+import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
@@ -125,7 +125,7 @@ export class SvmCpiEventsClient {
     const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
-    let currentOptions = options;
+    let currentOptions = { ...options, encoding: "json" };
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
@@ -179,10 +179,9 @@ export class SvmCpiEventsClient {
    */
   async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
-      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
+      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0, encoding: "json" })
       .send();
 
-    if (txResult === null) return [];
     return this.processEventFromTx(txResult);
   }
 
@@ -192,8 +191,8 @@ export class SvmCpiEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(txResult: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
-    if (!txResult) return [];
+  private processEventFromTx(txResult?: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
+    if (!isDefined(txResult) || isDefined(txResult.meta?.err)) return [];
     const events: { program: Address; data: unknown; name: string }[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
@@ -246,6 +245,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "json",
         })
         .send(),
     ]);
@@ -256,7 +256,7 @@ export class SvmCpiEventsClient {
       return;
     }
 
-    return events.map((event) => {
+    return depositEvents.map((event) => {
       const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, [
         "depositId",
         "outputAmount",
@@ -312,6 +312,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "json",
         })
         .send(),
     ]);

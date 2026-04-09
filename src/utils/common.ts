@@ -18,7 +18,17 @@ export { bs58 };
  * @param {number} decimals
  * @returns {BN}
  */
-export const toBNWei = (num: BigNumberish, decimals?: number): BN => parseUnits(num.toString(), decimals);
+export const toBNWei = (num: BigNumberish, decimals?: number): BN => {
+  const numStr = num.toString();
+
+  // If the number was originally in scientific notation, we need correctly format it for parsing.
+  if (numStr.includes("e") || numStr.includes("E")) {
+    const normalized = new Decimal(numStr).toFixed();
+    return parseUnits(normalized, decimals);
+  }
+
+  return parseUnits(num.toString(), decimals);
+};
 
 /**
  * fromWei.

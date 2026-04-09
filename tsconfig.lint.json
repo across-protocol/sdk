@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.js", "./e2e/**/*.ts"],
+  "include": ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.cjs", "./e2e/**/*.ts"],
   "compilerOptions": {
     // Expand the rootDir to include the test directory
     "rootDirs": ["./src", "./test", "./", "./e2e"]

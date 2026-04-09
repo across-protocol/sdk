@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { PUBLIC_NETWORKS } from "../constants";
 import { createShortenedString } from "./FormattingUtils";
-import { chainIsEvm } from "./NetworkUtils";
+import { chainIsEvm, chainIsTvm } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import bs58 from "bs58";
 
@@ -59,7 +59,7 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
     return `<unsupported chain/hash ${chainId}:${addr}>}`;
   }
   // Ensure that the first two characters are "0x". If they are not, append them.
-  if (addr.substring(0, 2) !== "0x" && chainIsEvm(chainId)) {
+  if (addr.substring(0, 2) !== "0x" && chainIsEvm(chainId) && !chainIsTvm(chainId)) {
     addr = `0x${addr}`;
     if (!ethers.utils.isHexString(addr)) {
       return null;
@@ -67,7 +67,18 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
   }
   // Resolve the short URL string.
   const shortURLString = createShortenedString(addr);
-  if (chainIsEvm(chainId)) {
+  if (chainIsTvm(chainId)) {
+    // TronScan-style URLs use `/#/transaction/...` and `/#/address/...`.
+    const txHexNoPrefix = addr.startsWith("0x") ? addr.slice(2) : addr;
+    if (txHexNoPrefix.length === 64 && ethers.utils.isHexString(`0x${txHexNoPrefix}`)) {
+      const txIdForUrl = txHexNoPrefix.toLowerCase();
+      return `<${constructURL(explorerDomain, ["#", "transaction", txIdForUrl])} | ${shortURLString}>`;
+    }
+    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)) {
+      return `<${constructURL(explorerDomain, ["#", "address", addr])} | ${shortURLString}>`;
+    }
+    return null;
+  } else if (chainIsEvm(chainId)) {
     // Iterate over the two possible addr lengths.
     for (const [length, route] of [
       [66, "tx"],
