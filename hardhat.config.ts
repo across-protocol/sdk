@@ -2,7 +2,6 @@ import "hardhat-watcher";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomiclabs/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
-import "@typechain/hardhat";
 import { HardhatUserConfig } from "hardhat/config";
 
 const solcVersion = "0.8.23";
