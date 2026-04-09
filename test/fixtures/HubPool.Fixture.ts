@@ -1,7 +1,6 @@
 // Sets up all contracts necessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
 import "@nomiclabs/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
-import "hardhat-deploy";
 import hre from "hardhat";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Contract } from "ethers";
@@ -33,6 +32,7 @@ import {
 import * as clients from "../../src/clients";
 import { MockConfigStoreClient } from "../mocks";
 import { setupUmaEcosystem } from "./UmaEcosystemFixture";
+import { createFixture } from "./utils";
 
 export async function setupHubPool(
   ethers: EthersTestLibrary,
@@ -323,7 +323,7 @@ export async function deployHubPool(
   await hubPool.setCrossChainContracts(defaultOriginChainId, mockAdapter.address, mockSpoke.address);
 
   // Deploy a new set of mocks for mainnet
-  const mainnetChainId = await hre.getChainId();
+  const mainnetChainId = await signer.getChainId();
   const mockAdapterMainnet = await (await getContractFactory("Mock_Adapter", signer)).deploy();
   const mockSpokeMainnet = await hre.upgrades.deployProxy(
     await getContractFactory(spokePoolName, signer),
@@ -362,11 +362,8 @@ export async function deployHubPool(
   };
 }
 
-/**
- * Creates a hub pool fixture using hardhat-deploy's createFixture.
- */
-export const hubPoolFixture = hre.deployments.createFixture(async ({ ethers }) => {
-  return await deployHubPool(ethers);
+export const hubPoolFixture = createFixture(async () => {
+  return await deployHubPool(hre.ethers);
 });
 
 /**
