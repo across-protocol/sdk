@@ -10,10 +10,13 @@ export function createFixture<T>(setup: () => Promise<T>): () => Promise<T> {
 
   return async () => {
     if (snapshotId !== undefined) {
-      await hre.network.provider.send("evm_revert", [snapshotId]);
-      // evm_revert consumes the snapshot, so take a fresh one for the next call.
-      snapshotId = (await hre.network.provider.send("evm_snapshot", [])) as string;
-      return result;
+      const reverted = await hre.network.provider.send("evm_revert", [snapshotId]);
+      if (reverted) {
+        // evm_revert consumes the snapshot, so take a fresh one for the next call.
+        snapshotId = (await hre.network.provider.send("evm_snapshot", [])) as string;
+        return result;
+      }
+      // Snapshot was invalidated (e.g. another fixture reverted past it). Re-run setup.
     }
 
     result = await setup();
