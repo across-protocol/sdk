@@ -141,7 +141,6 @@ const RELAYDATA_ABI = [
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-
   if (chainIsSvm(destinationChainId)) {
     const messageHash = getMessageHash(relayData.message);
     return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
