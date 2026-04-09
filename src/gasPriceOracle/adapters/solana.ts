@@ -2,7 +2,12 @@ import { SVMProvider } from "../../arch/svm";
 import { toBN, dedupArray } from "../../utils";
 import { SvmGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
-import { CompilableTransactionMessage, TransactionMessageBytesBase64, compileTransaction } from "@solana/kit";
+import {
+  TransactionMessage,
+  TransactionMessageBytesBase64,
+  TransactionMessageWithFeePayer,
+  compileTransaction,
+} from "@solana/kit";
 
 /**
  * @notice Returns result of getFeeForMessage and getRecentPrioritizationFees RPC calls.
@@ -11,8 +16,8 @@ import { CompilableTransactionMessage, TransactionMessageBytesBase64, compileTra
 export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOptions): Promise<SvmGasPriceEstimate> {
   const { unsignedTx: _unsignedTx } = opts;
 
-  // Cast the opaque unsignedTx type to a solana-kit CompilableTransactionMessage.
-  const unsignedTx = _unsignedTx as CompilableTransactionMessage;
+  // Cast the opaque unsignedTx type to a solana-kit TransactionMessage with fee payer.
+  const unsignedTx = _unsignedTx as TransactionMessage & TransactionMessageWithFeePayer;
   const compiledTransaction = compileTransaction(unsignedTx);
 
   // Get this base fee. This should result in LAMPORTS_PER_SIGNATURE * nSignatures.

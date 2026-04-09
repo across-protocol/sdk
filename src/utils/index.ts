@@ -1,5 +1,4 @@
 export * from "./common";
-export * from "./abi";
 export * from "./ArrayUtils";
 export * from "./BlockUtils";
 export * from "./BlockFinder";
@@ -12,7 +11,6 @@ export * from "./TokenUtils";
 export * from "./LogUtils";
 export * from "./BundleUtils";
 export * from "./JSONUtils";
-export * from "./IPFSUtils";
 export * from "./NumberUtils";
 export * from "./DeploymentUtils";
 export * from "./FormattingUtils";
@@ -29,3 +27,4 @@ export * from "./AddressUtils";
 export * from "./SpokeUtils";
 export * from "./CCTPUtils";
 export * from "./HyperLiquidUtils";
+export * from "./FetchUtils";

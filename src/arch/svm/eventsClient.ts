@@ -125,7 +125,7 @@ export class SvmCpiEventsClient {
     const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
-    let currentOptions = options;
+    let currentOptions = { ...options, encoding: "json" };
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
@@ -179,7 +179,7 @@ export class SvmCpiEventsClient {
    */
   async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
-      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
+      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0, encoding: "json" })
       .send();
 
     return this.processEventFromTx(txResult);
@@ -245,6 +245,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "json",
         })
         .send(),
     ]);
@@ -311,6 +312,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "json",
         })
         .send(),
     ]);

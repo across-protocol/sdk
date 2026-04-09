@@ -98,6 +98,10 @@ export async function getWidestPossibleExpectedBlockRange(
   });
 }
 
+export function isChainPaused(blockRangeForChain: number[]): boolean {
+  return blockRangeForChain[0] === blockRangeForChain[1];
+}
+
 export function isChainDisabledAtBlock(
   chainId: number,
   mainnetBlock: number,

@@ -1,10 +1,10 @@
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
-import axios from "axios";
+
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, delay, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import { BigNumber, delay, fetchWithTimeout, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -13,8 +13,8 @@ export class ArweaveClient {
   public constructor(
     private arweaveJWT: JWKInterface,
     private logger: winston.Logger,
-    gatewayURL = "arweave.net",
-    protocol = "https",
+    public gatewayURL = "arweave.net",
+    public protocol = "https",
     port = 443,
     private readonly retries = 2,
     private readonly retryDelaySeconds = 1
@@ -102,19 +102,10 @@ export class ArweaveClient {
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
-    const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
-    // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
-    // but rather a {status: string, statusText: string} object. We can detect that and return null.
-    if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
-      this.logger.debug({
-        at: "ArweaveClient:get",
-        message: "Failed to retrieve value from Arweave - network error or invalid response status",
-        transactionID,
-        responseStatus,
-        data,
-      });
-      return null;
-    }
+    const request = async () => {
+      return await fetchWithTimeout(transactionUrl);
+    };
+    const data = await this._retryRequest(request, 0);
     try {
       // We should validate the data and perform any logical coercion here.
       return create(data, validator);
@@ -242,7 +233,7 @@ export class ArweaveClient {
         const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount); // ms; attempt = [0, 1, 2, ...]
         const delayS = baseDelay + baseDelay * Math.random();
         this.logger.debug({
-          at: "ArweaveClient:getBalance",
+          at: "ArweaveClient:retryRequest",
           message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
           retryCount,
         });
