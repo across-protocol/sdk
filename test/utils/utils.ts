@@ -1,12 +1,14 @@
-import { AcrossConfigStore } from "@across-protocol/contracts";
-import * as utils from "@across-protocol/contracts/dist/test-utils";
+import { AcrossConfigStore } from "../../src/utils/abi/typechain";
 import assert from "assert";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
-import { Contract, providers } from "ethers";
+import { ethers, BaseContract, Contract, providers, Signer } from "ethers";
+import { ethers as hreEthers } from "hardhat";
+import { FakeContract, smock } from "@defi-wonderland/smock";
 import _ from "lodash";
 import sinon from "sinon";
-import winston, { LogEntry } from "winston";
+import winston from "winston";
+import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
 import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { Deposit, DepositWithBlock, FillWithBlock, RelayData, SlowFillRequestWithBlock } from "../../src/interfaces";
@@ -29,9 +31,14 @@ import {
   utf8ToHex,
 } from "../../src/utils";
 import {
+  amountToSeedWallets,
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
+  originChainId,
+  randomAddress,
   sampleRateModel,
+  TokenRolesEnum,
+  zeroAddress,
 } from "../constants";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
 import { SpyTransport } from "./SpyTransport";
@@ -39,42 +46,207 @@ import { SpyTransport } from "./SpyTransport";
 chai.use(chaiExclude);
 const chaiAssert = chai.assert;
 
-export type SignerWithAddress = utils.SignerWithAddress;
+export { ethers };
+export type { SignerWithAddress };
 
-export const {
-  buildPoolRebalanceLeafTree,
-  buildPoolRebalanceLeaves,
-  deploySpokePool,
-  getContractFactory,
+// Re-export from fixtures
+export {
   getDepositParams,
   getUpdatedV3DepositSignature,
-  hubPoolFixture,
   modifyRelayHelper,
-  randomAddress,
-  zeroAddress,
-} = utils;
+  getRelayHash,
+  getV3RelayHash,
+  getLegacyV3RelayHash,
+  getFillRelayParams,
+  getFillRelayUpdatedFeeParams,
+  getExecuteSlowRelayParams,
+  deployMockSpokePoolCaller,
+} from "../fixtures/SpokePool.Fixture";
+export type {
+  ContractRelayData,
+  V3RelayData,
+  V3RelayExecutionParams,
+  SlowFill,
+  V3SlowFill,
+  UpdatedRelayerFeeData,
+} from "../fixtures/SpokePool.Fixture";
+export { FillType, FillStatus } from "../fixtures/SpokePool.Fixture";
+
+// Re-export constants
+export { randomAddress, zeroAddress };
+
+// Import local Merkle utilities that use our local getContractFactory
+export {
+  buildPoolRebalanceLeafTree,
+  buildPoolRebalanceLeaves,
+  buildRelayerRefundTree,
+  buildRelayerRefundLeaves,
+  buildSlowRelayTree,
+  buildV3SlowRelayTree,
+  getParamType,
+  constructSingleRelayerRefundTree,
+  constructSingleChainTree,
+} from "./MerkleLib.utils";
+
+// Import and export the local getContractFactory
+import { getContractFactory } from "./getContractFactory";
+export { getContractFactory };
+
+// Import local fixtures that use our local getContractFactory
+import { hubPoolFixture, deployHubPool } from "../fixtures/HubPool.Fixture";
+import { spokePoolFixture, deploySpokePool } from "../fixtures/SpokePool.Fixture";
+export { hubPoolFixture, deployHubPool, spokePoolFixture, deploySpokePool };
+
+// Import and export the merkle lib fixture
+export { merkleLibFixture } from "../fixtures/MerkleLib.Fixture";
 
 export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
-const TokenRolesEnum = {
-  OWNER: "0",
-  MINTER: "1",
-  BURNER: "3",
+// Re-export ethers utilities
+const { defaultAbiCoder, keccak256 } = ethers.utils;
+export { defaultAbiCoder, keccak256, Signer, FakeContract };
+
+// ---------------------------------------------------------------------------
+// Conversion / encoding helpers (mirroring contracts test-utils)
+// ---------------------------------------------------------------------------
+
+export const toWeiWithDecimals = (num: string | number | BigNumber, decimals: number): BigNumber =>
+  ethers.utils.parseUnits(num.toString(), decimals);
+
+export const toBNWeiWithDecimals = (num: string | number | BigNumber, decimals: number): BigNumber =>
+  BigNumber.from(toWeiWithDecimals(num, decimals));
+
+export const fromWei = (num: string | number | BigNumber): string => ethers.utils.formatUnits(num.toString());
+
+export const hexToUtf8 = (input: string): string => ethers.utils.toUtf8String(input);
+
+export const hexZeroPad = (input: string, length: number): string => ethers.utils.hexZeroPad(input, length);
+
+export const addressToBytes = (input: string): string => hexZeroPad(input.toLowerCase(), 32);
+
+export const bytes32ToAddress = (input: string): string => {
+  if (!/^0x[a-fA-F0-9]{64}$/.test(input)) {
+    throw new Error("Invalid bytes32 input");
+  }
+  return ethers.utils.getAddress("0x" + input.slice(26));
 };
+
+export const isBytes32 = (input: string): boolean => /^0x[0-9a-fA-F]{64}$/.test(input);
+
+// ---------------------------------------------------------------------------
+// Random data generators
+// ---------------------------------------------------------------------------
+
+export function randomBigNumber(bytes = 32, signed = false): BigNumber {
+  const sign = signed && Math.random() < 0.5 ? "-" : "";
+  const byteString = "0x" + Buffer.from(ethers.utils.randomBytes(signed ? bytes - 1 : bytes)).toString("hex");
+  return ethers.BigNumber.from(sign + byteString);
+}
+
+export function randomBytes32(): string {
+  return ethers.utils.hexlify(ethers.utils.randomBytes(32));
+}
+
+// ---------------------------------------------------------------------------
+// Wallet / contract seeding
+// ---------------------------------------------------------------------------
+
+export async function seedWallet(
+  walletToFund: Signer,
+  tokens: Contract[],
+  weth: Contract | undefined,
+  amountToSeedWith: number | BigNumber
+) {
+  for (const token of tokens) await token.mint(await walletToFund.getAddress(), amountToSeedWith);
+
+  if (weth) await weth.connect(walletToFund).deposit({ value: amountToSeedWith });
+}
+
+export async function seedContract(
+  contract: Contract,
+  walletToFund: Signer,
+  tokens: Contract[],
+  weth: Contract | undefined,
+  amountToSeedWith: number | BigNumber
+): Promise<void> {
+  await seedWallet(walletToFund, tokens, weth, amountToSeedWith);
+  for (const token of tokens) await token.connect(walletToFund).transfer(contract.address, amountToSeedWith);
+  if (weth) await weth.connect(walletToFund).transfer(contract.address, amountToSeedWith);
+}
+
+// ---------------------------------------------------------------------------
+// Smock fakes
+// ---------------------------------------------------------------------------
+
+export async function createFake(contractName: string, targetAddress = ""): Promise<FakeContract<BaseContract>> {
+  const contractFactory = await getContractFactory(contractName, new ethers.VoidSigner(ethers.constants.AddressZero));
+  return smock.fake(contractFactory.interface.fragments, {
+    address: targetAddress === "" ? undefined : targetAddress,
+    provider: contractFactory.signer.provider,
+  });
+}
+
+export async function createFakeFromABI(abi: unknown[], targetAddress = ""): Promise<FakeContract<BaseContract>> {
+  return await createTypedFakeFromABI<BaseContract>(abi, targetAddress);
+}
+
+export async function createTypedFakeFromABI<T extends BaseContract>(
+  abi: unknown[],
+  targetAddress = ""
+): Promise<FakeContract<T>> {
+  const signer = new ethers.VoidSigner(ethers.constants.AddressZero);
+  return await smock.fake<T>(abi as never[], {
+    address: !targetAddress ? undefined : targetAddress,
+    provider: signer.provider,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Solana / message helpers
+// ---------------------------------------------------------------------------
+
+export function trimSolanaAddress(bytes32Address: string): string {
+  if (!ethers.utils.isHexString(bytes32Address, 32)) {
+    throw new Error("Invalid bytes32 address");
+  }
+  const uint160Address = ethers.BigNumber.from(bytes32Address).mask(160);
+  return ethers.utils.hexZeroPad(ethers.utils.hexlify(uint160Address), 20);
+}
+
+export function hashNonEmptyMessage(message: string): string {
+  if (!ethers.utils.isHexString(message) || message.length % 2 !== 0) throw new Error("Invalid hex message bytes");
+  // account for 0x prefix when checking length
+  if (message.length > 2) {
+    return ethers.utils.keccak256(message);
+  }
+  return ethers.utils.hexlify(new Uint8Array(32));
+}
+
+// ---------------------------------------------------------------------------
+// createRandomBytes32 (kept for backward compatibility)
+// ---------------------------------------------------------------------------
+
+export const createRandomBytes32 = () => ethers.utils.hexlify(ethers.utils.randomBytes(32));
+
+// ---------------------------------------------------------------------------
+// Test helper functions
+// ---------------------------------------------------------------------------
 
 export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string[] = []): boolean {
   if (x === undefined || y === undefined || x === null || y === null) {
     return false;
   }
+  const xObj = x as Record<string, unknown>;
+  const yObj = y as Record<string, unknown>;
   const sortedKeysX = Object.fromEntries(
-    Object.keys(x)
+    Object.keys(xObj)
       .sort()
-      .map((key) => [key, x?.[key]])
+      .map((key) => [key, xObj[key]])
   );
   const sortedKeysY = Object.fromEntries(
-    Object.keys(y)
+    Object.keys(yObj)
       .sort()
-      .map((key) => [key, y?.[key]])
+      .map((key) => [key, yObj[key]])
   );
   chaiAssert.deepStrictEqual(_.omit(sortedKeysX, omitKeys), _.omit(sortedKeysY, omitKeys));
   return true;
@@ -105,10 +277,10 @@ export async function assertPromisePasses<T>(promise: Promise<T>): Promise<void>
 }
 
 export async function setupTokensForWallet(
-  contractToApprove: utils.Contract,
-  wallet: utils.SignerWithAddress,
-  tokens: utils.Contract[],
-  weth?: utils.Contract,
+  contractToApprove: Contract,
+  wallet: SignerWithAddress,
+  tokens: Contract[],
+  weth?: Contract,
   seedMultiplier = 1
 ): Promise<void> {
   const approveToken = async (token: Contract) => {
@@ -116,7 +288,7 @@ export async function setupTokensForWallet(
     await token.connect(wallet).approve(contractToApprove.address, balance);
   };
 
-  await utils.seedWallet(wallet, tokens, weth, utils.amountToSeedWallets.mul(seedMultiplier));
+  await seedWallet(wallet, tokens, weth, amountToSeedWallets.mul(seedMultiplier));
   await Promise.all(tokens.map(approveToken));
 
   if (weth) {
@@ -139,25 +311,23 @@ export function createSpyLogger(): SpyLoggerResult {
 }
 
 export async function deploySpokePoolWithToken(fromChainId = 0): Promise<SpokePoolDeploymentResult> {
-  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await utils.deploySpokePool(utils.ethers);
+  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await deploySpokePool(hreEthers);
   const receipt = await spokePool.deployTransaction.wait();
 
-  await spokePool.setChainId(fromChainId == 0 ? utils.originChainId : fromChainId);
+  await spokePool.setChainId(fromChainId == 0 ? originChainId : fromChainId);
 
   return { weth, erc20, spokePool, unwhitelistedErc20, destErc20, deploymentBlock: receipt.blockNumber };
 }
 
 export async function deployConfigStore(
-  signer: utils.SignerWithAddress,
-  tokensToAdd: utils.Contract[],
+  signer: SignerWithAddress,
+  tokensToAdd: Contract[],
   maxL1TokensPerPoolRebalanceLeaf: number = MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   maxRefundPerRelayerRefundLeaf: number = MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   rateModel: unknown = sampleRateModel,
   additionalChainIdIndices?: number[]
 ): Promise<{ configStore: AcrossConfigStore; deploymentBlock: number }> {
-  const configStore = (await (
-    await utils.getContractFactory("AcrossConfigStore", signer)
-  ).deploy()) as AcrossConfigStore;
+  const configStore = (await (await getContractFactory("AcrossConfigStore", signer)).deploy()) as AcrossConfigStore;
   const { blockNumber: deploymentBlock } = await configStore.deployTransaction.wait();
 
   for (const token of tokensToAdd) {
@@ -187,40 +357,40 @@ export async function deployConfigStore(
 }
 
 export async function deployAndConfigureHubPool(
-  signer: utils.SignerWithAddress,
-  spokePools: { l2ChainId: number; spokePool: utils.Contract }[],
+  signer: SignerWithAddress,
+  spokePools: { l2ChainId: number; spokePool: Contract }[],
   finderAddress: string = zeroAddress,
   timerAddress: string = zeroAddress
 ): Promise<{
-  hubPool: utils.Contract;
-  mockAdapter: utils.Contract;
-  l1Token_1: utils.Contract;
-  l1Token_2: utils.Contract;
+  hubPool: Contract;
+  mockAdapter: Contract;
+  l1Token_1: Contract;
+  l1Token_2: Contract;
   hubPoolDeploymentBlock: number;
 }> {
-  const lpTokenFactory = await (await utils.getContractFactory("LpTokenFactory", signer)).deploy();
+  const lpTokenFactory = await (await getContractFactory("LpTokenFactory", signer)).deploy();
   const hubPool = await (
-    await utils.getContractFactory("HubPool", signer)
+    await getContractFactory("HubPool", signer)
   ).deploy(lpTokenFactory.address, finderAddress, zeroAddress, timerAddress);
   const receipt = await hubPool.deployTransaction.wait();
 
-  const mockAdapter = await (await utils.getContractFactory("Mock_Adapter", signer)).deploy();
+  const mockAdapter = await (await getContractFactory("Mock_Adapter", signer)).deploy();
 
   for (const spokePool of spokePools) {
     await hubPool.setCrossChainContracts(spokePool.l2ChainId, mockAdapter.address, spokePool.spokePool.address);
   }
 
-  const l1Token_1 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
+  const l1Token_1 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
   await l1Token_1.addMember(TokenRolesEnum.MINTER, signer.address);
-  const l1Token_2 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
+  const l1Token_2 = await (await getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
   await l1Token_2.addMember(TokenRolesEnum.MINTER, signer.address);
 
   return { hubPool, mockAdapter, l1Token_1, l1Token_2, hubPoolDeploymentBlock: receipt.blockNumber };
 }
 
 export async function enableRoutesOnHubPool(
-  hubPool: utils.Contract,
-  rebalanceRouteTokens: { destinationChainId: number; l1Token: utils.Contract; destinationToken: utils.Contract }[]
+  hubPool: Contract,
+  rebalanceRouteTokens: { destinationChainId: number; l1Token: Contract; destinationToken: Contract }[]
 ): Promise<void> {
   for (const tkn of rebalanceRouteTokens) {
     await hubPool.setPoolRebalanceRoute(tkn.destinationChainId, tkn.l1Token.address, tkn.destinationToken.address);
@@ -243,12 +413,12 @@ export async function getLastBlockTime(provider: providers.Provider): Promise<nu
 }
 
 export async function addLiquidity(
-  signer: utils.SignerWithAddress,
-  hubPool: utils.Contract,
-  l1Token: utils.Contract,
-  amount: utils.BigNumber
+  signer: SignerWithAddress,
+  hubPool: Contract,
+  l1Token: Contract,
+  amount: BigNumber
 ): Promise<void> {
-  await utils.seedWallet(signer, [l1Token], undefined, amount);
+  await seedWallet(signer, [l1Token], undefined, amount);
   await l1Token.connect(signer).approve(hubPool.address, amount);
   await hubPool.enableL1TokenForLiquidityProvision(l1Token.address);
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
@@ -351,7 +521,7 @@ async function _deposit(
       message
     );
   const getChainId = async (): Promise<number> => Promise.resolve(Number(await spokePool.chainId()));
-  const [events, originChainId] = await Promise.all([
+  const [events, fetchedOriginChainId] = await Promise.all([
     spokePool.queryFilter(spokePool.filters.FundsDeposited()),
     getChainId(),
   ]);
@@ -366,11 +536,11 @@ async function _deposit(
 
   return {
     depositId: toBN(args.depositId),
-    originChainId: originChainId,
+    originChainId: fetchedOriginChainId,
     destinationChainId,
-    depositor: toAddressType(args.depositor, originChainId),
+    depositor: toAddressType(args.depositor, fetchedOriginChainId),
     recipient: toAddressType(args.recipient, destinationChainId),
-    inputToken: toAddressType(args.inputToken, originChainId),
+    inputToken: toAddressType(args.inputToken, fetchedOriginChainId),
     inputAmount: args.inputAmount,
     outputToken: toAddressType(args.outputToken, destinationChainId),
     outputAmount: args.outputAmount,
@@ -414,15 +584,15 @@ export async function requestV3SlowFill(
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
   expect(lastEvent!.args).to.exist;
   const args = lastEvent!.args!;
-  const originChainId = Number(args.originChainId);
+  const fetchedOriginChainId = Number(args.originChainId);
 
   return {
     depositId: toBN(args.depositId),
-    originChainId,
+    originChainId: fetchedOriginChainId,
     destinationChainId,
-    depositor: toAddressType(args.depositor, originChainId),
+    depositor: toAddressType(args.depositor, fetchedOriginChainId),
     recipient: toAddressType(args.recipient, destinationChainId),
-    inputToken: toAddressType(args.inputToken, originChainId),
+    inputToken: toAddressType(args.inputToken, fetchedOriginChainId),
     inputAmount: args.inputAmount,
     outputToken: toAddressType(args.outputToken, destinationChainId),
     outputAmount: args.outputAmount,
@@ -449,7 +619,7 @@ export async function fillRelay(
   const destinationChainId = Number(await spokePool.chainId());
   chaiAssert.notEqual(_deposit.originChainId, destinationChainId);
 
-  const deposit = {
+  const depositData = {
     ..._deposit,
     depositor: _deposit.depositor.toBytes32(),
     recipient: _deposit.recipient.toBytes32(),
@@ -462,7 +632,7 @@ export async function fillRelay(
 
   await spokePool
     .connect(signer)
-    .fillRelay(deposit, repayment?.repaymentChainId ?? destinationChainId, repaymentAddress);
+    .fillRelay(depositData, repayment?.repaymentChainId ?? destinationChainId, repaymentAddress);
 
   const events = await spokePool.queryFilter(spokePool.filters.FilledRelay());
   const lastEvent = events.at(-1);
@@ -506,7 +676,7 @@ export async function fillRelay(
  * @returns The latest block number.
  */
 export function getLastBlockNumber(): Promise<number> {
-  return (utils.ethers.provider as unknown as providers.Provider).getBlockNumber();
+  return (hreEthers.provider as unknown as providers.Provider).getBlockNumber();
 }
 
 export function convertMockedConfigClient(_client: unknown): _client is ConfigStoreClient {
@@ -516,19 +686,19 @@ export function convertMockedConfigClient(_client: unknown): _client is ConfigSt
 // Iterate over each element in the log and see if it is a big number. if it is, then try casting it to a string to
 // make it more readable. If something goes wrong in parsing the object (it's too large or something else) then simply
 // return the original log entry without modifying it.
-export function bigNumberFormatter(logEntry: LogEntry) {
+export function bigNumberFormatter(logEntry: winston.Logform.TransformableInfo): winston.Logform.TransformableInfo {
   type SymbolRecord = Record<string | symbol, unknown>;
   try {
     // Out is the original object if and only if one or more BigNumbers were replaced.
-    const out = iterativelyReplaceBigNumbers(logEntry);
+    const out = iterativelyReplaceBigNumbers(logEntry as Record<string | symbol, unknown>);
 
     // Because winston depends on some non-enumerable symbol properties, we explicitly copy those over, as they are not
     // handled in iterativelyReplaceBigNumbers. This only needs to happen if logEntry is being replaced.
     if (out !== logEntry)
       Object.getOwnPropertySymbols(logEntry).map(
-        (symbol) => (out[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
+        (symbol) => ((out as SymbolRecord)[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
       );
-    return out as LogEntry;
+    return out as winston.Logform.TransformableInfo;
   } catch (_) {
     return logEntry;
   }
@@ -536,12 +706,13 @@ export function bigNumberFormatter(logEntry: LogEntry) {
 
 // Traverse a potentially nested object and replace any element that is either a Ethers BigNumber or web3 BigNumber
 // with the string version of it for easy logging.
-const iterativelyReplaceBigNumbers = (obj: Record<string | symbol, unknown> | object) => {
+const iterativelyReplaceBigNumbers = (obj: Record<string, unknown>) => {
   // This does a DFS, recursively calling this function to find the desired value for each key.
   // It doesn't modify the original object. Instead, it creates an array of keys and updated values.
   const replacements = Object.entries(obj).map(([key, value]): [string, unknown] => {
     if (BigNumber.isBigNumber(value)) return [key, value.toString()];
-    else if (typeof value === "object" && value !== null) return [key, iterativelyReplaceBigNumbers(value)];
+    else if (typeof value === "object" && value !== null)
+      return [key, iterativelyReplaceBigNumbers(value as Record<string, unknown>)];
     else return [key, value];
   });
 
