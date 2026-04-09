@@ -4,7 +4,6 @@ import "@nomiclabs/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
 import { HardhatUserConfig } from "hardhat/config";
-import "solidity-coverage";
 
 const solcVersion = "0.8.23";
 
