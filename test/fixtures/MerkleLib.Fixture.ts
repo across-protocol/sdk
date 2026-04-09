@@ -1,3 +1,4 @@
+import "@nomiclabs/hardhat-ethers";
 import hre from "hardhat";
 import { Contract } from "ethers";
 import { getContractFactory } from "../utils/getContractFactory";

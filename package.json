@@ -59,7 +59,6 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
-    "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "@openzeppelin/hardhat-upgrades": "^1.28.0",
     "@size-limit/preset-small-lib": "^11.0.0",
     "@solana/web3.js": "^1.31.0",
@@ -86,7 +85,6 @@
     "eslint-plugin-mocha": "^10.2.0",
     "eslint-plugin-prettier": "^5.0.0",
     "hardhat": "^2.28.0",
-    "hardhat-gas-reporter": "^1.0.8",
     "hardhat-watcher": "^2.5.0",
     "husky": "^8.0.0",
     "lint-staged": "^15.0.0",
