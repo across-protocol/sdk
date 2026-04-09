@@ -6,7 +6,6 @@ import { providers } from "ethers";
 import { SVMProvider } from "../src/arch/svm/types";
 import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { MainnetUrl, createSolanaRpc } from "@solana/kit";
-import { asL2Provider } from "@eth-optimism/sdk";
 
 interface TempTask {
   resolve: (result: unknown) => void;
@@ -62,10 +61,6 @@ describe("providers", () => {
 
     it("should correctly accepts EVM provider", () => {
       expect(isEvmProvider(evmProvider)).to.be.true;
-    });
-
-    it("should correctly accept Optimism provider", () => {
-      expect(isEvmProvider(asL2Provider(evmProvider))).to.be.true;
     });
 
     it("should correctly rejects SVM provider", () => {

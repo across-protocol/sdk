@@ -105,7 +105,6 @@
     "@across-protocol/contracts": "5.0.5",
     "@across-protocol/constants": "^3.1.109",
     "@coral-xyz/anchor": "^0.30.1",
-    "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
     "@nktkas/hyperliquid": "^0.25.9",
     "@solana-program/compute-budget": "^0.11.0",
