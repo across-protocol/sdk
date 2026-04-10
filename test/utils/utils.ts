@@ -672,7 +672,7 @@ export function bigNumberFormatter(logEntry: winston.Logform.TransformableInfo):
         (symbol) => ((out as SymbolRecord)[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
       );
     return out as winston.Logform.TransformableInfo;
-  } catch (_) {
+  } catch {
     return logEntry;
   }
 }

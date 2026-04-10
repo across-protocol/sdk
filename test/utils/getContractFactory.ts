@@ -107,7 +107,7 @@ export async function getContractFactory(
   // 1. First, try to get the artifact from local hardhat artifacts
   try {
     return await ethers.getContractFactory(name, signerOrFactoryOptions);
-  } catch (_) {
+  } catch {
     // Continue to other sources
   }
 
@@ -115,7 +115,7 @@ export async function getContractFactory(
   try {
     const artifact = getAcrossContractsArtifact(name);
     return new ContractFactory(artifact.abi as ContractInterface, artifact.bytecode, signer);
-  } catch (_) {
+  } catch {
     // Continue to other sources
   }
 
@@ -126,7 +126,7 @@ export async function getContractFactory(
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return new ContractFactory(getAbi(name as any), getBytecode(name as any), signerOrFactoryOptions);
-  } catch (_) {
+  } catch {
     // Continue
   }
 

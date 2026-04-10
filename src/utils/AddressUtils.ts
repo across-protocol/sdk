@@ -91,7 +91,7 @@ export function isValidEvmAddress(address: string): boolean {
   try {
     const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
     return isAddress(utils.getAddress(evmAddress));
-  } catch (_e) {
+  } catch {
     return false;
   }
 }
