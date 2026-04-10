@@ -149,7 +149,7 @@ export class Coingecko {
       id = getCoingeckoTokenIdByAddress(address, chainId);
 
       return id;
-    } catch (error) {
+    } catch {
       this.logger.warn({
         at: "Coingecko#getCoingeckoTokenIdByAddress",
         message: `Token with address ${address} not found in constants. Attempting to fetch ID from coingecko API...`,

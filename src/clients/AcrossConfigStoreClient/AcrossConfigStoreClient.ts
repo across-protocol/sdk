@@ -510,7 +510,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           }
           // If all else passes, we can add this update.
           this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
-        } catch (e) {
+        } catch {
           this.logger.warn({ at: "ConfigStore::update", message: `Failed to parse chain ID indices: ${args.value}` });
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
@@ -544,7 +544,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         try {
           const chainIds = this.filterDisabledChains(JSON.parse(args.value) as number[]);
           this.cumulativeDisabledChainUpdates.push({ ...args, chainIds });
-        } catch (err) {
+        } catch {
           // Can't parse list, skip.
         }
       } else {
