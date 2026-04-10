@@ -89,7 +89,7 @@
     "lint-staged": "^15.0.0",
     "nodemon": "^3.0.1",
     "prettier": "^3.0.3",
-    "sinon": "^19.0.0",
+    "sinon": "^21.0.0",
     "size-limit": "^11.0.0",
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
