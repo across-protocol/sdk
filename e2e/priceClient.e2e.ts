@@ -1,12 +1,12 @@
 import assert from "assert";
-import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "../src/priceClient/priceClient";
 import { acrossApi, coingecko, defaultAdapter, defiLlama } from "../src/priceClient/adapters";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../src/priceClient/adapters/baseAdapter";
 import { assertPromiseError, assertPromisePasses, expect } from "../test/utils";
+import { loadEnv } from "./utils";
 
-dotenv.config();
+loadEnv();
 
 class TestBaseHTTPAdapter extends BaseHTTPAdapter {
   public nRetries = 0;

@@ -1,9 +1,10 @@
 import assert from "assert";
-import dotenv from "dotenv";
 import winston from "winston";
 import { Coingecko, msToS, CoinGeckoPrice } from "../src/coingecko/Coingecko";
 import { expect } from "../test/utils";
-dotenv.config({ path: ".env" });
+import { loadEnv } from "./utils";
+
+loadEnv();
 
 const dummyLogger = winston.createLogger({
   level: "debug",

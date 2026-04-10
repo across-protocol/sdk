@@ -1,11 +1,12 @@
-import dotenv from "dotenv";
 import assert from "assert";
 import { ethers } from "ethers";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { Client } from "../src/contracts/acrossConfigStore";
 import { Provider } from "@ethersproject/providers";
 import { expect } from "../test/utils";
+import { loadEnv } from "./utils";
 
-dotenv.config();
+loadEnv();
 const configStoreAddress = ethers.utils.getAddress("0x3b03509645713718b78951126e0a6de6f10043f5");
 const wethAddress = ethers.utils.getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
 
@@ -13,7 +14,7 @@ describe("AcrossConfigStore", function () {
   let provider: Provider;
   let client: Client;
   beforeEach(() => {
-    provider = ethers.getDefaultProvider(process.env.NODE_URL_1);
+    provider = ethers.getDefaultProvider(process.env.NODE_URL_1 ?? PUBLIC_NETWORKS[CHAIN_IDs.MAINNET].publicRPC);
     client = new Client(configStoreAddress, provider);
   });
   it("getL1TokenConfig", async function () {

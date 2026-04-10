@@ -1,12 +1,13 @@
-import dotenv from "dotenv";
 import { Client, Provider, PoolEventState } from "../src/pool";
 import { ethers } from "ethers";
 import assert from "assert";
 import set from "lodash/set";
 import get from "lodash/get";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { hubPool } from "../src/contracts";
+import { loadEnv } from "./utils";
 
-dotenv.config();
+loadEnv();
 
 // goerli only
 const hubPoolAddress = ethers.utils.getAddress("0x0e2817C49698cc0874204AeDf7c72Be2Bb7fCD5d");
@@ -27,7 +28,7 @@ describe("PoolEventState", function () {
   let provider: Provider;
   let client: PoolEventState;
   before(() => {
-    provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
+    provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL ?? PUBLIC_NETWORKS[CHAIN_IDs.MAINNET].publicRPC);
     const instance = hubPool.connect(hubPoolAddress, provider);
     client = new PoolEventState(instance, startBlock);
   });
@@ -42,7 +43,7 @@ describe("PoolClient", function () {
   let provider: Provider;
   let client: Client;
   before(() => {
-    provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
+    provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL ?? PUBLIC_NETWORKS[CHAIN_IDs.MAINNET].publicRPC);
     client = new Client(
       {
         hubPoolAddress,
