@@ -47,6 +47,7 @@ module.exports = {
       "error",
       {
         argsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
         ignoreRestSiblings: true,
       },
     ],
@@ -55,4 +56,12 @@ module.exports = {
     "require-await": "error",
     "@typescript-eslint/no-floating-promises": ["error"],
   },
+  overrides: [
+    {
+      files: ["test/**/*.ts", "e2e/**/*.ts"],
+      rules: {
+        "@typescript-eslint/no-unused-expressions": "off", // Chai assertions are "unused expressions"
+      },
+    },
+  ],
 };

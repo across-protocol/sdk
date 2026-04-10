@@ -116,7 +116,7 @@ export async function gasStation(
     const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     maxFeePerGas = scaledBaseFee.add(scaledPriorityFee);
     maxPriorityFeePerGas = scaledPriorityFee;
-  } catch (err) {
+  } catch {
     // Fall back to the RPC provider. May be less accurate.
     ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, opts));
 

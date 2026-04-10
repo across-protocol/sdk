@@ -238,7 +238,7 @@ export abstract class Address {
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
-  private readonly _type = "evm";
+  private declare readonly _type: "evm";
 
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
@@ -247,7 +247,6 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -273,7 +272,7 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
-  private readonly _type = "svm";
+  private declare readonly _type: "svm";
 
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
@@ -282,7 +281,6 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -314,7 +312,7 @@ export class SvmAddress extends Address {
 // Subclass of address which handles TRON (TVM) addresses. Internally stores a 20-byte address (same as EVM),
 // but toNative() returns the TRON Base58Check-encoded address (T...).
 export class TvmAddress extends Address {
-  private readonly _type = "tvm";
+  private declare readonly _type: "tvm";
   private nativeAddress: string | undefined = undefined;
 
   constructor(rawAddress: Uint8Array) {
@@ -323,7 +321,6 @@ export class TvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -365,10 +362,5 @@ export class TvmAddress extends Address {
 }
 
 export class RawAddress extends Address {
-  private readonly _type = "raw";
-
-  constructor(rawAddress: Uint8Array) {
-    super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
-  }
+  private declare readonly _type: "raw";
 }

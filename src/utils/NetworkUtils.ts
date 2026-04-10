@@ -204,7 +204,7 @@ export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
 export function getOriginFromURL(url: string): string {
   try {
     return new URL(url).origin;
-  } catch (e) {
+  } catch {
     return "UNKNOWN";
   }
 }
