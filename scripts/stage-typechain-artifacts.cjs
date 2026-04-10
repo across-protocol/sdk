@@ -22,14 +22,12 @@ function main() {
     process.exit(1);
   }
 
-  const sourceDir = CONTRACTS_ABI_DIR;
-
   if (!fs.existsSync(STAGE_DIR)) {
     fs.mkdirSync(STAGE_DIR, { recursive: true });
   }
 
   // Discover all contract directories
-  const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+  const entries = fs.readdirSync(CONTRACTS_ABI_DIR, { withFileTypes: true });
   const contractDirs = entries
     .filter((entry) => entry.isDirectory() && entry.name.endsWith(".sol"))
     .map((entry) => entry.name.replace(".sol", ""));
@@ -44,7 +42,7 @@ function main() {
       continue;
     }
 
-    const solDir = path.join(sourceDir, `${contractName}.sol`);
+    const solDir = path.join(CONTRACTS_ABI_DIR, `${contractName}.sol`);
     const jsonFiles = fs.readdirSync(solDir).filter((f) => f.endsWith(".json"));
 
     for (const jsonFile of jsonFiles) {
