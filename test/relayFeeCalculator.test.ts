@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import {
@@ -44,8 +43,6 @@ import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/sv
 import { address as toSvmKitAddress } from "@solana/kit";
 import { createDefaultSolanaClient } from "./utils/svm/utils";
 import { RelayData } from "../src/interfaces";
-
-dotenv.config({ path: ".env" });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const testCapitalCostsConfig: {
