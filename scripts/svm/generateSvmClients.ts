@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Generates Codama TypeScript clients from IDL files.
  * Reads IDL assets from the locally generated src/svm/assets/idl/ directory
@@ -5,22 +6,20 @@
  *
  * This is the SDK's own generation script, equivalent to the one in the contracts repo.
  */
+import path from "path";
 import { createFromRoot } from "codama";
 import { rootNodeFromAnchor, AnchorIdl } from "@codama/nodes-from-anchor";
 import { renderVisitor as renderJavaScriptVisitor } from "@codama/renderers-js";
-import path from "path";
 
-// Read IDL files directly from the generated assets
-const idlPath = path.join(__dirname, "..", "..", "src", "svm", "assets", "idl");
+import SvmSpokeIdl from "../../src/svm/assets/idl/svm_spoke.json";
+import MulticallHandlerIdl from "../../src/svm/assets/idl/multicall_handler.json";
+import MessageTransmitterIdl from "../../src/svm/assets/idl/message_transmitter.json";
+import TokenMessengerMinterIdl from "../../src/svm/assets/idl/token_messenger_minter.json";
+import MessageTransmitterV2Idl from "../../src/svm/assets/idl/message_transmitter_v2.json";
+import TokenMessengerMinterV2Idl from "../../src/svm/assets/idl/token_messenger_minter_v2.json";
+import SponsoredCctpSrcPeripheryIdl from "../../src/svm/assets/idl/sponsored_cctp_src_periphery.json";
+
 const clientsPath = path.join(__dirname, "..", "..", "src", "svm", "clients");
-
-const SvmSpokeIdl = require(path.join(idlPath, "svm_spoke.json"));
-const MulticallHandlerIdl = require(path.join(idlPath, "multicall_handler.json"));
-const MessageTransmitterIdl = require(path.join(idlPath, "message_transmitter.json"));
-const TokenMessengerMinterIdl = require(path.join(idlPath, "token_messenger_minter.json"));
-const MessageTransmitterV2Idl = require(path.join(idlPath, "message_transmitter_v2.json"));
-const TokenMessengerMinterV2Idl = require(path.join(idlPath, "token_messenger_minter_v2.json"));
-const SponsoredCctpSrcPeripheryIdl = require(path.join(idlPath, "sponsored_cctp_src_periphery.json"));
 
 // Generate clients for each program
 let codama = createFromRoot(rootNodeFromAnchor(SvmSpokeIdl as AnchorIdl));

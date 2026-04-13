@@ -1,9 +1,10 @@
+/// <reference types="node" />
 /**
  * Post-processes generated Codama clients to replace @solana/web3.js imports with @solana/kit.
  * This is needed because Codama generates imports for @solana/web3.js by default.
  */
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
 const clientsPath = path.join(__dirname, "..", "..", "src", "svm", "clients");
 
