@@ -84,7 +84,7 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       if (getSignatureStatusesResponse.value[0]?.confirmationStatus !== "finalized") {
         return this.retryTransport<TResponse>(...args);
       }
-    } catch (error) {
+    } catch {
       return this.retryTransport<TResponse>(...args);
     }
 

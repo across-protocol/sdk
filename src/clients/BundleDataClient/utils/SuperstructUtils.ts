@@ -24,7 +24,7 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   try {
     // Attempt to convert the string to a BigNumber
     return BigNumber.from(value);
-  } catch (error) {
+  } catch {
     // In case of any error during conversion, return the original value
     // This will lead to a validation error, as the resulting value won't match the expected BigNumber type
     return value;

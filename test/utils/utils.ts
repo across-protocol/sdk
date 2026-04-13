@@ -2,9 +2,9 @@ import { AcrossConfigStore } from "../../src/utils/abi/typechain";
 import assert from "assert";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
-import { ethers, BaseContract, Contract, providers, Signer } from "ethers";
+import { ethers, Contract, providers, Signer } from "ethers";
 import { ethers as hreEthers } from "hardhat";
-import { FakeContract, smock } from "@defi-wonderland/smock";
+
 import _ from "lodash";
 import sinon from "sinon";
 import winston from "winston";
@@ -104,7 +104,7 @@ export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, to
 
 // Re-export ethers utilities
 const { defaultAbiCoder, keccak256 } = ethers.utils;
-export { defaultAbiCoder, keccak256, Signer, FakeContract };
+export { defaultAbiCoder, keccak256, Signer };
 
 // ---------------------------------------------------------------------------
 // Conversion / encoding helpers (mirroring contracts test-utils)
@@ -172,33 +172,6 @@ export async function seedContract(
   await seedWallet(walletToFund, tokens, weth, amountToSeedWith);
   for (const token of tokens) await token.connect(walletToFund).transfer(contract.address, amountToSeedWith);
   if (weth) await weth.connect(walletToFund).transfer(contract.address, amountToSeedWith);
-}
-
-// ---------------------------------------------------------------------------
-// Smock fakes
-// ---------------------------------------------------------------------------
-
-export async function createFake(contractName: string, targetAddress = ""): Promise<FakeContract<BaseContract>> {
-  const contractFactory = await getContractFactory(contractName, new ethers.VoidSigner(ethers.constants.AddressZero));
-  return smock.fake(contractFactory.interface.fragments, {
-    address: targetAddress === "" ? undefined : targetAddress,
-    provider: contractFactory.signer.provider,
-  });
-}
-
-export async function createFakeFromABI(abi: unknown[], targetAddress = ""): Promise<FakeContract<BaseContract>> {
-  return await createTypedFakeFromABI<BaseContract>(abi, targetAddress);
-}
-
-export async function createTypedFakeFromABI<T extends BaseContract>(
-  abi: unknown[],
-  targetAddress = ""
-): Promise<FakeContract<T>> {
-  const signer = new ethers.VoidSigner(ethers.constants.AddressZero);
-  return await smock.fake<T>(abi as never[], {
-    address: !targetAddress ? undefined : targetAddress,
-    provider: signer.provider,
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -699,7 +672,7 @@ export function bigNumberFormatter(logEntry: winston.Logform.TransformableInfo):
         (symbol) => ((out as SymbolRecord)[symbol] = (logEntry as unknown as SymbolRecord)[symbol])
       );
     return out as winston.Logform.TransformableInfo;
-  } catch (_) {
+  } catch {
     return logEntry;
   }
 }

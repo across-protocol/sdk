@@ -1,12 +1,23 @@
-import axios from "axios";
 import AbstractApiClient from "./abstractClient";
-import { BigNumber, parseEther } from "../utils";
+import { BigNumber, fetchWithTimeout, parseEther } from "../utils";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,
   BridgeLimitsReturnType,
   AcrossBridgeStatisticsType,
 } from "./types";
+
+type SuggestedFeesApiResponse = {
+  relayFeePct: string;
+  relayFeeTotal: string;
+  capitalFeePct: string;
+  capitalFeeTotal: string;
+  relayGasFeePct: string;
+  relayGasFeeTotal: string;
+  isAmountTooLow: boolean;
+  timestamp: string;
+  quoteBlock: string;
+};
 
 /**
  * An implementation of AbstractApiClient that uses the production API.
@@ -20,13 +31,10 @@ export default class ProductionApiClient extends AbstractApiClient {
   }
 
   public async getCoinGeckoData(l1Token: string, baseCurrency: string): Promise<CoingeckoDataReturnType> {
-    const response = await axios.get(`${this.getServerlessApiUrl()}/api/coingecko`, {
-      params: {
-        l1Token,
-        baseCurrency,
-      },
+    const result = await fetchWithTimeout<{ price: string }>(`${this.getServerlessApiUrl()}/api/coingecko`, {
+      l1Token,
+      baseCurrency,
     });
-    const result = response.data;
     const price = baseCurrency === "usd" ? parseEther(String(result.price)) : BigNumber.from(result.price);
     return {
       price,
@@ -38,16 +46,16 @@ export default class ProductionApiClient extends AbstractApiClient {
     toChainid: number,
     fromChainid: number
   ): Promise<SuggestedFeeReturnType> {
-    const response = await axios.get(`${this.getServerlessApiUrl()}/api/suggested-fees`, {
-      params: {
+    const result = await fetchWithTimeout<SuggestedFeesApiResponse>(
+      `${this.getServerlessApiUrl()}/api/suggested-fees`,
+      {
         token: originToken,
         destinationChainId: toChainid,
         originChainId: fromChainid,
         amount: amount.toString(),
         skipAmountLimit: true,
-      },
-    });
-    const result = response.data;
+      }
+    );
     const relayFeePct = BigNumber.from(result["relayFeePct"]);
     const relayFeeTotal = BigNumber.from(result["relayFeeTotal"]);
 
@@ -85,13 +93,15 @@ export default class ProductionApiClient extends AbstractApiClient {
     fromChainId: string | number,
     toChainId: string | number
   ): Promise<BridgeLimitsReturnType> {
-    const { data } = await axios.get<BridgeLimitsReturnType>(
-      `${this.getServerlessApiUrl()}/api/limits?token=${token}&originChainId=${fromChainId}&destinationChainId=${toChainId}`
-    );
+    const data = await fetchWithTimeout<BridgeLimitsReturnType>(`${this.getServerlessApiUrl()}/api/limits`, {
+      token,
+      originChainId: fromChainId,
+      destinationChainId: toChainId,
+    });
     return data;
   }
   public async getAcrossStats(): Promise<AcrossBridgeStatisticsType> {
-    const axiosResponse = await axios.get<AcrossBridgeStatisticsType>(`${this.getScraperApiUrl()}/deposits/stats`);
-    return axiosResponse.data;
+    const data = await fetchWithTimeout<AcrossBridgeStatisticsType>(`${this.getScraperApiUrl()}/deposits/stats`);
+    return data;
   }
 }

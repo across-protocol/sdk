@@ -1,10 +1,10 @@
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
-import axios from "axios";
+
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, delay, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import { BigNumber, delay, fetchWithTimeout, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -103,8 +103,7 @@ export class ArweaveClient {
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const request = async () => {
-      const { data: requestData } = await axios.get(transactionUrl);
-      return requestData;
+      return await fetchWithTimeout(transactionUrl, {}, {}, 20_000);
     };
     const data = await this._retryRequest(request, 0);
     try {
@@ -137,31 +136,30 @@ export class ArweaveClient {
     validator: Struct<T>,
     originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const transactions = await this.client.api.post<{
-      data: {
-        transactions: {
-          edges: {
-            node: {
-              id: string;
-            };
-          }[];
-        };
-      };
-    }>("/graphql", {
-      query: `
-        { 
-          transactions (
-            owners: ["${originQueryAddress}"]
-            tags: [
-              { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
-              { name: "Content-Type", values: ["application/json"] },
-              { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
-              ${tag ? `{ name: "Topic", values: ["${tag}"] } ` : ""}
-            ]
-          ) { edges { node { id } } } 
-        }`,
-    });
-    const entries = transactions?.data?.data?.transactions?.edges ?? [];
+    const topicFilter = tag ? `{ name: "Topic", values: ["${tag}"] }` : "";
+    const query = `{
+      transactions (
+        owners: ["${originQueryAddress}"]
+        tags: [
+          { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
+          { name: "Content-Type", values: ["application/json"] },
+          { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
+          ${topicFilter}
+        ]
+      ) { edges { node { id } } }
+    }`;
+
+    const response = await this._retryRequest(async () => {
+      const response = await this.client.api.post<{
+        data: { transactions: { edges: { node: { id: string } }[] } };
+      }>("/graphql", { query });
+      if (!response.ok) {
+        throw new Error(`Arweave GraphQL request failed with status ${response.status}`);
+      }
+      return response;
+    }, 0);
+
+    const entries = response?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
       message: `Retrieved ${entries.length} matching transactions from Arweave`,
@@ -227,7 +225,7 @@ export class ArweaveClient {
 
   private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
     try {
-      return request();
+      return await request();
     } catch (e) {
       if (retryCount < this.retries) {
         // Implement a slightly aggressive exponential backoff to account for fierce parallelism.

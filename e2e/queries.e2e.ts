@@ -1,25 +1,19 @@
-// Note: to run this test, you will need node urls for 3 chains to be provided in the ENV:
-// NODE_URL_42161
-// NODE_URL_288
-// NODE_URL_10
-// NODE_URL_1
-// NODE_URL_137
-
-import dotenv from "dotenv";
-
 import { ArbitrumQueries } from "../src/relayFeeCalculator/chain-queries/arbitrum";
-
 import { providers } from "ethers";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { BobaQueries } from "../src/relayFeeCalculator/chain-queries/boba";
 import { EthereumQueries } from "../src/relayFeeCalculator/chain-queries/ethereum";
 import { OptimismQueries } from "../src/relayFeeCalculator/chain-queries/optimism";
 import { PolygonQueries } from "../src/relayFeeCalculator/chain-queries/polygon";
+import { loadEnv } from "./utils";
 
-dotenv.config();
+loadEnv();
 
 describe("Queries", function () {
   it("Arbitrum", async function () {
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_42161);
+    const provider = new providers.JsonRpcProvider(
+      process.env.NODE_URL_42161 ?? PUBLIC_NETWORKS[CHAIN_IDs.ARBITRUM].publicRPC
+    );
     const arbitrumQueries = new ArbitrumQueries(
       provider,
       undefined,
@@ -31,7 +25,9 @@ describe("Queries", function () {
     await Promise.all([arbitrumQueries.getGasCosts(), arbitrumQueries.getTokenPrice("USDC")]);
   });
   it("Boba", async function () {
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_288);
+    const provider = new providers.JsonRpcProvider(
+      process.env.NODE_URL_288 ?? PUBLIC_NETWORKS[CHAIN_IDs.BOBA].publicRPC
+    );
     const bobaQueries = new BobaQueries(
       provider,
       undefined,
@@ -43,7 +39,9 @@ describe("Queries", function () {
     await Promise.all([bobaQueries.getGasCosts(), bobaQueries.getTokenPrice("USDC")]);
   });
   it("Ethereum", async function () {
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
+    const provider = new providers.JsonRpcProvider(
+      process.env.NODE_URL_1 ?? PUBLIC_NETWORKS[CHAIN_IDs.MAINNET].publicRPC
+    );
     const ethereumQueries = new EthereumQueries(
       provider,
       undefined,
@@ -55,7 +53,9 @@ describe("Queries", function () {
     await Promise.all([ethereumQueries.getGasCosts(), ethereumQueries.getTokenPrice("USDC")]);
   });
   it("Optimism", async function () {
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_10);
+    const provider = new providers.JsonRpcProvider(
+      process.env.NODE_URL_10 ?? PUBLIC_NETWORKS[CHAIN_IDs.OPTIMISM].publicRPC
+    );
     const optimismQueries = new OptimismQueries(
       provider,
       undefined,
@@ -67,7 +67,9 @@ describe("Queries", function () {
     await Promise.all([optimismQueries.getGasCosts(), optimismQueries.getTokenPrice("USDC")]);
   });
   it("Polygon", async function () {
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
+    const provider = new providers.JsonRpcProvider(
+      process.env.NODE_URL_137 ?? PUBLIC_NETWORKS[CHAIN_IDs.POLYGON].publicRPC
+    );
     const polygonQueries = new PolygonQueries(
       provider,
       undefined,

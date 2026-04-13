@@ -7,6 +7,12 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
+import {
+  relayFillStatus as relayFillStatusTvm,
+  getMaxFillDeadlineInRange as getMaxFillDeadlineTvm,
+  getTimeAt as _getTimeAtTvm,
+  findDepositBlock as findDepositBlockTvm,
+} from "../../arch/tvm";
 import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
 import {
   BigNumber,
@@ -17,6 +23,7 @@ import {
   toBN,
   EvmAddress,
   unpackDepositEvent,
+  chainIsTvm,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -36,6 +43,8 @@ import { EVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
  */
 export class EVMSpokePoolClient extends SpokePoolClient {
   readonly type = EVM_SPOKE_POOL_CLIENT_TYPE;
+  readonly tvm: boolean;
+
   constructor(
     logger: winston.Logger,
     public readonly spokePool: Contract,
@@ -46,10 +55,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   ) {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
     this.spokePoolAddress = EvmAddress.from(spokePool.address);
+    this.tvm = chainIsTvm(this.chainId);
   }
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, atHeight, this.chainId);
+    const fillStatusHandler = this.tvm ? relayFillStatusTvm : relayFillStatus;
+    return fillStatusHandler(this.spokePool, relayData, atHeight, this.chainId);
   }
 
   public override fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]> {
@@ -57,7 +68,8 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   }
 
   public override getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    return getMaxFillDeadline(this.spokePool, startBlock, endBlock);
+    const maxFillDeadlineInRangeHandler = this.tvm ? getMaxFillDeadlineTvm : getMaxFillDeadline;
+    return maxFillDeadlineInRangeHandler(this.spokePool, startBlock, endBlock);
   }
 
   private _availableEventsOnSpoke(eventNames: string[] = knownEventNames): { [eventName: string]: EventFilter } {
@@ -70,6 +82,42 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
   public override _queryableEventNames(): string[] {
     return Object.keys(this._availableEventsOnSpoke(knownEventNames));
+  }
+
+  /**
+   * Retrieve the on-chain time at a specific block.
+   * EVM reads SpokePool.getCurrentTime() via multicall with a historical blockTag.
+   * @param blockNumber The block number to query.
+   * @returns The on-chain time as a number.
+   */
+  protected async _getCurrentTime(blockNumber: number): Promise<number> {
+    if (this.tvm) {
+      const block = await this.spokePool.provider.getBlock(blockNumber);
+      const currentTime = block.timestamp;
+      if (currentTime < this.currentTime) {
+        throw new Error(`EVMSpokePoolClient::_getCurrentTimeTvm: currentTime: ${currentTime} < ${this.currentTime}`);
+      }
+      return currentTime;
+    }
+    const { spokePool } = this;
+    const multicallFunctions = ["getCurrentTime"];
+    const multicallOutput = await spokePool.callStatic.multicall(
+      multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
+      { blockTag: blockNumber }
+    );
+
+    const [currentTime] = multicallFunctions.map(
+      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
+    );
+
+    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
+      const errMsg = BigNumber.isBigNumber(currentTime)
+        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
+        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
+      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
+    }
+
+    return currentTime.toNumber();
   }
 
   protected override async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
@@ -107,25 +155,14 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     });
 
     const timerStart = Date.now();
-    const multicallFunctions = ["getCurrentTime"];
-    const [multicallOutput, ...events] = await Promise.all([
-      spokePool.callStatic.multicall(
-        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.to }
-      ),
+    const [currentTime, ...events] = await Promise.all([
+      this._getCurrentTime(searchConfig.to),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
 
-    const [currentTime] = multicallFunctions.map(
-      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
-    );
-
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
+    if (currentTime < this.currentTime) {
+      throw new Error(`EVMSpokePoolClient::update: currentTime: ${currentTime} < ${this.currentTime}`);
     }
 
     // Sort all events to ensure they are stored in a consistent order.
@@ -138,14 +175,15 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
     return {
       success: true,
-      currentTime: currentTime.toNumber(), // uint32
+      currentTime,
       searchEndBlock: searchConfig.to,
       events: eventsWithBlockNumber,
     };
   }
 
   public override getTimeAt(blockNumber: number): Promise<number> {
-    return _getTimeAt(this.spokePool, blockNumber);
+    const getTimeAtHandler = this.tvm ? _getTimeAtTvm : _getTimeAt;
+    return getTimeAtHandler(this.spokePool, blockNumber);
   }
 
   public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
@@ -190,12 +228,22 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return _getTimestampForBlock(this.spokePool.provider, blockNumber);
   }
 
-  private async queryDepositEvents(
+  /**
+   * Find the block at which a deposit was created.
+   * EVM uses a binary-search over historical numberOfDeposits().
+   * TVM overrides this with an event-based lookup.
+   */
+  protected _findDepositBlock(depositId: BigNumber, lowBlock: number, highBlock?: number): Promise<number | undefined> {
+    const findDepositBlockHandler = this.tvm ? findDepositBlockTvm : findDepositBlock;
+    return findDepositBlockHandler(this.spokePool, depositId, lowBlock, highBlock);
+  }
+
+  protected async queryDepositEvents(
     depositId: BigNumber
   ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
     const tStart = Date.now();
     const upperBound = this.latestHeightSearched || undefined;
-    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const from = await this._findDepositBlock(depositId, this.deploymentBlock, upperBound);
     const chain = getNetworkName(this.chainId);
 
     if (!from) {

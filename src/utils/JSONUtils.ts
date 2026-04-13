@@ -17,7 +17,7 @@ export function parseJSONWithNumericString(jsonString: string): unknown | undefi
       }
       return value;
     });
-  } catch (e) {
+  } catch {
     return undefined;
   }
 }

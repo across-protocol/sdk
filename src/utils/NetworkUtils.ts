@@ -135,6 +135,15 @@ export function chainIsSvm(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID runs on a TVM-like execution layer (e.g. TRON).
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has a TVM-like execution layer.
+ */
+export function chainIsTvm(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.TVM;
+}
+
+/**
  * Determines whether a chain ID has a native gas token.
  * @param chainId Chain ID to evaluate.
  * @returns True if the chain corresponding to chainId has a native gas token.
@@ -166,13 +175,14 @@ export function chainIsOFTEnabled(chainId: number): boolean {
   // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
   const oftEnabled = [
     CHAIN_IDs.ARBITRUM,
-    CHAIN_IDs.POLYGON,
     CHAIN_IDs.HYPEREVM,
+    CHAIN_IDs.INK,
+    CHAIN_IDs.MEGAETH,
     CHAIN_IDs.MONAD,
     CHAIN_IDs.PLASMA,
-    CHAIN_IDs.MEGAETH,
+    CHAIN_IDs.POLYGON,
+    CHAIN_IDs.TRON, // tbd!!!
     CHAIN_IDs.UNICHAIN,
-    CHAIN_IDs.INK,
   ];
   return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
@@ -194,7 +204,7 @@ export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
 export function getOriginFromURL(url: string): string {
   try {
     return new URL(url).origin;
-  } catch (e) {
+  } catch {
     return "UNKNOWN";
   }
 }

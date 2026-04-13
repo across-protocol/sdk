@@ -1,10 +1,10 @@
-import dotenv from "dotenv";
 import { providers } from "ethers";
-import { CHAIN_IDs } from "../src/transfers-history/adapters/web3/model";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { TransfersHistoryClient, TransfersHistoryEvent } from "../src/transfers-history/client";
 import { expect } from "../test/utils";
+import { loadEnv } from "./utils";
 
-dotenv.config({ path: ".env" });
+loadEnv();
 
 describe("Client e2e tests", () => {
   let client: TransfersHistoryClient;
@@ -15,31 +15,41 @@ describe("Client e2e tests", () => {
       chains: [
         {
           chainId: CHAIN_IDs.MAINNET,
-          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.MAINNET}`] || ""),
+          provider: new providers.JsonRpcProvider(
+            process.env[`WEB3_NODE_URL_${CHAIN_IDs.MAINNET}`] ?? PUBLIC_NETWORKS[CHAIN_IDs.MAINNET].publicRPC
+          ),
           spokePoolContractAddr: "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
           lowerBoundBlockNumber: 14704425,
         },
         {
           chainId: CHAIN_IDs.OPTIMISM,
-          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.OPTIMISM}`] || ""),
+          provider: new providers.JsonRpcProvider(
+            process.env[`WEB3_NODE_URL_${CHAIN_IDs.OPTIMISM}`] ?? PUBLIC_NETWORKS[CHAIN_IDs.OPTIMISM].publicRPC
+          ),
           spokePoolContractAddr: "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
           lowerBoundBlockNumber: 6979967,
         },
         {
           chainId: CHAIN_IDs.ARBITRUM,
-          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.ARBITRUM}`] || ""),
+          provider: new providers.JsonRpcProvider(
+            process.env[`WEB3_NODE_URL_${CHAIN_IDs.ARBITRUM}`] ?? PUBLIC_NETWORKS[CHAIN_IDs.ARBITRUM].publicRPC
+          ),
           spokePoolContractAddr: "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
           lowerBoundBlockNumber: 11102271,
         },
         {
           chainId: CHAIN_IDs.BOBA,
-          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.BOBA}`] || ""),
+          provider: new providers.JsonRpcProvider(
+            process.env[`WEB3_NODE_URL_${CHAIN_IDs.BOBA}`] ?? PUBLIC_NETWORKS[CHAIN_IDs.BOBA].publicRPC
+          ),
           spokePoolContractAddr: "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
           lowerBoundBlockNumber: 551955,
         },
         {
           chainId: CHAIN_IDs.POLYGON,
-          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.POLYGON}`] || ""),
+          provider: new providers.JsonRpcProvider(
+            process.env[`WEB3_NODE_URL_${CHAIN_IDs.POLYGON}`] ?? PUBLIC_NETWORKS[CHAIN_IDs.POLYGON].publicRPC
+          ),
           spokePoolContractAddr: "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
           lowerBoundBlockNumber: 27875891,
         },

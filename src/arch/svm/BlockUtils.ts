@@ -8,7 +8,7 @@ import { SVMProvider } from "./";
 import { getNearestSlotTime } from "./utils";
 import winston from "winston";
 
-interface SVMBlock extends Block {}
+type SVMBlock = Block;
 
 const now = getCurrentTime();
 const averageBlockTimes: { [chainId: number]: BlockTimeAverage } = {

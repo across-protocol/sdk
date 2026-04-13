@@ -2,14 +2,12 @@
 // but I wanted to include it in the unit tests to prevent regressions. We should create mocked
 // providers and API's to avoid the API requests.
 
-import dotenv from "dotenv";
 import { encodeFunctionData } from "viem";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBNWei } from "../src/utils";
 import { expect, makeCustomTransport, randomAddress } from "../test/utils";
 import { MockedProvider } from "../src/providers/mocks";
 import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "../src/gasPriceOracle/adapters/polygon";
-dotenv.config({ path: ".env" });
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only

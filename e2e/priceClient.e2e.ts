@@ -1,13 +1,12 @@
 import assert from "assert";
-import axios from "axios";
-import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "../src/priceClient/priceClient";
 import { acrossApi, coingecko, defaultAdapter, defiLlama } from "../src/priceClient/adapters";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../src/priceClient/adapters/baseAdapter";
 import { assertPromiseError, assertPromisePasses, expect } from "../test/utils";
+import { loadEnv } from "./utils";
 
-dotenv.config();
+loadEnv();
 
 class TestBaseHTTPAdapter extends BaseHTTPAdapter {
   public nRetries = 0;
@@ -104,20 +103,22 @@ describe("PriceClient: BaseHTTPAdapter", function () {
       const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
       expect(baseAdapter.nRetries).to.be.eq(0);
 
-      // Instantiate callback for HTTP response != 2xx.
-      const interceptor = axios.interceptors.response.use(
-        undefined, // HTTP 2xx.
-        function (error) {
-          const result = retries && baseAdapter.nRetries === retries ? Promise.resolve({}) : Promise.reject(error);
-          return result;
+      // Mock fetch to succeed on the final retry.
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (...args: Parameters<typeof fetch>) => {
+        if (retries && baseAdapter.nRetries === retries) {
+          return new Response(JSON.stringify({}), { status: 200 });
         }
-      );
+        return originalFetch(...args);
+      };
 
-      const response = baseAdapter._query("", { retries });
-      await assertPromisePasses(response);
-      axios.interceptors.response.eject(interceptor); // Cleanup ASAP.
-
-      expect(baseAdapter.nRetries).to.be.eq(retries);
+      try {
+        const response = baseAdapter._query("", { retries });
+        await assertPromisePasses(response);
+        expect(baseAdapter.nRetries).to.be.eq(retries);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     }
   });
 });

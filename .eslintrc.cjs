@@ -17,7 +17,7 @@ module.exports = {
     project: "./tsconfig.lint.json",
     include: ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.js", "./e2e/**/*.ts"],
   },
-  plugins: ["node", "prettier", "@typescript-eslint", "mocha", "chai-expect"],
+  plugins: ["prettier", "@typescript-eslint", "mocha", "chai-expect"],
   rules: {
     "prettier/prettier": ["warn"],
     indent: 0, // avoid conflict with prettier's indent system
@@ -47,6 +47,7 @@ module.exports = {
       "error",
       {
         argsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
         ignoreRestSiblings: true,
       },
     ],
@@ -55,4 +56,12 @@ module.exports = {
     "require-await": "error",
     "@typescript-eslint/no-floating-promises": ["error"],
   },
+  overrides: [
+    {
+      files: ["test/**/*.ts", "e2e/**/*.ts"],
+      rules: {
+        "@typescript-eslint/no-unused-expressions": "off", // Chai assertions are "unused expressions"
+      },
+    },
+  ],
 };

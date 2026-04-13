@@ -1,6 +1,5 @@
 import "@nomiclabs/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
-import "hardhat-deploy";
 import hre from "hardhat";
 import { BigNumber, Contract, ethers as ethersLib } from "ethers";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -16,6 +15,7 @@ import {
   zeroAddress,
   randomAddress,
 } from "../constants";
+import { createFixture } from "./utils";
 
 const { defaultAbiCoder, keccak256 } = ethersLib.utils;
 
@@ -420,9 +420,6 @@ export async function deploySpokePool(
   };
 }
 
-/**
- * Creates a spoke pool fixture using hardhat-deploy's createFixture.
- */
-export const spokePoolFixture = hre.deployments.createFixture(async ({ ethers }) => {
-  return await deploySpokePool(ethers);
+export const spokePoolFixture = createFixture(async () => {
+  return await deploySpokePool(hre.ethers);
 });

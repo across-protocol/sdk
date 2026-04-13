@@ -1,7 +1,8 @@
 import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { BigNumber, chainIsEvm, chainIsSvm } from "./";
+import { TronWeb } from "tronweb";
+import { BigNumber, chainIsEvm, chainIsSvm, chainIsTvm } from "./";
 
 /**
  * Verify whether an address' bytecode resembles an EIP-7702 delegation.
@@ -90,7 +91,7 @@ export function isValidEvmAddress(address: string): boolean {
   try {
     const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
     return isAddress(utils.getAddress(evmAddress));
-  } catch (_e) {
+  } catch {
     return false;
   }
 }
@@ -105,7 +106,8 @@ export function isValidEvmAddress(address: string): boolean {
 export function toAddressType(address: string, chainId: number): Address {
   const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
 
-  if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
+  if (chainIsTvm(chainId)) return TvmAddress.from(address);
+  else if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   else if (chainIsSvm(chainId) && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
 
   return new RawAddress(rawAddress);
@@ -185,6 +187,7 @@ export abstract class Address {
 
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
+    if (chainIsTvm(chainId)) return TvmAddress.validate(this.rawAddress);
     if (chainIsEvm(chainId)) return EvmAddress.validate(this.rawAddress);
     if (chainIsSvm(chainId)) return SvmAddress.validate(this.rawAddress);
     return false;
@@ -227,11 +230,15 @@ export abstract class Address {
   isSVM(): this is SvmAddress {
     return false;
   }
+
+  isTVM(): this is TvmAddress {
+    return false;
+  }
 }
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
-  private readonly _type = "evm";
+  private declare readonly _type: "evm";
 
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
@@ -240,7 +247,6 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -266,7 +272,7 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
-  private readonly _type = "svm";
+  private declare readonly _type: "svm";
 
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
@@ -275,7 +281,6 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -304,11 +309,58 @@ export class SvmAddress extends Address {
   }
 }
 
-export class RawAddress extends Address {
-  private readonly _type = "raw";
+// Subclass of address which handles TRON (TVM) addresses. Internally stores a 20-byte address (same as EVM),
+// but toNative() returns the TRON Base58Check-encoded address (T...).
+export class TvmAddress extends Address {
+  private declare readonly _type: "tvm";
+  private nativeAddress: string | undefined = undefined;
 
   constructor(rawAddress: Uint8Array) {
+    if (!TvmAddress.validate(rawAddress)) {
+      throw new Error(`${utils.hexlify(rawAddress)} is not a valid TVM address`);
+    }
+
     super(rawAddress);
-    this._type; // tsc noUnusedLocals appeasement.
   }
+
+  static validate(rawAddress: Uint8Array): boolean {
+    return (
+      rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field === 0))
+    );
+  }
+
+  override isTVM(): this is TvmAddress {
+    return true;
+  }
+
+  // Returns the TRON Base58Check-encoded address (T...).
+  override toNative(): string {
+    const computeNative = () => {
+      const hexString = utils.hexlify(this.rawAddress);
+      // Strip leading zeros to get the 20-byte portion, then convert to TRON format.
+      const evmHex = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
+      return TronWeb.address.fromHex(evmHex);
+    };
+    return (this.nativeAddress ??= computeNative());
+  }
+
+  override toHexString(): string {
+    return this.toEvmAddress();
+  }
+
+  // Constructs a new TvmAddress from a string. Accepts both 0x-prefixed hex and TRON Base58Check addresses.
+  static from(address: string): TvmAddress {
+    if (address.startsWith("0x")) {
+      return new this(utils.arrayify(address));
+    }
+    // For base58 Tron addresses, convert via TronWeb to get the hex representation.
+    const hex = TronWeb.address.toHex(address);
+    // TronWeb returns hex with a 0x41 prefix (TRON's address byte). Strip 0x41 to get 20 bytes.
+    const rawHex = "0x" + hex.slice(2);
+    return new this(utils.arrayify(rawHex));
+  }
+}
+
+export class RawAddress extends Address {
+  private declare readonly _type: "raw";
 }
