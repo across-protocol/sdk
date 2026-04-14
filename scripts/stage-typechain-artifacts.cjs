@@ -1,16 +1,15 @@
 const fs = require("fs");
 const path = require("path");
 
-const CONTRACTS_OUT_DIR = "node_modules/@across-protocol/contracts/out";
+const CONTRACTS_ABI_DIR = "node_modules/@across-protocol/contracts/dist/evm/artifacts";
 const STAGE_DIR = "src/utils/abi/contracts";
-
 
 // Patterns to exclude (mocks, tests, scripts)
 const EXCLUDE_PATTERNS = [
   /Mock/i,
   /Stub/i,
-  /\.t$/,   // Foundry test files (ContractName.t.sol)
-  /\.s$/,   // Foundry script files (ContractName.s.sol)
+  /\.t$/, // Foundry test files (ContractName.t.sol)
+  /\.s$/, // Foundry script files (ContractName.s.sol)
 ];
 
 function shouldExclude(contractName) {
@@ -18,8 +17,8 @@ function shouldExclude(contractName) {
 }
 
 function main() {
-  if (!fs.existsSync(CONTRACTS_OUT_DIR)) {
-    console.error(`Error: ${CONTRACTS_OUT_DIR} not found. Run yarn install first.`);
+  if (!fs.existsSync(CONTRACTS_ABI_DIR)) {
+    console.error(`Error: ${CONTRACTS_ABI_DIR} not found. Run yarn install first.`);
     process.exit(1);
   }
 
@@ -28,7 +27,7 @@ function main() {
   }
 
   // Discover all contract directories
-  const entries = fs.readdirSync(CONTRACTS_OUT_DIR, { withFileTypes: true });
+  const entries = fs.readdirSync(CONTRACTS_ABI_DIR, { withFileTypes: true });
   const contractDirs = entries
     .filter((entry) => entry.isDirectory() && entry.name.endsWith(".sol"))
     .map((entry) => entry.name.replace(".sol", ""));
@@ -43,7 +42,7 @@ function main() {
       continue;
     }
 
-    const solDir = path.join(CONTRACTS_OUT_DIR, `${contractName}.sol`);
+    const solDir = path.join(CONTRACTS_ABI_DIR, `${contractName}.sol`);
     const jsonFiles = fs.readdirSync(solDir).filter((f) => f.endsWith(".json"));
 
     for (const jsonFile of jsonFiles) {
