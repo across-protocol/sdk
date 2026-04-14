@@ -159,9 +159,6 @@
     }
   },
   "resolutions": {
-    "**/ethereum-cryptography/secp256k1": "4.0.4",
-    "**/arbundles/secp256k1": "4.0.4",
-    "**/ethereumjs-util/secp256k1": "3.8.1",
     "**/@solana/codecs": "5.4.0",
     "**/@solana/codecs-numbers": "5.4.0"
   }
