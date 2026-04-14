@@ -14,94 +14,28 @@ function isFactoryOptions(signerOrFactoryOptions: Signer | FactoryOptions): sign
 }
 
 /**
- * Recursively gets all file paths in a directory.
- */
-function getAllFilesInPath(dirPath: string, arrayOfFiles: string[] = []): string[] {
-  const files = fs.readdirSync(dirPath);
-  files.forEach((file) => {
-    if (fs.statSync(dirPath + "/" + file).isDirectory()) {
-      arrayOfFiles = getAllFilesInPath(dirPath + "/" + file, arrayOfFiles);
-    } else {
-      arrayOfFiles.push(path.join(dirPath, "/", file));
-    }
-  });
-  return arrayOfFiles;
-}
-
-/**
- * Foundry artifact structure
- */
-interface FoundryArtifact {
-  abi: unknown[];
-  bytecode: {
-    object: string;
-    linkReferences?: Record<string, unknown>;
-    sourceMap?: string;
-  };
-}
-
-/**
- * Hardhat artifact structure
- */
-interface HardhatArtifact {
-  abi: unknown[];
-  bytecode: string;
-}
-
-type Artifact = FoundryArtifact | HardhatArtifact;
-
-function isFoundryArtifact(artifact: Artifact): artifact is FoundryArtifact {
-  return typeof artifact.bytecode === "object" && "object" in artifact.bytecode;
-}
-
-/**
- * Extracts the bytecode string from an artifact, handling both Foundry and Hardhat formats.
- */
-function getBytecodeFromArtifact(artifact: Artifact): string {
-  if (isFoundryArtifact(artifact)) {
-    return artifact.bytecode.object;
-  }
-  return artifact.bytecode;
-}
-
-/**
- * Finds an artifact JSON file from a given path by contract name.
- * Supports both Hardhat (artifacts/contracts/) and Foundry (out/) artifact structures.
- */
-function findArtifactFromPath(contractName: string, artifactsPath: string): { abi: unknown[]; bytecode: string } {
-  const allArtifactsPaths = getAllFilesInPath(artifactsPath);
-  const desiredArtifactPaths = allArtifactsPaths.filter((a) => a.endsWith(`/${contractName}.json`));
-  if (desiredArtifactPaths.length !== 1) {
-    throw new Error(`Couldn't find desired artifact or found too many for ${contractName}`);
-  }
-  const artifact: Artifact = JSON.parse(fs.readFileSync(desiredArtifactPaths[0], "utf-8"));
-  return {
-    abi: artifact.abi,
-    bytecode: getBytecodeFromArtifact(artifact),
-  };
-}
-
-/**
  * Attempts to find an artifact in the @across-protocol/contracts package.
- * Uses the Foundry 'out/' folder for artifacts.
+ * Uses the dist/abi/ folder which contains {abi, bytecode} per contract.
  */
 function getAcrossContractsArtifact(contractName: string): { abi: unknown[]; bytecode: string } {
   const contractsPackagePath = path.dirname(require.resolve("@across-protocol/contracts/package.json"));
-  const artifactsPath = path.join(contractsPackagePath, "out");
-  return findArtifactFromPath(contractName, artifactsPath);
+  const abiDir = path.join(contractsPackagePath, "dist", "evm", "artifacts");
+  // Look in ContractName.sol/ContractName.json (Foundry convention).
+  const artifactPath = path.join(abiDir, `${contractName}.sol`, `${contractName}.json`);
+  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
+  return { abi: artifact.abi, bytecode: artifact.bytecode ?? "0x" };
 }
 
 /**
  * Local implementation of getContractFactory that searches for artifacts in multiple locations:
  * 1. Local hardhat artifacts (for contracts in this repo)
- * 2. @across-protocol/contracts package artifacts
+ * 2. @across-protocol/contracts dist/abi/ artifacts
  * 3. UMA contracts-node package
  */
 export async function getContractFactory(
   name: string,
   signerOrFactoryOptions: Signer | FactoryOptions
 ): Promise<ContractFactory> {
-  // Get the signer from the options if needed
   const signer = isFactoryOptions(signerOrFactoryOptions) ? signerOrFactoryOptions.signer : signerOrFactoryOptions;
 
   // 1. First, try to get the artifact from local hardhat artifacts
@@ -111,7 +45,7 @@ export async function getContractFactory(
     // Continue to other sources
   }
 
-  // 2. Try to get from @across-protocol/contracts package
+  // 2. Try @across-protocol/contracts dist/abi/
   try {
     const artifact = getAcrossContractsArtifact(name);
     return new ContractFactory(artifact.abi as ContractInterface, artifact.bytecode, signer);
