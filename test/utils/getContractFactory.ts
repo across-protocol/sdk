@@ -19,7 +19,7 @@ function isFactoryOptions(signerOrFactoryOptions: Signer | FactoryOptions): sign
  */
 function getAcrossContractsArtifact(contractName: string): { abi: unknown[]; bytecode: string } {
   const contractsPackagePath = path.dirname(require.resolve("@across-protocol/contracts/package.json"));
-  const abiDir = path.join(contractsPackagePath, "dist", "abi");
+  const abiDir = path.join(contractsPackagePath, "dist", "evm", "artifacts");
   // Look in ContractName.sol/ContractName.json (Foundry convention).
   const artifactPath = path.join(abiDir, `${contractName}.sol`, `${contractName}.json`);
   const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
