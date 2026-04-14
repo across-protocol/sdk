@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const CONTRACTS_ABI_DIR = "node_modules/@across-protocol/contracts/dist/abi";
+const CONTRACTS_ABI_DIR = "node_modules/@across-protocol/contracts/dist/evm/artifacts";
 const STAGE_DIR = "src/utils/abi/contracts";
 
 // Patterns to exclude (mocks, tests, scripts)
