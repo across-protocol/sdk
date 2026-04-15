@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.4.0-alpha.8",
+  "version": "4.4.0-alpha.9",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -86,7 +86,7 @@
     "typescript": "^6"
   },
   "dependencies": {
-    "@across-protocol/constants": "^3.1.100",
+    "@across-protocol/constants": "^3.1.109",
     "@across-protocol/contracts": "5.0.6",
     "@coral-xyz/anchor": "^0.31.1",
     "@coral-xyz/borsh": "^0.31.1",
