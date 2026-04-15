@@ -16,6 +16,11 @@ dist
 src/utils/abi/contracts/*.json
 src/utils/abi/typechain
 
+# Auto-generated SVM artifacts (synced from contracts repo via yarn sync-svm-clients)
+src/svm/assets
+src/svm/clients/*
+!src/svm/clients/index.ts
+
 .ledger
 /target
 *.tar.gz
