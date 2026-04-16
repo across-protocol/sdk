@@ -12,10 +12,7 @@ export interface ArweaveGatewayConfig {
   port?: number;
 }
 
-export const DEFAULT_ARWEAVE_GATEWAYS: ArweaveGatewayConfig[] = [
-  { host: "arweave.net" },
-  { host: "ar-io.net" },
-];
+export const DEFAULT_ARWEAVE_GATEWAYS: ArweaveGatewayConfig[] = [{ host: "arweave.net" }, { host: "ar-io.net" }];
 
 interface Gateway {
   client: Arweave;
@@ -119,7 +116,7 @@ export class ArweaveClient {
    * @returns The transaction ID of the stored value
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
-    return this._failoverGateways("set", async ({ client }) => {
+    return await this._failoverGateways("set", async ({ client }) => {
       const transaction = await client.createTransaction(
         { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
         this.arweaveJWT
@@ -172,7 +169,7 @@ export class ArweaveClient {
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const data = await this._raceGateways("get", async ({ url }) => {
-      return fetchWithTimeout(`${url}/${transactionID}`, {}, {}, 20_000);
+      return await fetchWithTimeout(`${url}/${transactionID}`, {}, {}, 20_000);
     });
     try {
       // We should validate the data and perform any logical coercion here.
@@ -267,7 +264,7 @@ export class ArweaveClient {
    */
   async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
     const transaction = await this._raceGateways("getMetadata", async ({ client }) => {
-      return client.transactions.get(transactionID);
+      return await client.transactions.get(transactionID);
     });
     if (!isDefined(transaction)) {
       return null;
