@@ -6,37 +6,107 @@ import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
 import { BigNumber, delay, fetchWithTimeout, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
+export interface ArweaveGatewayConfig {
+  host: string;
+  protocol?: string;
+  port?: number;
+}
+
+export const DEFAULT_ARWEAVE_GATEWAYS: ArweaveGatewayConfig[] = [
+  { host: "arweave.net" },
+  { host: "ar-io.net" },
+];
+
+interface Gateway {
+  client: Arweave;
+  url: string;
+}
+
 export class ArweaveClient {
-  private client: Arweave;
-  private gatewayUrl: string;
+  private gateways: Gateway[];
 
   public constructor(
     private arweaveJWT: JWKInterface,
     private logger: winston.Logger,
-    public gatewayURL = "arweave.net",
-    public protocol = "https",
-    port = 443,
+    gateways: ArweaveGatewayConfig[] = DEFAULT_ARWEAVE_GATEWAYS,
     private readonly retries = 2,
     private readonly retryDelaySeconds = 1
   ) {
-    this.gatewayUrl = `${protocol}://${gatewayURL}:${port}`;
-    this.client = new Arweave({
-      host: gatewayURL,
-      port,
-      protocol,
-      timeout: 20000,
-      logging: false,
-    });
-    this.logger.debug({
-      at: "ArweaveClient:constructor",
-      message: "Arweave client initialized",
-      gateway: this.gatewayUrl,
-    });
+    if (gateways.length === 0) {
+      throw new Error("At least one gateway must be provided");
+    }
     if (this.retries < 0) {
       throw new Error(`retries cannot be < 0 and must be an integer. Currently set to ${this.retries}`);
     }
     if (this.retryDelaySeconds < 0) {
       throw new Error(`delay cannot be < 0. Currently set to ${this.retryDelaySeconds}`);
+    }
+    this.gateways = gateways.map(({ host, protocol = "https", port = 443 }) => ({
+      client: new Arweave({ host, port, protocol, timeout: 20000, logging: false }),
+      url: `${protocol}://${host}:${port}`,
+    }));
+    this.logger.debug({
+      at: "ArweaveClient:constructor",
+      message: "Arweave client initialized",
+      gateways: this.gateways.map((g) => g.url),
+    });
+  }
+
+  /**
+   * Races a request across all gateways, returning the first successful response.
+   * If all gateways fail, throws an error with details from each gateway.
+   */
+  private async _raceGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>): Promise<T> {
+    try {
+      return await Promise.any(this.gateways.map((gw) => this._retryRequest(() => fn(gw), 0)));
+    } catch (e) {
+      if (e instanceof AggregateError) {
+        const details = this.gateways.map((gw, i) => `${gw.url}: ${e.errors[i]}`).join("; ");
+        throw new Error(`All Arweave gateways failed for ${label}: ${details}`);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Tries gateways sequentially, returning the first successful response.
+   * Used for write operations where we want exactly one successful submission.
+   */
+  private async _failoverGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>): Promise<T> {
+    const errors: Error[] = [];
+    for (const gw of this.gateways) {
+      try {
+        return await this._retryRequest(() => fn(gw), 0);
+      } catch (e) {
+        errors.push(e as Error);
+        this.logger.debug({
+          at: "ArweaveClient:failoverGateways",
+          message: `Gateway ${gw.url} failed for ${label}, trying next: ${e}`,
+        });
+      }
+    }
+    const details = this.gateways.map((gw, i) => `${gw.url}: ${errors[i]}`).join("; ");
+    throw new Error(`All Arweave gateways failed for ${label}: ${details}`);
+  }
+
+  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
+    try {
+      return await request();
+    } catch (e) {
+      if (retryCount < this.retries) {
+        // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
+        const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount);
+        const delayS = baseDelay + baseDelay * Math.random();
+        this.logger.debug({
+          at: "ArweaveClient:retryRequest",
+          message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
+          retryCount,
+        });
+        await delay(delayS);
+        return this._retryRequest(request, retryCount + 1);
+      } else {
+        throw e;
+      }
     }
   }
 
@@ -47,46 +117,47 @@ export class ArweaveClient {
    * @param value The value to store
    * @param topicTag An optional topic tag to add to the transaction
    * @returns The transaction ID of the stored value
-   * @
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
-    const transaction = await this.client.createTransaction(
-      { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
-      this.arweaveJWT
-    );
+    return this._failoverGateways("set", async ({ client }) => {
+      const transaction = await client.createTransaction(
+        { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
+        this.arweaveJWT
+      );
 
-    // Add tags to the transaction
-    transaction.addTag("Content-Type", "application/json");
-    transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-    transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-    if (isDefined(topicTag)) {
-      transaction.addTag("Topic", topicTag);
-    }
+      // Add tags to the transaction
+      transaction.addTag("Content-Type", "application/json");
+      transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+      transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+      if (isDefined(topicTag)) {
+        transaction.addTag("Topic", topicTag);
+      }
 
-    // Sign the transaction
-    await this.client.transactions.sign(transaction, this.arweaveJWT);
-    // Send the transaction
-    const result = await this.client.transactions.post(transaction);
+      // Sign the transaction
+      await client.transactions.sign(transaction, this.arweaveJWT);
+      // Send the transaction
+      const result = await client.transactions.post(transaction);
 
-    // Ensure that the result is successful
-    if (result.status !== 200) {
-      const message = result?.data?.error?.msg ?? "Unknown error";
-      this.logger.error({
-        at: "ArweaveClient:set",
-        message,
-        result,
-        txn: transaction.id,
-        address: await this.getAddress(),
-        balance: (await this.getBalance()).toString(),
-      });
-      throw new Error(message);
-    } else {
+      // Ensure that the result is successful
+      if (result.status !== 200) {
+        const message = result?.data?.error?.msg ?? "Unknown error";
+        this.logger.error({
+          at: "ArweaveClient:set",
+          message,
+          result,
+          txn: transaction.id,
+          address: await this.getAddress(),
+          balance: (await this.getBalance()).toString(),
+        });
+        throw new Error(message);
+      }
+
       this.logger.debug({
         at: "ArweaveClient:set",
         message: `Arweave transaction posted with ${transaction.id}`,
       });
-    }
-    return transaction.id;
+      return transaction.id;
+    });
   }
 
   /**
@@ -97,15 +168,12 @@ export class ArweaveClient {
    * @returns The record if it exists, otherwise null
    */
   async get<T>(transactionID: string, validator: Struct<T>): Promise<T | null> {
-    // Resolve the URL of the transaction
-    const transactionUrl = `${this.gatewayUrl}/${transactionID}`;
-    // We should query in via Axios directly to the gateway URL. The reasoning behind this is
+    // We query via fetchWithTimeout directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliseconds to complete could take tens of minutes.
-    const request = async () => {
-      return await fetchWithTimeout(transactionUrl, {}, {}, 20_000);
-    };
-    const data = await this._retryRequest(request, 0);
+    const data = await this._raceGateways("get", async ({ url }) => {
+      return fetchWithTimeout(`${url}/${transactionID}`, {}, {}, 20_000);
+    });
     try {
       // We should validate the data and perform any logical coercion here.
       return create(data, validator);
@@ -149,15 +217,15 @@ export class ArweaveClient {
       ) { edges { node { id } } }
     }`;
 
-    const response = await this._retryRequest(async () => {
-      const response = await this.client.api.post<{
+    const response = await this._raceGateways("getByTopic", async ({ client }) => {
+      const response = await client.api.post<{
         data: { transactions: { edges: { node: { id: string } }[] } };
       }>("/graphql", { query });
       if (!response.ok) {
         throw new Error(`Arweave GraphQL request failed with status ${response.status}`);
       }
       return response;
-    }, 0);
+    });
 
     const entries = response?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
@@ -198,7 +266,9 @@ export class ArweaveClient {
    * @returns The metadata of the transaction if it exists, otherwise null
    */
   async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
-    const transaction = await this.client.transactions.get(transactionID);
+    const transaction = await this._raceGateways("getMetadata", async ({ client }) => {
+      return client.transactions.get(transactionID);
+    });
     if (!isDefined(transaction)) {
       return null;
     }
@@ -216,32 +286,12 @@ export class ArweaveClient {
   }
 
   /**
-   * Returns the address of the signer of the JWT
+   * Returns the address of the signer of the JWT. This is a local crypto
+   * operation and does not require a network call.
    * @returns The address of the signer in this client
    */
   getAddress(): Promise<string> {
-    return this.client.wallets.jwkToAddress(this.arweaveJWT);
-  }
-
-  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
-    try {
-      return await request();
-    } catch (e) {
-      if (retryCount < this.retries) {
-        // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
-        const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount); // ms; attempt = [0, 1, 2, ...]
-        const delayS = baseDelay + baseDelay * Math.random();
-        this.logger.debug({
-          at: "ArweaveClient:retryRequest",
-          message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
-          retryCount,
-        });
-        await delay(delayS);
-        return this._retryRequest(request, retryCount + 1);
-      } else {
-        throw e;
-      }
-    }
+    return this.gateways[0].client.wallets.jwkToAddress(this.arweaveJWT);
   }
 
   /**
@@ -250,9 +300,9 @@ export class ArweaveClient {
    */
   async getBalance(): Promise<BigNumber> {
     const address = await this.getAddress();
-    const request = async () => {
-      const balanceInFloat = await this.client.wallets.getBalance(address);
-      // @dev The reason we add in the BN.from into this retry loop is because the client.getBalance call
+    return this._raceGateways("getBalance", async ({ client }) => {
+      const balanceInFloat = await client.wallets.getBalance(address);
+      // @dev The reason we add in the BN.from here is because the client.getBalance call
       // does not correctly throw an error if the request fails, instead it will return the error string as the
       // balanceInFloat.
       // Sometimes the balance is returned in scientific notation, so we need to
@@ -264,7 +314,6 @@ export class ArweaveClient {
       } else {
         return BigNumber.from(balanceInFloat);
       }
-    };
-    return await this._retryRequest(request, 0);
+    });
   }
 }

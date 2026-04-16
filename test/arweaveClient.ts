@@ -4,23 +4,23 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { expect } from "chai";
 import { object, string } from "superstruct";
 import winston from "winston";
-import { ArweaveClient } from "../src/caching";
+import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { fetchWithTimeout, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
-const LOCAL_ARWEAVE_NODE = {
+const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
   protocol: "http",
   host: "localhost",
   port: 1984,
 };
-const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE.host}:${LOCAL_ARWEAVE_NODE.port}`;
+const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_GATEWAY.protocol}://${LOCAL_ARWEAVE_GATEWAY.host}:${LOCAL_ARWEAVE_GATEWAY.port}`;
 
 const mineBlock = () => fetchWithTimeout(`${LOCAL_ARWEAVE_URL}/mine`, {}, {}, undefined, "text");
 
 describe("ArweaveClient", () => {
-  const arLocal = new ArLocal(LOCAL_ARWEAVE_NODE.port, true);
+  const arLocal = new ArLocal(LOCAL_ARWEAVE_GATEWAY.port as number, true);
 
   let jwk: JWKInterface;
   let client: ArweaveClient;
@@ -54,9 +54,7 @@ describe("ArweaveClient", () => {
           }),
         ],
       }),
-      LOCAL_ARWEAVE_NODE.host,
-      LOCAL_ARWEAVE_NODE.protocol,
-      LOCAL_ARWEAVE_NODE.port
+      [LOCAL_ARWEAVE_GATEWAY]
     );
   });
 
@@ -190,9 +188,7 @@ describe("ArweaveClient", () => {
         defaultMeta: { service: "arweave-client" },
         transports: [new winston.transports.Console()],
       }),
-      LOCAL_ARWEAVE_NODE.host,
-      LOCAL_ARWEAVE_NODE.protocol,
-      LOCAL_ARWEAVE_NODE.port
+      [LOCAL_ARWEAVE_GATEWAY]
     );
     await assertPromiseError(client.set({ test: "value" }), "You don't have enough tokens");
   });
