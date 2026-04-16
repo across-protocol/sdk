@@ -116,23 +116,27 @@ export class ArweaveClient {
    * @returns The transaction ID of the stored value
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
+    // Get a template client to use for creating a transaction. Since clients are equal up to the gateway URL,
+    // it does not matter which gateway is used, so we just choose the first one.
+    const templateClient = this.gateways[0].client;
+    const transaction = await templateClient.createTransaction(
+      { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
+      this.arweaveJWT
+    );
+
+    // Add tags to the transaction
+    transaction.addTag("Content-Type", "application/json");
+    transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+    transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+    if (isDefined(topicTag)) {
+      transaction.addTag("Topic", topicTag);
+    }
+
+    // Sign the transaction
+    await templateClient.transactions.sign(transaction, this.arweaveJWT);
+    // Send the transaction
+
     return await this._failoverGateways("set", async ({ client }) => {
-      const transaction = await client.createTransaction(
-        { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
-        this.arweaveJWT
-      );
-
-      // Add tags to the transaction
-      transaction.addTag("Content-Type", "application/json");
-      transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-      transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-      if (isDefined(topicTag)) {
-        transaction.addTag("Topic", topicTag);
-      }
-
-      // Sign the transaction
-      await client.transactions.sign(transaction, this.arweaveJWT);
-      // Send the transaction
       const result = await client.transactions.post(transaction);
 
       // Ensure that the result is successful
