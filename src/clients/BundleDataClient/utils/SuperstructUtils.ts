@@ -14,8 +14,9 @@ import {
   union,
   type,
 } from "superstruct";
+import { utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType, toBytes32 } from "../../../utils";
+import { BigNumber, bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{64}$/);
@@ -31,16 +32,35 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
-// Accept any concrete implementation of `Address` (Evm, Svm, or Raw) but avoid using the
-// abstract `Address` class directly to keep TypeScript happy.
-const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
+// Accept any concrete implementation of `Address` (Evm, Svm, Tvm, or Raw) but avoid using the
+// abstract `Address` class directly to keep TypeScript happy. RawAddress is retained as an
+// opaque fallback for addresses that don't fit any of the recognised families.
+const AddressInstanceSS = union([
+  instance(EvmAddress),
+  instance(SvmAddress),
+  instance(TvmAddress),
+  instance(RawAddress),
+]);
 
-const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). The chainId for
-  // for the event data is not directly available, so infer it based on the shape of the address. RawAddress
-  // will be instantiated if the address format does not match the expected family.
-  const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
-  return toAddressType(value, chainId);
+export const AddressType = coerce(AddressInstanceSS, string(), (value) => {
+  // Addresses are posted to arweave in their native format:
+  //   EVM: 20-byte 0x-prefixed hex (42 chars, from EvmAddress.toNative).
+  //   TVM: Tron base58check (34 chars, always starts with 'T').
+  //   SVM: Solana base58 of 32 bytes (43 or 44 chars — both are natural outputs of base58
+  //        encoding a 32-byte value, depending on the leading bytes).
+  // Route by length + prefix directly to the matching family's `from()` constructor. If the
+  // family rejects the value (e.g. bad checksum) or the shape matches no recognised family,
+  // fall back to `RawAddress` so the opaque value is preserved rather than crashing
+  // deserialisation.
+  const { length } = value;
+  try {
+    if (length === 42 && value.startsWith("0x")) return EvmAddress.from(value);
+    if (length === 34 && value.startsWith("T")) return TvmAddress.from(value);
+    if ((length === 43 || length === 44) && !value.startsWith("0x")) return SvmAddress.from(value);
+  } catch {
+    // Shape matched but the family rejected the value; fall through to RawAddress.
+  }
+  return new RawAddress(value.startsWith("0x") ? ethersUtils.arrayify(value) : bs58.decode(value));
 });
 
 const Web3AddressType = coerce(Web3AddressSS, string(), (value) => {
