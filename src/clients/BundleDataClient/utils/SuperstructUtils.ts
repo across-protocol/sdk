@@ -15,7 +15,7 @@ import {
   type,
 } from "superstruct";
 import { utils as ethersUtils } from "ethers";
-import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
+import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
 import { BigNumber, bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
