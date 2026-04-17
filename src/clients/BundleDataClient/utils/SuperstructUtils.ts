@@ -35,9 +35,6 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
-// Accept any concrete implementation of `Address` (Evm, Svm, Tvm, or Raw) but avoid using the
-// abstract `Address` class directly to keep TypeScript happy. RawAddress is retained as an
-// opaque fallback for addresses that don't fit any of the recognised families.
 const AddressInstanceSS = union([
   instance(EvmAddress),
   instance(SvmAddress),
@@ -46,23 +43,15 @@ const AddressInstanceSS = union([
 ]);
 
 export const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  // Addresses are posted to arweave in their native format. Each family gets a positive
-  // identifying rule backed by the ecosystem's own validator:
-  //   EVM: `viem.isAddress` — 20-byte 0x-prefixed hex, optionally EIP-55-checksummed.
-  //   TVM: `TronWeb.isAddress` — Tron base58check with a valid 0x41 version byte and checksum.
-  //   SVM: `@solana/kit.isAddress` — base58-encoded 32-byte pubkey.
-  // Length gates on the EVM and TVM branches make the base58/hex disambiguation explicit and
-  // avoid asking an ecosystem validator to adjudicate shapes it wasn't designed for. A string
-  // that matches no positive rule becomes a `RawAddress`, so a new address family added later
-  // will need its own positive branch rather than being silently absorbed here.
+  // Each family is matched by its native-format validator plus a length gate where it
+  // disambiguates. Unknown shapes fall to `RawAddress`, forcing future families into explicit
+  // branches rather than being absorbed silently.
   try {
     if (value.length === 42 && isValidEvmAddress(value)) return EvmAddress.from(value);
     if (value.length === 34 && TronWeb.isAddress(value)) return TvmAddress.from(value);
     if (isValidSvmAddress(value)) return SvmAddress.from(value);
   } catch {
-    // Predicate matched but the family's `from()` rejected the value (e.g. `SvmAddress.from`
-    // rejecting 12-leading-zero payloads that `@solana/kit.isAddress` would accept). Fall
-    // through to `RawAddress` so the opaque value is preserved.
+    // Validator accepted but `from()` rejected (e.g. SVM 12-zero EVM-masquerade) → RawAddress.
   }
   return new RawAddress(value.startsWith("0x") ? ethersUtils.arrayify(value) : bs58.decode(value));
 });
