@@ -1,6 +1,9 @@
 import { create, is } from "superstruct";
+import { isAddress as viemIsAddress } from "viem";
+import { isAddress as solanaKitIsAddress } from "@solana/kit";
+import { TronWeb } from "tronweb";
 import { bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress } from "../src/utils";
-import { AddressType } from "../src/clients/BundleDataClient/utils/SuperstructUtils";
+import { AddressType, BundleDataSS } from "../src/clients/BundleDataClient/utils/SuperstructUtils";
 import { expect, ethers } from "./utils";
 
 describe("BundleDataClient: Arweave payload address coercer", function () {
@@ -194,5 +197,123 @@ describe("BundleDataClient: Arweave payload address coercer", function () {
       expect(is(svm, AddressType)).to.be.true;
       expect(is(raw, AddressType)).to.be.true;
     });
+  });
+
+  describe("SVM masquerade: @solana/kit.isAddress accepts, SvmAddress.validate rejects", function () {
+    it("12-leading-zero-byte 32B base58 falls through try/catch to RawAddress", function () {
+      // Construct a 32-byte payload whose first 12 bytes are zero and whose tail is an EVM
+      // address. `@solana/kit.isAddress` accepts this as a valid 32-byte pubkey (its public
+      // contract), but the SDK's `SvmAddress.validate` deliberately rejects the shape to
+      // prevent EVM addresses masquerading as SVM. The coercer's try/catch is the only thing
+      // keeping this from either crashing or getting silently tagged as SVM.
+      const bytes = new Uint8Array(32);
+      const evmTail = ethers.utils.arrayify("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
+      bytes.set(evmTail, 12);
+      const masquerade = bs58.encode(bytes);
+
+      const addr = create(masquerade, AddressType);
+      expect(addr).to.be.instanceOf(RawAddress);
+      expect(addr.isSVM()).to.be.false;
+      expect(addr.isEVM()).to.be.false;
+    });
+  });
+
+  describe("integration: full BundleDataSS with Tron depositor", function () {
+    // End-to-end sanity check: the exact bucket layout that crashed the executor, fed through
+    // the real BundleDataSS schema. Proves that `AddressType` is wired into every relevant
+    // field via the nested record structure and that the Tron depositor survives the full
+    // deserialisation with its TVM family tag intact.
+    const TRON_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+    const TRON_USDT_BYTES32 = "0x000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+    const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const EVM_RECIPIENT = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D";
+    const EVM_ZERO = "0x0000000000000000000000000000000000000000";
+
+    const tronOriginDeposit = {
+      quoteBlockNumber: 81910700,
+      destinationChainId: 8453,
+      quoteTimestamp: 1776400000,
+      blockNumber: 81910727,
+      logIndex: 0,
+      transactionHash: "0x6459b00efc569042640134b0dfb1ecbd1a72e36a284fc430e85ae90662cfda72",
+      inputToken: TRON_USDT,
+      inputAmount: "1500000",
+      outputToken: BASE_USDC,
+      outputAmount: "1495279",
+      fillDeadline: 1776406847,
+      exclusiveRelayer: EVM_ZERO,
+      exclusivityDeadline: 0,
+      originChainId: 728126428,
+      depositor: KNOWN_TRON_BASE58,
+      recipient: EVM_RECIPIENT,
+      depositId: "27",
+      message: "0x",
+    };
+
+    it("coerces a Tron-origin expired deposit end-to-end with TVM family intact", function () {
+      const bundle = {
+        bundleDepositsV3: {},
+        expiredDepositsToRefundV3: {
+          "728126428": { [TRON_USDT_BYTES32]: [tronOriginDeposit] },
+        },
+        unexecutableSlowFills: {},
+        bundleSlowFillsV3: {},
+        bundleFillsV3: {},
+      };
+
+      const parsed = create(bundle, BundleDataSS);
+      const [deposit] = parsed.expiredDepositsToRefundV3[728126428][TRON_USDT_BYTES32];
+
+      expect(deposit.depositor).to.be.instanceOf(TvmAddress);
+      expect(deposit.depositor.isTVM()).to.be.true;
+      expect(deposit.depositor.toBytes32()).to.equal(KNOWN_TRON_BYTES32);
+      expect(deposit.depositor.toNative()).to.equal(KNOWN_TRON_BASE58);
+
+      // The other fields should each land on their own correct family.
+      expect(deposit.inputToken).to.be.instanceOf(TvmAddress);
+      expect(deposit.outputToken).to.be.instanceOf(EvmAddress);
+      expect(deposit.recipient).to.be.instanceOf(EvmAddress);
+      expect(deposit.exclusiveRelayer).to.be.instanceOf(EvmAddress);
+    });
+
+    it("does not reproduce the pre-fix 25-byte bytes32 anywhere in the parsed bundle", function () {
+      const bundle = {
+        bundleDepositsV3: {},
+        expiredDepositsToRefundV3: {
+          "728126428": { [TRON_USDT_BYTES32]: [tronOriginDeposit] },
+        },
+        unexecutableSlowFills: {},
+        bundleSlowFillsV3: {},
+        bundleFillsV3: {},
+      };
+      const parsed = create(bundle, BundleDataSS);
+      const [deposit] = parsed.expiredDepositsToRefundV3[728126428][TRON_USDT_BYTES32];
+
+      // The original bug was producing `0x0000000000000041ac97…04a4`; the Tron bytes32 form
+      // must instead have 12 leading zero bytes and the 20-byte body with no checksum.
+      expect(deposit.depositor.toBytes32()).to.not.equal(BAD_TRON_BYTES32_LEGACY);
+    });
+  });
+
+  describe("upstream validators never throw (regression guard)", function () {
+    // The `AddressType` coercer's try/catch wraps all three family branches. If any upstream
+    // `isAddress` starts throwing on invalid input instead of returning `false`, a malformed
+    // string in one branch would short-circuit the others. This test pins the boolean-return
+    // contract so an upstream semantic change breaks CI loudly.
+    const badInputs = ["", "not-an-address", "garbage"];
+
+    const probe = (name: string, validator: (v: string) => unknown) => {
+      it(`${name} returns false (not throws) for invalid input`, function () {
+        for (const input of badInputs) {
+          let result: unknown;
+          expect(() => { result = validator(input); }).to.not.throw();
+          expect(result).to.be.false;
+        }
+      });
+    };
+
+    probe("viem.isAddress", viemIsAddress);
+    probe("TronWeb.isAddress", (v) => TronWeb.isAddress(v));
+    probe("@solana/kit.isAddress", solanaKitIsAddress);
   });
 });

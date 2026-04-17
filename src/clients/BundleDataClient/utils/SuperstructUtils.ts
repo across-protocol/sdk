@@ -15,6 +15,9 @@ import {
   type,
 } from "superstruct";
 import { utils as ethersUtils } from "ethers";
+import { isAddress as isValidEvmAddress } from "viem";
+import { isAddress as isValidSvmAddress } from "@solana/kit";
+import { TronWeb } from "tronweb";
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
 import { BigNumber, bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils";
 
@@ -43,22 +46,23 @@ const AddressInstanceSS = union([
 ]);
 
 export const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  // Addresses are posted to arweave in their native format:
-  //   EVM: 20-byte 0x-prefixed hex (42 chars, from EvmAddress.toNative).
-  //   TVM: Tron base58check (34 chars, always starts with 'T').
-  //   SVM: Solana base58 of 32 bytes (43 or 44 chars — both are natural outputs of base58
-  //        encoding a 32-byte value, depending on the leading bytes).
-  // Route by length + prefix directly to the matching family's `from()` constructor. If the
-  // family rejects the value (e.g. bad checksum) or the shape matches no recognised family,
-  // fall back to `RawAddress` so the opaque value is preserved rather than crashing
-  // deserialisation.
-  const { length } = value;
+  // Addresses are posted to arweave in their native format. Each family gets a positive
+  // identifying rule backed by the ecosystem's own validator:
+  //   EVM: `viem.isAddress` — 20-byte 0x-prefixed hex, optionally EIP-55-checksummed.
+  //   TVM: `TronWeb.isAddress` — Tron base58check with a valid 0x41 version byte and checksum.
+  //   SVM: `@solana/kit.isAddress` — base58-encoded 32-byte pubkey.
+  // Length gates on the EVM and TVM branches make the base58/hex disambiguation explicit and
+  // avoid asking an ecosystem validator to adjudicate shapes it wasn't designed for. A string
+  // that matches no positive rule becomes a `RawAddress`, so a new address family added later
+  // will need its own positive branch rather than being silently absorbed here.
   try {
-    if (length === 42 && value.startsWith("0x")) return EvmAddress.from(value);
-    if (length === 34 && value.startsWith("T")) return TvmAddress.from(value);
-    if ((length === 43 || length === 44) && !value.startsWith("0x")) return SvmAddress.from(value);
+    if (value.length === 42 && isValidEvmAddress(value)) return EvmAddress.from(value);
+    if (value.length === 34 && TronWeb.isAddress(value)) return TvmAddress.from(value);
+    if (isValidSvmAddress(value)) return SvmAddress.from(value);
   } catch {
-    // Shape matched but the family rejected the value; fall through to RawAddress.
+    // Predicate matched but the family's `from()` rejected the value (e.g. `SvmAddress.from`
+    // rejecting 12-leading-zero payloads that `@solana/kit.isAddress` would accept). Fall
+    // through to `RawAddress` so the opaque value is preserved.
   }
   return new RawAddress(value.startsWith("0x") ? ethersUtils.arrayify(value) : bs58.decode(value));
 });
