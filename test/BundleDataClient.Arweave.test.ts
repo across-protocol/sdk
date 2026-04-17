@@ -33,6 +33,14 @@ describe("BundleDataClient: Arweave payload address coercer", function () {
       expect(addr.toNative()).to.equal(value);
     });
 
+    it("42-char 0x-hex in all-lowercase and all-UPPERCASE both → EvmAddress", function () {
+      // Legacy Arweave payloads may carry non-EIP-55 hex; must not regress to RawAddress.
+      const lower = "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d";
+      const upper = "0x9A8F92A830A5CB89A3816E3D267CB7791C16B04D";
+      expect(create(lower, AddressType)).to.be.instanceOf(EvmAddress);
+      expect(create(upper, AddressType)).to.be.instanceOf(EvmAddress);
+    });
+
     it("34-char T-prefix (canonical Tron) → TvmAddress", function () {
       const addr = create(KNOWN_TRON_BASE58, AddressType);
       expect(addr).to.be.instanceOf(TvmAddress);

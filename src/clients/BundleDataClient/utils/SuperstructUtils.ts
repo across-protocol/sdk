@@ -47,7 +47,8 @@ export const AddressType = coerce(AddressInstanceSS, string(), (value) => {
   // disambiguates. Unknown shapes fall to `RawAddress`, forcing future families into explicit
   // branches rather than being absorbed silently.
   try {
-    if (value.length === 42 && isValidEvmAddress(value)) return EvmAddress.from(value);
+    // strict: false preserves the prior byte-level acceptance of all-upper / non-checksummed hex.
+    if (value.length === 42 && isValidEvmAddress(value, { strict: false })) return EvmAddress.from(value);
     if (value.length === 34 && TronWeb.isAddress(value)) return TvmAddress.from(value);
     if (isValidSvmAddress(value)) return SvmAddress.from(value);
   } catch {
