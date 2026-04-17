@@ -11,13 +11,10 @@ describe("BundleDataClient: Arweave payload address coercer", function () {
   // regression anchor: after the fix, its bytes32 representation must be the canonical 12-zero
   // + 20-byte body form, not the 7-zero + 25-byte (base58-decoded-with-checksum) form.
   const KNOWN_TRON_BASE58 = "TRhnR1swKs7cgv4bEmq7jBAfYLRg4j7qCw";
-  const KNOWN_TRON_BYTES32 =
-    "0x000000000000000000000000ac973fbbfc469852000d20a60f8b0f15a29e8fc6";
-  const BAD_TRON_BYTES32_LEGACY =
-    "0x0000000000000041ac973fbbfc469852000d20a60f8b0f15a29e8fc65c2c04a4";
+  const KNOWN_TRON_BYTES32 = "0x000000000000000000000000ac973fbbfc469852000d20a60f8b0f15a29e8fc6";
+  const BAD_TRON_BYTES32_LEGACY = "0x0000000000000041ac973fbbfc469852000d20a60f8b0f15a29e8fc65c2c04a4";
 
-  const randomEvmHex = (): string =>
-    ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20)));
+  const randomEvmHex = (): string => ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20)));
   const randomSvmBase58 = (): string => bs58.encode(ethers.utils.randomBytes(32));
 
   // Construct a 32-byte pubkey whose base58 encoding is exactly 43 characters. Two leading
@@ -50,13 +47,16 @@ describe("BundleDataClient: Arweave payload address coercer", function () {
     it("44-char base58 (typical SVM pubkey) → SvmAddress", function () {
       const value = randomSvmBase58();
       // Skip unusual generations that don't land on 44 chars — pick until we do.
-      const fortyFourChar = value.length === 44 ? value : (function retry() {
-        for (let i = 0; i < 32; i++) {
-          const candidate = randomSvmBase58();
-          if (candidate.length === 44) return candidate;
-        }
-        throw new Error("could not generate a 44-char SVM address");
-      })();
+      const fortyFourChar =
+        value.length === 44
+          ? value
+          : (function retry() {
+              for (let i = 0; i < 32; i++) {
+                const candidate = randomSvmBase58();
+                if (candidate.length === 44) return candidate;
+              }
+              throw new Error("could not generate a 44-char SVM address");
+            })();
       const addr = create(fortyFourChar, AddressType);
       expect(addr).to.be.instanceOf(SvmAddress);
       expect(addr.isSVM()).to.be.true;
@@ -306,7 +306,9 @@ describe("BundleDataClient: Arweave payload address coercer", function () {
       it(`${name} returns false (not throws) for invalid input`, function () {
         for (const input of badInputs) {
           let result: unknown;
-          expect(() => { result = validator(input); }).to.not.throw();
+          expect(() => {
+            result = validator(input);
+          }).to.not.throw();
           expect(result).to.be.false;
         }
       });
