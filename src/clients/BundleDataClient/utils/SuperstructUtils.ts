@@ -14,8 +14,12 @@ import {
   union,
   type,
 } from "superstruct";
-import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType, toBytes32 } from "../../../utils";
+import { utils as ethersUtils } from "ethers";
+import { isAddress as isValidEvmAddress } from "viem";
+import { isAddress as isValidSvmAddress } from "@solana/kit";
+import { TronWeb } from "tronweb";
+import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
+import { BigNumber, bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{64}$/);
@@ -31,16 +35,26 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
-// Accept any concrete implementation of `Address` (Evm, Svm, or Raw) but avoid using the
-// abstract `Address` class directly to keep TypeScript happy.
-const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
+const AddressInstanceSS = union([
+  instance(EvmAddress),
+  instance(SvmAddress),
+  instance(TvmAddress),
+  instance(RawAddress),
+]);
 
-const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). The chainId for
-  // for the event data is not directly available, so infer it based on the shape of the address. RawAddress
-  // will be instantiated if the address format does not match the expected family.
-  const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
-  return toAddressType(value, chainId);
+export const AddressType = coerce(AddressInstanceSS, string(), (value) => {
+  // Each family is matched by its native-format validator plus a length gate where it
+  // disambiguates. Unknown shapes fall to `RawAddress`, forcing future families into explicit
+  // branches rather than being absorbed silently.
+  try {
+    // strict: false preserves the prior byte-level acceptance of all-upper / non-checksummed hex.
+    if (value.length === 42 && isValidEvmAddress(value, { strict: false })) return EvmAddress.from(value);
+    if (value.length === 34 && TronWeb.isAddress(value)) return TvmAddress.from(value);
+    if (isValidSvmAddress(value)) return SvmAddress.from(value);
+  } catch {
+    // Validator accepted but `from()` rejected (e.g. SVM 12-zero EVM-masquerade) → RawAddress.
+  }
+  return new RawAddress(value.startsWith("0x") ? ethersUtils.arrayify(value) : bs58.decode(value));
 });
 
 const Web3AddressType = coerce(Web3AddressSS, string(), (value) => {
