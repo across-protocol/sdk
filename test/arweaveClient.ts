@@ -4,10 +4,12 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { expect } from "chai";
 import { object, string } from "superstruct";
 import winston from "winston";
+import sinon from "sinon";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { fetchWithTimeout, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
+import { createSpyLogger } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -56,6 +58,10 @@ describe("ArweaveClient", () => {
       }),
       [LOCAL_ARWEAVE_GATEWAY]
     );
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 
   it(`should have ${INITIAL_FUNDING_AMNT} initial AR in the address`, async () => {
@@ -191,6 +197,112 @@ describe("ArweaveClient", () => {
       [LOCAL_ARWEAVE_GATEWAY]
     );
     await assertPromiseError(client.set({ test: "value" }), "You don't have enough tokens");
+  });
+
+  it("should fail over writes when the first gateway fails during transaction creation", async () => {
+    const { spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+    const transaction = {
+      id: "tx-success",
+      addTag: sinon.stub(),
+    };
+    const createFirst = sinon.stub().rejects(new Error("Could not getPrice"));
+    const createSecond = sinon.stub().resolves(transaction);
+    const signSecond = sinon.stub().resolves();
+    const postSecond = sinon.stub().resolves({ status: 200 });
+
+    (client as any).gateways = [
+      {
+        url: "https://gateway-a",
+        client: {
+          createTransaction: createFirst,
+          transactions: { sign: sinon.stub(), post: sinon.stub() },
+        },
+      },
+      {
+        url: "https://gateway-b",
+        client: {
+          createTransaction: createSecond,
+          transactions: { sign: signSecond, post: postSecond },
+        },
+      },
+    ];
+
+    const result = await client.set({ test: "value" }, "topic-a");
+
+    expect(result).to.equal("tx-success");
+    expect(createFirst.called).to.be.true;
+    expect(createSecond.calledOnce).to.be.true;
+    expect(signSecond.calledOnce).to.be.true;
+    expect(postSecond.calledOnce).to.be.true;
+  });
+
+  it("should avoid error logs when a later gateway successfully posts the write", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+    const createTransaction = sinon.stub().resolves({
+      id: "tx-failover-success",
+      addTag: sinon.stub(),
+    });
+    const sign = sinon.stub().resolves();
+    const postFirst = sinon.stub().resolves({ status: 502, statusText: "Bad Gateway" });
+    const postSecond = sinon.stub().resolves({ status: 200 });
+
+    (client as any).gateways = [
+      {
+        url: "https://gateway-a",
+        client: {
+          createTransaction,
+          transactions: { sign, post: postFirst },
+        },
+      },
+      {
+        url: "https://gateway-b",
+        client: {
+          createTransaction,
+          transactions: { sign, post: postSecond },
+        },
+      },
+    ];
+
+    await client.set({ test: "value" }, "topic-b");
+
+    const errorLogs = spy.getCalls().filter((call) => call.lastArg.level === "error");
+    const successLog = spy
+      .getCalls()
+      .find((call) => call.lastArg.at === "ArweaveClient:set" && call.lastArg.gateway === "https://gateway-b");
+
+    expect(errorLogs).to.have.lengthOf(0);
+    expect(successLog?.lastArg.phase).to.equal("post");
+    expect(successLog?.lastArg.attempt).to.equal(2);
+  });
+
+  it("should emit one terminal error log when all gateways fail to write", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+
+    (client as any).gateways = [
+      {
+        url: "https://gateway-a",
+        client: {
+          createTransaction: sinon.stub().rejects(new Error("bad anchor")),
+          transactions: { sign: sinon.stub(), post: sinon.stub() },
+        },
+      },
+      {
+        url: "https://gateway-b",
+        client: {
+          createTransaction: sinon.stub().rejects(new Error("bad anchor")),
+          transactions: { sign: sinon.stub(), post: sinon.stub() },
+        },
+      },
+    ];
+
+    await assertPromiseError(client.set({ test: "value" }, "topic-c"), "All Arweave gateways failed for set");
+
+    const errorLogs = spy.getCalls().filter((call) => call.lastArg.level === "error");
+    expect(errorLogs).to.have.lengthOf(1);
+    expect(errorLogs[0].lastArg.at).to.equal("ArweaveClient:set");
   });
 
   after(async () => {
