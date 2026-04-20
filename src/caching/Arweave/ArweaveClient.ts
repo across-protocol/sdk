@@ -1,4 +1,5 @@
 import Arweave from "arweave";
+import Transaction from "arweave/node/lib/transaction";
 import { JWKInterface } from "arweave/node/lib/wallet";
 
 import { Struct, create } from "superstruct";
@@ -34,6 +35,20 @@ interface GraphQLTransactionsResponse {
       edges?: { node: { id: string } }[];
     };
   };
+}
+
+type WritePhase = "createTransaction" | "sign" | "post";
+
+class ArweaveWriteError extends Error {
+  constructor(
+    message: string,
+    readonly phase: WritePhase,
+    readonly gateway: string,
+    readonly status?: number
+  ) {
+    super(message);
+    this.name = "ArweaveWriteError";
+  }
 }
 
 export class ArweaveClient {
@@ -86,16 +101,20 @@ export class ArweaveClient {
    * Tries gateways sequentially, returning the first successful response.
    * Used for write operations where we want exactly one successful submission.
    */
-  private async _failoverGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>): Promise<T> {
+  private async _failoverGateways<T>(label: string, fn: (gw: Gateway, attempt: number) => Promise<T>): Promise<T> {
     const errors: Error[] = [];
-    for (const gw of this.gateways) {
+    for (const [index, gw] of this.gateways.entries()) {
       try {
-        return await this._retryRequest(() => fn(gw), 0);
+        return await this._retryRequest(() => fn(gw, index + 1), 0);
       } catch (e) {
-        errors.push(e as Error);
+        const error = e instanceof Error ? e : new Error(String(e));
+        errors.push(error);
         this.logger.debug({
           at: "ArweaveClient:failoverGateways",
-          message: `Gateway ${gw.url} failed for ${label}, trying next: ${e}`,
+          message: `Gateway ${gw.url} failed for ${label}, trying next gateway`,
+          gateway: gw.url,
+          attempt: index + 1,
+          error: String(error),
         });
       }
     }
@@ -131,6 +150,17 @@ export class ArweaveClient {
     const message = error instanceof Error ? error.message : String(error);
     return /404/i.test(message);
   }
+  
+  private _wrapWriteError(error: unknown, phase: WritePhase, gateway: string): ArweaveWriteError {
+    if (error instanceof ArweaveWriteError) {
+      return error;
+    }
+    if (isHttpError(error)) {
+      return new ArweaveWriteError(error.message, phase, gateway, error.status);
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return new ArweaveWriteError(message, phase, gateway);
+  }
 
   /**
    * Stores an arbitrary record in the Arweave network. The record is stored as a JSON string and uses
@@ -141,49 +171,66 @@ export class ArweaveClient {
    * @returns The transaction ID of the stored value
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
-    // Get a template client to use for creating a transaction. Since clients are equal up to the gateway URL,
-    // it does not matter which gateway is used, so we just choose the first one.
-    const templateClient = this.gateways[0].client;
-    const transaction = await templateClient.createTransaction(
-      { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
-      this.arweaveJWT
-    );
+    const payload = JSON.stringify(value, jsonReplacerWithBigNumbers);
+    let signedTransaction: Transaction | undefined;
 
-    // Add tags to the transaction
-    transaction.addTag("Content-Type", "application/json");
-    transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-    transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-    if (isDefined(topicTag)) {
-      transaction.addTag("Topic", topicTag);
-    }
+    try {
+      return await this._failoverGateways("set", async ({ client, url }, attempt) => {
+        if (!signedTransaction) {
+          let createdTransaction: Transaction;
+          try {
+            createdTransaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
+          } catch (error) {
+            throw this._wrapWriteError(error, "createTransaction", url);
+          }
 
-    // Sign the transaction
-    await templateClient.transactions.sign(transaction, this.arweaveJWT);
-    // Send the transaction
+          createdTransaction.addTag("Content-Type", "application/json");
+          createdTransaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+          createdTransaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+          if (isDefined(topicTag)) {
+            createdTransaction.addTag("Topic", topicTag);
+          }
 
-    return await this._failoverGateways("set", async ({ client }) => {
-      const result = await client.transactions.post(transaction);
+          try {
+            await client.transactions.sign(createdTransaction, this.arweaveJWT);
+          } catch (error) {
+            throw this._wrapWriteError(error, "sign", url);
+          }
 
-      // Ensure that the result is successful
-      if (result.status !== 200) {
-        const message = result?.data?.error?.msg ?? "Unknown error";
-        this.logger.error({
+          signedTransaction = createdTransaction;
+        }
+
+        let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
+        try {
+          result = await client.transactions.post(signedTransaction);
+        } catch (error) {
+          throw this._wrapWriteError(error, "post", url);
+        }
+
+        if (result.status !== 200) {
+          const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
+          throw new ArweaveWriteError(message, "post", url, result.status);
+        }
+
+        this.logger.debug({
           at: "ArweaveClient:set",
-          message,
-          result,
-          txn: transaction.id,
-          address: await this.getAddress(),
-          balance: (await this.getBalance()).toString(),
+          message: `Arweave transaction posted with ${signedTransaction.id}`,
+          gateway: url,
+          attempt,
+          phase: "post",
+          txn: signedTransaction.id,
         });
-        throw new Error(message);
-      }
-
-      this.logger.debug({
-        at: "ArweaveClient:set",
-        message: `Arweave transaction posted with ${transaction.id}`,
+        return signedTransaction.id;
       });
-      return transaction.id;
-    });
+    } catch (error) {
+      this.logger.error({
+        at: "ArweaveClient:set",
+        message: "Failed to persist data to Arweave after exhausting all gateways",
+        topicTag,
+        error: String(error),
+      });
+      throw error;
+    }
   }
 
   /**
