@@ -293,6 +293,10 @@ describe("ArweaveClient", () => {
       .getCalls()
       .find((call) => call.lastArg.at === "ArweaveClient:set" && call.lastArg.gateway === "https://gateway-b");
 
+    expect(createTransaction.calledOnce).to.be.true;
+    expect(sign.calledOnce).to.be.true;
+    expect(postFirst.calledOnce).to.be.true;
+    expect(postSecond.calledOnce).to.be.true;
     expect(errorLogs).to.have.lengthOf(0);
     expect(successLog?.lastArg.phase).to.equal("post");
     expect(successLog?.lastArg.attempt).to.equal(2);
