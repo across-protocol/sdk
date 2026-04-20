@@ -30,12 +30,10 @@ interface ArweaveTransactionResponse {
 
 function decodeBase64UrlUtf8(value: string): string {
   // `/tx/{id}` returns tag names and values in RFC 4648 base64url form.
-  // Convert back to standard base64 alphabet, restore omitted `=` padding,
-  // then decode the bytes as UTF-8 so metadata parsing matches the SDK's
-  // `tag.get(..., { decode: true, string: true })` behavior.
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
-  return Buffer.from(`${normalized}${padding}`, "base64").toString("utf-8");
+  // Node's built-in `base64url` decoder handles the URL-safe alphabet and
+  // omitted padding for us, so this matches the SDK's
+  // `tag.get(..., { decode: true, string: true })` behavior without a custom transform.
+  return Buffer.from(value, "base64url").toString("utf-8");
 }
 
 export class ArweaveClient {
