@@ -29,7 +29,6 @@ interface Gateway {
 }
 
 type WritePhase = "createTransaction" | "sign" | "post";
-type ArweavePostResponse = Awaited<ReturnType<Arweave["transactions"]["post"]>>;
 
 class ArweaveWriteError extends Error {
   constructor(
@@ -184,7 +183,7 @@ export class ArweaveClient {
           signedTransaction = createdTransaction;
         }
 
-        let result: ArweavePostResponse;
+        let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
         try {
           result = await client.transactions.post(signedTransaction);
         } catch (error) {
