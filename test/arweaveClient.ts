@@ -222,7 +222,7 @@ describe("ArweaveClient", () => {
 
   it("should fail over writes when the first gateway fails during transaction creation", async () => {
     const { spyLogger } = createSpyLogger();
-    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
     const transaction: StubTransaction = {
       id: "tx-success",
       addTag: sinon.stub(),
@@ -260,7 +260,7 @@ describe("ArweaveClient", () => {
 
   it("should avoid error logs when a later gateway successfully posts the write", async () => {
     const { spy, spyLogger } = createSpyLogger();
-    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
     const createTransaction = sinon.stub().resolves({
       id: "tx-failover-success",
       addTag: sinon.stub(),
@@ -304,7 +304,7 @@ describe("ArweaveClient", () => {
 
   it("should emit one terminal error log when all gateways fail to write", async () => {
     const { spy, spyLogger } = createSpyLogger();
-    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
 
     setStubGateways(client, [
       {
