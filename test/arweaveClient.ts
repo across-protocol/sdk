@@ -8,7 +8,7 @@ import sinon from "sinon";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { fetchWithTimeout, toBN } from "../src/utils";
-import { assertPromiseError, sinon, createSpyLogger } from "./utils";
+import { assertPromiseError, createSpyLogger } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
