@@ -1,4 +1,5 @@
 import Arweave from "arweave";
+import Transaction from "arweave/node/lib/transaction";
 import { JWKInterface } from "arweave/node/lib/wallet";
 
 import { Struct, create } from "superstruct";
@@ -26,8 +27,6 @@ interface Gateway {
   client: Arweave;
   url: string;
 }
-
-type ArweaveTransaction = Parameters<Arweave["transactions"]["post"]>[0];
 
 type WritePhase = "createTransaction" | "sign" | "post";
 
@@ -156,12 +155,12 @@ export class ArweaveClient {
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
     const payload = JSON.stringify(value, jsonReplacerWithBigNumbers);
-    let signedTransaction: ArweaveTransaction | undefined;
+    let signedTransaction: Transaction | undefined;
 
     try {
       return await this._failoverGateways("set", async ({ client, url }, attempt) => {
         if (!signedTransaction) {
-          let createdTransaction: ArweaveTransaction;
+          let createdTransaction: Transaction;
           try {
             createdTransaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
           } catch (error) {
