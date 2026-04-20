@@ -91,15 +91,11 @@ export class ArweaveClient {
    * Tries gateways sequentially, returning the first successful response.
    * Used for write operations where we want exactly one successful submission.
    */
-  private async _failoverGateways<T>(
-    label: string,
-    fn: (gw: Gateway, attempt: number) => Promise<T>,
-    shouldRetry: (error: unknown) => boolean = () => true
-  ): Promise<T> {
+  private async _failoverGateways<T>(label: string, fn: (gw: Gateway, attempt: number) => Promise<T>): Promise<T> {
     const errors: Error[] = [];
     for (const [index, gw] of this.gateways.entries()) {
       try {
-        return await this._retryRequest(() => fn(gw, index + 1), 0, shouldRetry);
+        return await this._retryRequest(() => fn(gw, index + 1), 0);
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e));
         errors.push(error);
@@ -116,15 +112,11 @@ export class ArweaveClient {
     throw new Error(`All Arweave gateways failed for ${label}: ${details}`);
   }
 
-  private async _retryRequest<T>(
-    request: () => Promise<T>,
-    retryCount: number,
-    shouldRetry: (error: unknown) => boolean = () => true
-  ): Promise<T> {
+  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
     try {
       return await request();
     } catch (e) {
-      if (retryCount < this.retries && shouldRetry(e)) {
+      if (retryCount < this.retries) {
         // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
         const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount);
         const delayS = baseDelay + baseDelay * Math.random();
@@ -152,17 +144,6 @@ export class ArweaveClient {
     return new ArweaveWriteError(message, phase, gateway);
   }
 
-  private _isRetryableWriteError(error: unknown): boolean {
-    const status =
-      error instanceof ArweaveWriteError ? error.status : isHttpError(error) ? error.status : undefined;
-    if (status !== undefined) {
-      return status >= 500 || status === 408 || status === 429;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    return !message.includes("You don't have enough tokens");
-  }
-
   /**
    * Stores an arbitrary record in the Arweave network. The record is stored as a JSON string and uses
    * JSON.stringify to convert the record to a string. The record has all of its big numbers converted
@@ -175,53 +156,49 @@ export class ArweaveClient {
     const payload = JSON.stringify(value, jsonReplacerWithBigNumbers);
 
     try {
-      return await this._failoverGateways(
-        "set",
-        async ({ client, url }, attempt) => {
-          let transaction;
-          try {
-            transaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
-          } catch (error) {
-            throw this._wrapWriteError(error, "createTransaction", url);
-          }
+      return await this._failoverGateways("set", async ({ client, url }, attempt) => {
+        let transaction;
+        try {
+          transaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
+        } catch (error) {
+          throw this._wrapWriteError(error, "createTransaction", url);
+        }
 
-          transaction.addTag("Content-Type", "application/json");
-          transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-          transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-          if (isDefined(topicTag)) {
-            transaction.addTag("Topic", topicTag);
-          }
+        transaction.addTag("Content-Type", "application/json");
+        transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+        transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+        if (isDefined(topicTag)) {
+          transaction.addTag("Topic", topicTag);
+        }
 
-          try {
-            await client.transactions.sign(transaction, this.arweaveJWT);
-          } catch (error) {
-            throw this._wrapWriteError(error, "sign", url);
-          }
+        try {
+          await client.transactions.sign(transaction, this.arweaveJWT);
+        } catch (error) {
+          throw this._wrapWriteError(error, "sign", url);
+        }
 
-          let result;
-          try {
-            result = await client.transactions.post(transaction);
-          } catch (error) {
-            throw this._wrapWriteError(error, "post", url);
-          }
+        let result;
+        try {
+          result = await client.transactions.post(transaction);
+        } catch (error) {
+          throw this._wrapWriteError(error, "post", url);
+        }
 
-          if (result.status !== 200) {
-            const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
-            throw new ArweaveWriteError(message, "post", url, result.status);
-          }
+        if (result.status !== 200) {
+          const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
+          throw new ArweaveWriteError(message, "post", url, result.status);
+        }
 
-          this.logger.debug({
-            at: "ArweaveClient:set",
-            message: `Arweave transaction posted with ${transaction.id}`,
-            gateway: url,
-            attempt,
-            phase: "post",
-            txn: transaction.id,
-          });
-          return transaction.id;
-        },
-        (error) => this._isRetryableWriteError(error)
-      );
+        this.logger.debug({
+          at: "ArweaveClient:set",
+          message: `Arweave transaction posted with ${transaction.id}`,
+          gateway: url,
+          attempt,
+          phase: "post",
+          txn: transaction.id,
+        });
+        return transaction.id;
+      });
     } catch (error) {
       this.logger.error({
         at: "ArweaveClient:set",

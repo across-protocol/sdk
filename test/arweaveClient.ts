@@ -8,8 +8,7 @@ import sinon from "sinon";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { fetchWithTimeout, toBN } from "../src/utils";
-import { assertPromiseError } from "./utils";
-import { createSpyLogger } from "./utils";
+import { assertPromiseError, createSpyLogger } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -20,6 +19,28 @@ const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
 const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_GATEWAY.protocol}://${LOCAL_ARWEAVE_GATEWAY.host}:${LOCAL_ARWEAVE_GATEWAY.port}`;
 
 const mineBlock = () => fetchWithTimeout(`${LOCAL_ARWEAVE_URL}/mine`, {}, {}, undefined, "text");
+type StubTransaction = {
+  id: string;
+  addTag: sinon.SinonStub;
+};
+
+type StubGateway = {
+  url: string;
+  client: {
+    createTransaction: sinon.SinonStub;
+    transactions: {
+      sign: sinon.SinonStub;
+      post: sinon.SinonStub;
+    };
+  };
+};
+
+function setStubGateways(client: ArweaveClient, gateways: StubGateway[]): void {
+  Object.defineProperty(client, "gateways", {
+    configurable: true,
+    value: gateways,
+  });
+}
 
 describe("ArweaveClient", () => {
   const arLocal = new ArLocal(LOCAL_ARWEAVE_GATEWAY.port as number, true);
@@ -202,7 +223,7 @@ describe("ArweaveClient", () => {
   it("should fail over writes when the first gateway fails during transaction creation", async () => {
     const { spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
-    const transaction = {
+    const transaction: StubTransaction = {
       id: "tx-success",
       addTag: sinon.stub(),
     };
@@ -211,7 +232,7 @@ describe("ArweaveClient", () => {
     const signSecond = sinon.stub().resolves();
     const postSecond = sinon.stub().resolves({ status: 200 });
 
-    (client as any).gateways = [
+    setStubGateways(client, [
       {
         url: "https://gateway-a",
         client: {
@@ -226,7 +247,7 @@ describe("ArweaveClient", () => {
           transactions: { sign: signSecond, post: postSecond },
         },
       },
-    ];
+    ]);
 
     const result = await client.set({ test: "value" }, "topic-a");
 
@@ -248,7 +269,7 @@ describe("ArweaveClient", () => {
     const postFirst = sinon.stub().resolves({ status: 502, statusText: "Bad Gateway" });
     const postSecond = sinon.stub().resolves({ status: 200 });
 
-    (client as any).gateways = [
+    setStubGateways(client, [
       {
         url: "https://gateway-a",
         client: {
@@ -263,7 +284,7 @@ describe("ArweaveClient", () => {
           transactions: { sign, post: postSecond },
         },
       },
-    ];
+    ]);
 
     await client.set({ test: "value" }, "topic-b");
 
@@ -281,7 +302,7 @@ describe("ArweaveClient", () => {
     const { spy, spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY]);
 
-    (client as any).gateways = [
+    setStubGateways(client, [
       {
         url: "https://gateway-a",
         client: {
@@ -296,7 +317,7 @@ describe("ArweaveClient", () => {
           transactions: { sign: sinon.stub(), post: sinon.stub() },
         },
       },
-    ];
+    ]);
 
     await assertPromiseError(client.set({ test: "value" }, "topic-c"), "All Arweave gateways failed for set");
 
