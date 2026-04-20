@@ -4,10 +4,12 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { expect } from "chai";
 import { object, string } from "superstruct";
 import winston from "winston";
+import sinon from "sinon";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
-import { fetchWithTimeout, toBN } from "../src/utils";
+import { HttpError, fetchWithTimeout, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
+import { createSpyLogger } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -56,6 +58,10 @@ describe("ArweaveClient", () => {
       }),
       [LOCAL_ARWEAVE_GATEWAY]
     );
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 
   it(`should have ${INITIAL_FUNDING_AMNT} initial AR in the address`, async () => {
@@ -191,6 +197,33 @@ describe("ArweaveClient", () => {
       [LOCAL_ARWEAVE_GATEWAY]
     );
     await assertPromiseError(client.set({ test: "value" }), "You don't have enough tokens");
+  });
+
+  it("should log 404 topic fetch failures at debug instead of warn", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY]);
+    sinon
+      .stub(globalThis, "fetch")
+      .resolves(
+        new Response(JSON.stringify({ data: { transactions: { edges: [{ node: { id: "missing-tx" } }] } } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+    sinon.stub(client, "get").rejects(new HttpError(404, "HTTP 404: Not Found"));
+
+    const result = await client.getByTopic("topic-404", object({ test: string() }));
+
+    const debugLogs = spy
+      .getCalls()
+      .filter((call) => call.lastArg.level === "debug" && call.lastArg.at === "ArweaveClient:getByTopic");
+    const warnLogs = spy
+      .getCalls()
+      .filter((call) => call.lastArg.level === "warn" && call.lastArg.at === "ArweaveClient:getByTopic");
+
+    expect(result).to.deep.equal([]);
+    expect(debugLogs.some((call) => call.lastArg.transactions?.includes("missing-tx"))).to.be.true;
+    expect(warnLogs).to.have.lengthOf(0);
   });
 
   after(async () => {

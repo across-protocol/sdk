@@ -365,7 +365,10 @@ export class BundleDataClient {
     const arweaveKey = this.getArweaveBundleDataClientKey(blockRangesForChains);
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     if (!this.arweaveDataCache[arweaveKey]) {
-      this.arweaveDataCache[arweaveKey] = this.loadPersistedDataFromArweave(blockRangesForChains);
+      this.arweaveDataCache[arweaveKey] = this.loadPersistedDataFromArweave(blockRangesForChains).catch((error) => {
+        delete this.arweaveDataCache[arweaveKey];
+        throw error;
+      });
     }
     const arweaveData = _.cloneDeep(await this.arweaveDataCache[arweaveKey]);
     return arweaveData!;
@@ -384,7 +387,17 @@ export class BundleDataClient {
     if (!this.loadDataCache[key]) {
       let arweaveData;
       if (attemptArweaveLoad) {
-        arweaveData = await this.loadArweaveData(blockRangesForChains);
+        try {
+          arweaveData = await this.loadArweaveData(blockRangesForChains);
+        } catch (error) {
+          this.logger.warn({
+            at: "BundleDataClient#loadData",
+            message: "Failed to load bundle data from Arweave, falling back to on-chain reconstruction",
+            blockRanges: JSON.stringify(blockRangesForChains),
+            error: String(error),
+          });
+          arweaveData = undefined;
+        }
       } else {
         arweaveData = undefined;
       }

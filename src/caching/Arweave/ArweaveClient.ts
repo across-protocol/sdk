@@ -4,7 +4,16 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, delay, fetchWithTimeout, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import {
+  BigNumber,
+  delay,
+  fetchWithTimeout,
+  isDefined,
+  isHttpError,
+  jsonReplacerWithBigNumbers,
+  postWithTimeout,
+  toBN,
+} from "../../utils";
 
 export interface ArweaveGatewayConfig {
   host: string;
@@ -17,6 +26,14 @@ export const DEFAULT_ARWEAVE_GATEWAYS: ArweaveGatewayConfig[] = [{ host: "arweav
 interface Gateway {
   client: Arweave;
   url: string;
+}
+
+interface GraphQLTransactionsResponse {
+  data?: {
+    transactions?: {
+      edges?: { node: { id: string } }[];
+    };
+  };
 }
 
 export class ArweaveClient {
@@ -105,6 +122,14 @@ export class ArweaveClient {
         throw e;
       }
     }
+  }
+
+  private _isNotFoundError(error: unknown): boolean {
+    if (isHttpError(error)) {
+      return error.status === 404;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("HTTP 404") || message.includes("404: Not Found");
   }
 
   /**
@@ -218,17 +243,11 @@ export class ArweaveClient {
       ) { edges { node { id } } }
     }`;
 
-    const response = await this._raceGateways("getByTopic", async ({ client }) => {
-      const response = await client.api.post<{
-        data: { transactions: { edges: { node: { id: string } }[] } };
-      }>("/graphql", { query });
-      if (!response.ok) {
-        throw new Error(`Arweave GraphQL request failed with status ${response.status}`);
-      }
-      return response;
+    const response = await this._raceGateways("getByTopic", async ({ url }) => {
+      return await postWithTimeout<GraphQLTransactionsResponse>(`${url}/graphql`, { query }, {}, {}, 20_000);
     });
 
-    const entries = response?.data?.data?.transactions?.edges ?? [];
+    const entries = response?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
       message: `Retrieved ${entries.length} matching transactions from Arweave`,
@@ -239,6 +258,7 @@ export class ArweaveClient {
         appVersion: ARWEAVE_TAG_APP_VERSION,
       },
     });
+    const failures: { hash: string; error: unknown }[] = [];
     const results = await Promise.all(
       entries.map(async (edge) => {
         try {
@@ -250,14 +270,35 @@ export class ArweaveClient {
               }
             : null;
         } catch (e) {
-          this.logger.warn({
-            at: "ArweaveClient:getByTopic",
-            message: `Bad request for Arweave topic ${edge.node.id}: ${e}`,
-          });
+          failures.push({ hash: edge.node.id, error: e });
           return null;
         }
       })
     );
+    const notFoundFailures = failures.filter(({ error }) => this._isNotFoundError(error));
+    const unexpectedFailures = failures.filter(({ error }) => !this._isNotFoundError(error));
+
+    if (notFoundFailures.length > 0) {
+      this.logger.debug({
+        at: "ArweaveClient:getByTopic",
+        message: `Skipped ${notFoundFailures.length} Arweave topic entries that were not yet available`,
+        tag,
+        transactions: notFoundFailures.map(({ hash }) => hash),
+      });
+    }
+
+    if (unexpectedFailures.length > 0) {
+      this.logger.warn({
+        at: "ArweaveClient:getByTopic",
+        message: `Failed to fetch ${unexpectedFailures.length} Arweave topic entries`,
+        tag,
+        failures: unexpectedFailures.map(({ hash, error }) => ({
+          hash,
+          error: String(error),
+        })),
+      });
+    }
+
     return results.filter(isDefined);
   }
 
