@@ -385,7 +385,7 @@ export class BundleDataClient {
     const key = JSON.stringify(blockRangesForChains);
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     if (!this.loadDataCache[key]) {
-      let arweaveData;
+      let arweaveData: LoadDataReturnValue | undefined;
       if (attemptArweaveLoad) {
         try {
           arweaveData = await this.loadArweaveData(blockRangesForChains);
@@ -396,10 +396,7 @@ export class BundleDataClient {
             blockRanges: JSON.stringify(blockRangesForChains),
             error: String(error),
           });
-          arweaveData = undefined;
         }
-      } else {
-        arweaveData = undefined;
       }
       const data = isDefined(arweaveData)
         ? // We can return the data to a Promise to keep the return type consistent.

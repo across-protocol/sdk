@@ -129,7 +129,7 @@ export class ArweaveClient {
       return error.status === 404;
     }
     const message = error instanceof Error ? error.message : String(error);
-    return message.includes("HTTP 404") || message.includes("404: Not Found");
+    return /404/i.test(message);
   }
 
   /**
