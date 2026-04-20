@@ -1,28 +1,197 @@
-import assert from "assert";
-
-import { retry, toBNWei } from "../src/utils/common";
+import { number, object, string } from "superstruct";
+import { attempt, retry, toBNWei } from "../src/utils/common";
 import { BigNumber, parseUnits } from "../src/utils/BigNumberUtils";
-import { expect } from "./utils";
+import { expect, sinon } from "./utils";
 
 describe("Utils test", () => {
   it("retry", async () => {
     const failN = (numFails: number) => {
       return () =>
-        new Promise((resolve, reject) => {
+        new Promise<boolean>((resolve, reject) => {
           if (numFails-- > 0) {
-            reject();
+            reject(new Error("fail"));
           }
           resolve(true);
         });
     };
-    await Promise.all([
-      assert.doesNotReject(() => retry(failN(0), 0, 1)),
-      assert.rejects(() => retry(failN(1), 0, 1)),
-      assert.doesNotReject(() => retry(failN(1), 1, 1)),
-      assert.rejects(() => retry(failN(2), 1, 1)),
-      assert.doesNotReject(() => retry(failN(2), 2, 1)),
-      assert.rejects(() => retry(failN(3), 2, 1)),
+    const results = await Promise.all([
+      retry(failN(0), { retries: 0, delaySeconds: 0 }),
+      retry(failN(1), { retries: 0, delaySeconds: 0 }),
+      retry(failN(1), { retries: 1, delaySeconds: 0 }),
+      retry(failN(2), { retries: 1, delaySeconds: 0 }),
+      retry(failN(2), { retries: 2, delaySeconds: 0 }),
+      retry(failN(3), { retries: 2, delaySeconds: 0 }),
     ]);
+    expect(results.map((r) => r.ok)).to.deep.equal([true, false, true, false, true, false]);
+  });
+
+  describe("retry (options form)", () => {
+    // Fails the first `numFails` invocations with the supplied error, then resolves.
+    const makeFailingFn = (numFails: number, err: unknown = new Error("boom")) => {
+      const spy = sinon.spy(() => {
+        if (spy.callCount <= numFails) {
+          return Promise.reject(err);
+        }
+        return Promise.resolve(true);
+      });
+      return spy;
+    };
+
+    it("retries up to `retries` times on retryable errors", async () => {
+      const fn = makeFailingFn(2);
+      const result = await retry(fn, { retries: 2, delaySeconds: 0 });
+      expect(result.ok).to.be.true;
+      expect(fn.callCount).to.equal(3);
+    });
+
+    it("uses default retries=2 when options are omitted", async () => {
+      // Stub setTimeout so the test doesn't actually wait.
+      const clock = sinon.stub(global, "setTimeout").callsFake(((fn: () => void) => {
+        fn();
+        return 0 as unknown as NodeJS.Timeout;
+      }) as typeof setTimeout);
+      try {
+        const fn = makeFailingFn(5);
+        const result = await retry(fn);
+        expect(result.ok).to.be.false;
+        // 2 retries after initial = 3 total attempts.
+        expect(fn.callCount).to.equal(3);
+      } finally {
+        clock.restore();
+      }
+    });
+
+    it("exhausts retries and surfaces failure when failures outlast the budget", async () => {
+      const fn = makeFailingFn(3);
+      const result = await retry(fn, { retries: 2, delaySeconds: 0 });
+      expect(result.ok).to.be.false;
+      expect(fn.callCount).to.equal(3);
+    });
+
+    it("stops immediately when isRetryable returns false", async () => {
+      const fn = makeFailingFn(5, new Error("non-retryable"));
+      const isRetryable = sinon.spy((err: unknown) => (err as Error).message !== "non-retryable");
+      const result = await retry(fn, { retries: 5, delaySeconds: 0, isRetryable });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("non-retryable");
+      }
+      expect(fn.callCount).to.equal(1);
+      expect(isRetryable.callCount).to.equal(1);
+    });
+
+    it("retries only errors matching isRetryable", async () => {
+      const fn = sinon.spy(() => {
+        if (fn.callCount === 1) return Promise.reject(new Error("transient"));
+        if (fn.callCount === 2) return Promise.reject(new Error("fatal"));
+        return Promise.resolve(true);
+      });
+      const isRetryable = (err: unknown) => (err as Error).message === "transient";
+      const result = await retry(fn, { retries: 3, delaySeconds: 0, isRetryable });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("fatal");
+      }
+      // First call threw "transient" → retried; second call threw "fatal" → stopped.
+      expect(fn.callCount).to.equal(2);
+    });
+
+    it("wraps non-Error throws in an Error", async () => {
+      const fn = sinon.spy(() => Promise.reject("string-throw"));
+      const result = await retry(fn, { retries: 0, delaySeconds: 0 });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+        expect(result.error.message).to.equal("string-throw");
+      }
+    });
+
+    it("uses exponential backoff by default", async () => {
+      // Stub setTimeout to capture the waits without actually delaying.
+      const timeouts: number[] = [];
+      const clock = sinon.stub(global, "setTimeout").callsFake(((fn: () => void, ms: number) => {
+        timeouts.push(ms);
+        fn();
+        return 0 as unknown as NodeJS.Timeout;
+      }) as typeof setTimeout);
+
+      try {
+        const fn = makeFailingFn(2);
+        await retry(fn, { retries: 2, delaySeconds: 1 });
+        // Expect two waits, each ~= delaySeconds * 2^attempt + jitter, in milliseconds.
+        // attempt=0 → (1 + [0,1)) s → [1000, 2000) ms
+        // attempt=1 → (2 + [0,1)) s → [2000, 3000) ms
+        expect(timeouts).to.have.length(2);
+        expect(timeouts[0]).to.be.at.least(1000).and.below(2000);
+        expect(timeouts[1]).to.be.at.least(2000).and.below(3000);
+      } finally {
+        clock.restore();
+      }
+    });
+
+    it("runs schema validation on each attempt and retries structural failures", async () => {
+      const Shape = object({ wdQuota: number(), usedWdQuota: number() });
+      // First call returns a malformed payload; second returns a valid one.
+      const fn = sinon.spy(() => {
+        if (fn.callCount === 1) return Promise.resolve({ wdQuota: "wrong-type", usedWdQuota: 0 });
+        return Promise.resolve({ wdQuota: 100, usedWdQuota: 10 });
+      });
+      const result = await retry(fn, { retries: 2, delaySeconds: 0, schema: Shape });
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        expect(result.value).to.deep.equal({ wdQuota: 100, usedWdQuota: 10 });
+      }
+      expect(fn.callCount).to.equal(2);
+    });
+  });
+
+  describe("attempt", () => {
+    it("returns ok:true with the raw value when no schema is supplied", async () => {
+      const result = await attempt(() => Promise.resolve(42));
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        expect(result.value).to.equal(42);
+      }
+    });
+
+    it("catches throws into ok:false without retrying", async () => {
+      const fn = sinon.spy(() => Promise.reject(new Error("boom")));
+      const result = await attempt(fn);
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("boom");
+      }
+      expect(fn.callCount).to.equal(1);
+    });
+
+    it("validates the value with schema and narrows the returned type", async () => {
+      const Shape = object({ name: string() });
+      const result = await attempt(() => Promise.resolve({ name: "binance" }), { schema: Shape });
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        // result.value is typed as { name: string } — the .length check would be a compile
+        // error without schema-driven narrowing.
+        expect(result.value.name).to.equal("binance");
+      }
+    });
+
+    it("surfaces schema mismatches as ok:false", async () => {
+      const Shape = object({ name: string() });
+      const result = await attempt(() => Promise.resolve({ name: 123 }), { schema: Shape });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+      }
+    });
+
+    it("wraps non-Error throws in an Error", async () => {
+      const result = await attempt(() => Promise.reject("string-throw"));
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+        expect(result.error.message).to.equal("string-throw");
+      }
+    });
   });
 
   describe("toBNWei", () => {

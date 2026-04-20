@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import bs58 from "bs58";
 import { ethers } from "ethers";
+import { create, Struct } from "superstruct";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 
@@ -221,20 +222,98 @@ export function delay(seconds: number) {
 }
 
 /**
- * Attempt to retry a function call a number of times with a delay between each attempt
- * @param call The function to call
- * @param times The number of times to retry
- * @param delayS The number of seconds to delay between each attempt
- * @returns The result of the function call.
+ * Discriminated union for operations that can fail. Callers narrow on `.ok`: success
+ * carries `value`, failure carries the original `error` for inspection. Avoids the
+ * control-flow cost of try/catch at call sites that want to handle failure as data.
  */
-export function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
-  let promiseChain = call();
-  for (let i = 0; i < times; i++)
-    promiseChain = promiseChain.catch(async () => {
-      await delay(delayS);
-      return await call();
-    });
-  return promiseChain;
+export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
+
+/**
+ * Configures a single {@link attempt}. `schema`, when supplied, runs the successful value
+ * through `create(value, schema)` before wrapping — validation failures surface as a
+ * `{ ok: false }` Result like any other throw.
+ */
+export type AttemptOptions<T = unknown> = {
+  schema?: Struct<T>;
+};
+
+/**
+ * Configures the outer loop of {@link retry}. Backoff is always exponential
+ * (`delaySeconds * 2 ** attempt + random()` seconds) to play nicely with upstream
+ * rate-limits; callers that want tighter spacing should lower {@link delaySeconds}.
+ */
+export type RetryOptions = {
+  /** Maximum number of retry attempts after the initial call (total attempts = retries + 1). Defaults to 2 (3 total tries). */
+  retries?: number;
+  /** Base delay in seconds for the exponential backoff. Defaults to 1. */
+  delaySeconds?: number;
+  /** Predicate evaluated against the thrown error to decide whether to retry. Defaults to retrying every error. */
+  isRetryable?: (err: unknown) => boolean;
+};
+
+const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
+  retries: 2,
+  delaySeconds: 1,
+  isRetryable: () => true,
+};
+
+/**
+ * Run a failable operation once, catching throws and returning a {@link Result}. When
+ * `schema` is supplied, the successful value is validated via `create(value, schema)`
+ * before being wrapped; a failed validation lands in `{ ok: false, error }` with the
+ * superstruct error preserved.
+ */
+export function attempt<T>(
+  call: () => Promise<unknown>,
+  options: AttemptOptions<T> & { schema: Struct<T> }
+): Promise<Result<T>>;
+export function attempt<T>(call: () => Promise<T>, options?: AttemptOptions): Promise<Result<T>>;
+export async function attempt<T>(
+  call: () => Promise<unknown>,
+  options: AttemptOptions<T> = {}
+): Promise<Result<T>> {
+  try {
+    const raw = await call();
+    const value = options.schema ? create(raw, options.schema) : (raw as T);
+    return { ok: true, value };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+/**
+ * Loop {@link attempt} with exponential backoff until success or a terminal failure —
+ * exhausted retry budget or a failure rejected by `isRetryable`. The inner attempt's
+ * validation (via `schema`) participates in the retry budget; a malformed response is
+ * retried unless `isRetryable` opts out.
+ * @param call The function to call on each attempt.
+ * @param options Retry + attempt configuration (see {@link RetryOptions}, {@link AttemptOptions}).
+ * @returns A `Result<T>` wrapping the terminal outcome.
+ */
+export function retry<T>(
+  call: () => Promise<unknown>,
+  options: RetryOptions & AttemptOptions<T> & { schema: Struct<T> }
+): Promise<Result<T>>;
+export function retry<T>(call: () => Promise<T>, options?: RetryOptions): Promise<Result<T>>;
+export async function retry<T>(
+  call: () => Promise<unknown>,
+  options: RetryOptions & AttemptOptions<T> = {}
+): Promise<Result<T>> {
+  const resolved: Required<RetryOptions> = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  const backoffSeconds = (n: number): number => resolved.delaySeconds * 2 ** n + Math.random();
+
+  for (let nAttempts = 0; ; ++nAttempts) {
+    try {
+      const raw = await call();
+      const value = options.schema ? create(raw, options.schema) : (raw as T);
+      return { ok: true, value };
+    } catch (err) {
+      if (nAttempts >= resolved.retries || !resolved.isRetryable(err)) {
+        return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+      }
+      await delay(backoffSeconds(nAttempts));
+    }
+  }
 }
 
 export type TransactionCostEstimate = {
