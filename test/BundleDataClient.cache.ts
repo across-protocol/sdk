@@ -2,7 +2,7 @@ import sinon from "sinon";
 import { expect, createSpyLogger } from "./utils";
 import { BundleDataClient } from "../src/clients/BundleDataClient";
 import { MemoryCacheClient } from "../src/caching";
-import { getArweaveTopicCacheKey } from "../src/caching/Arweave/ArweaveClient";
+import { getArweaveTopicCacheKey } from "../src/utils";
 
 describe("BundleDataClient Arweave cache behavior", () => {
   const blockRanges = [[100, 123]];

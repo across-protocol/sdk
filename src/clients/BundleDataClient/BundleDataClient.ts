@@ -44,6 +44,7 @@ import {
   convertRelayDataParamsToBytes32,
   convertFillParamsToBytes32,
   chainIsTvm,
+  getArweaveTopicCacheKey,
   jsonReplacerWithBigNumbers,
 } from "../../utils";
 import winston from "winston";
@@ -61,8 +62,6 @@ import {
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 import { DEFAULT_CACHING_TTL } from "../../constants";
-import { getArweaveTopicCacheKey } from "../../caching";
-
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions

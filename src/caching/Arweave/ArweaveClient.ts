@@ -50,10 +50,6 @@ class ArweaveWriteError extends Error {
   }
 }
 
-export function getArweaveTopicCacheKey(tag: string): string {
-  return `arweave-topic:${tag}`;
-}
-
 export class ArweaveClient {
   private gateways: Gateway[];
 
