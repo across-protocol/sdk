@@ -1,5 +1,3 @@
-import assert from "assert";
-
 import { retry, toBNWei } from "../src/utils/common";
 import { BigNumber, parseUnits } from "../src/utils/BigNumberUtils";
 import { expect, sinon } from "./utils";
@@ -8,21 +6,22 @@ describe("Utils test", () => {
   it("retry", async () => {
     const failN = (numFails: number) => {
       return () =>
-        new Promise((resolve, reject) => {
+        new Promise<boolean>((resolve, reject) => {
           if (numFails-- > 0) {
-            reject();
+            reject(new Error("fail"));
           }
           resolve(true);
         });
     };
-    await Promise.all([
-      assert.doesNotReject(() => retry(failN(0), { retries: 0, delaySeconds: 0 })),
-      assert.rejects(() => retry(failN(1), { retries: 0, delaySeconds: 0 })),
-      assert.doesNotReject(() => retry(failN(1), { retries: 1, delaySeconds: 0 })),
-      assert.rejects(() => retry(failN(2), { retries: 1, delaySeconds: 0 })),
-      assert.doesNotReject(() => retry(failN(2), { retries: 2, delaySeconds: 0 })),
-      assert.rejects(() => retry(failN(3), { retries: 2, delaySeconds: 0 })),
+    const results = await Promise.all([
+      retry(failN(0), { retries: 0, delaySeconds: 0 }),
+      retry(failN(1), { retries: 0, delaySeconds: 0 }),
+      retry(failN(1), { retries: 1, delaySeconds: 0 }),
+      retry(failN(2), { retries: 1, delaySeconds: 0 }),
+      retry(failN(2), { retries: 2, delaySeconds: 0 }),
+      retry(failN(3), { retries: 2, delaySeconds: 0 }),
     ]);
+    expect(results.map((r) => r.ok)).to.deep.equal([true, false, true, false, true, false]);
   });
 
   describe("retry (options form)", () => {
@@ -39,7 +38,8 @@ describe("Utils test", () => {
 
     it("retries up to `retries` times on retryable errors", async () => {
       const fn = makeFailingFn(2);
-      await retry(fn, { retries: 2, delaySeconds: 0 });
+      const result = await retry(fn, { retries: 2, delaySeconds: 0 });
+      expect(result.ok).to.be.true;
       expect(fn.callCount).to.equal(3);
     });
 
@@ -51,7 +51,8 @@ describe("Utils test", () => {
       }) as typeof setTimeout);
       try {
         const fn = makeFailingFn(5);
-        await assert.rejects(() => retry(fn));
+        const result = await retry(fn);
+        expect(result.ok).to.be.false;
         // 2 retries after initial = 3 total attempts.
         expect(fn.callCount).to.equal(3);
       } finally {
@@ -59,16 +60,21 @@ describe("Utils test", () => {
       }
     });
 
-    it("exhausts retries and rejects when failures outlast the budget", async () => {
+    it("exhausts retries and surfaces failure when failures outlast the budget", async () => {
       const fn = makeFailingFn(3);
-      await assert.rejects(() => retry(fn, { retries: 2, delaySeconds: 0 }));
+      const result = await retry(fn, { retries: 2, delaySeconds: 0 });
+      expect(result.ok).to.be.false;
       expect(fn.callCount).to.equal(3);
     });
 
     it("stops immediately when isRetryable returns false", async () => {
       const fn = makeFailingFn(5, new Error("non-retryable"));
       const isRetryable = sinon.spy((err: unknown) => (err as Error).message !== "non-retryable");
-      await assert.rejects(() => retry(fn, { retries: 5, delaySeconds: 0, isRetryable }));
+      const result = await retry(fn, { retries: 5, delaySeconds: 0, isRetryable });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("non-retryable");
+      }
       expect(fn.callCount).to.equal(1);
       expect(isRetryable.callCount).to.equal(1);
     });
@@ -80,9 +86,23 @@ describe("Utils test", () => {
         return Promise.resolve(true);
       });
       const isRetryable = (err: unknown) => (err as Error).message === "transient";
-      await assert.rejects(() => retry(fn, { retries: 3, delaySeconds: 0, isRetryable }), /fatal/);
+      const result = await retry(fn, { retries: 3, delaySeconds: 0, isRetryable });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("fatal");
+      }
       // First call threw "transient" → retried; second call threw "fatal" → stopped.
       expect(fn.callCount).to.equal(2);
+    });
+
+    it("wraps non-Error throws in an Error", async () => {
+      const fn = sinon.spy(() => Promise.reject("string-throw"));
+      const result = await retry(fn, { retries: 0, delaySeconds: 0 });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+        expect(result.error.message).to.equal("string-throw");
+      }
     });
 
     it("uses exponential backoff by default", async () => {

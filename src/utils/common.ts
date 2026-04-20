@@ -221,6 +221,13 @@ export function delay(seconds: number) {
 }
 
 /**
+ * Discriminated union for operations that can fail. Callers narrow on `.ok`: success
+ * carries `value`, failure carries the original `error` for inspection. Avoids the
+ * control-flow cost of try/catch at call sites that want to handle failure as data.
+ */
+export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
+
+/**
  * Configures {@link retry}. Retries always use exponential backoff
  * (`delaySeconds * 2 ** attempt + random()` seconds) to play nicely with upstream
  * rate-limits; callers that want tighter spacing should lower {@link delaySeconds}.
@@ -241,27 +248,28 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
 };
 
 /**
- * Attempt to retry a function call with exponential backoff and a retryability predicate.
+ * Attempt a function call with exponential backoff and a retryability predicate, returning a
+ * {@link Result} that encodes success or the terminal failure. Exhausted retries and errors
+ * rejected by `isRetryable` both surface as `{ ok: false, error }` — the caller decides how
+ * to react instead of catching a throw.
  * @param call The function to call.
- * @param options Retry configuration — see {@link RetryOptions}. All fields are optional; omitted fields inherit the SDK defaults.
- * @returns The result of the function call.
+ * @param options Retry configuration — see {@link RetryOptions}. All fields are optional.
+ * @returns A `Result<T>` wrapping the terminal outcome.
  */
-export function retry<T>(call: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+export async function retry<T>(call: () => Promise<T>, options: RetryOptions = {}): Promise<Result<T>> {
   const resolved: Required<RetryOptions> = { ...DEFAULT_RETRY_OPTIONS, ...options };
   const backoffSeconds = (attempt: number): number => resolved.delaySeconds * 2 ** attempt + Math.random();
 
-  const attempt = async (nAttempts: number): Promise<T> => {
+  for (let nAttempts = 0; ; ++nAttempts) {
     try {
-      return await call();
+      return { ok: true, value: await call() };
     } catch (err) {
       if (nAttempts >= resolved.retries || !resolved.isRetryable(err)) {
-        throw err;
+        return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
       }
       await delay(backoffSeconds(nAttempts));
-      return attempt(nAttempts + 1);
     }
-  };
-  return attempt(0);
+  }
 }
 
 export type TransactionCostEstimate = {

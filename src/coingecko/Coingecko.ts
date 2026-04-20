@@ -378,7 +378,7 @@ export class Coingecko {
     return this.call("asset_platforms");
   }
 
-  call<T>(path: string): Promise<T> {
+  async call<T>(path: string): Promise<T> {
     const sendRequest = async () => {
       const { proHost } = this;
 
@@ -401,10 +401,14 @@ export class Coingecko {
     };
 
     // Note: If a pro API key is configured, there is no need to retry as the Pro API will act as the basic's fall back.
-    return retry(sendRequest, {
+    const result = await retry(sendRequest, {
       retries: this.apiKey === undefined ? this.numRetries : 0,
       delaySeconds: this.retryDelay,
     });
+    if (!result.ok) {
+      throw result.error;
+    }
+    return result.value;
   }
 
   protected getPriceCache(currency: string, platform_id: string): { [addr: string]: CoinGeckoPrice } {
