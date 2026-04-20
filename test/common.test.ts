@@ -1,4 +1,5 @@
-import { retry, toBNWei } from "../src/utils/common";
+import { number, object, string } from "superstruct";
+import { attempt, retry, toBNWei } from "../src/utils/common";
 import { BigNumber, parseUnits } from "../src/utils/BigNumberUtils";
 import { expect, sinon } from "./utils";
 
@@ -125,6 +126,70 @@ describe("Utils test", () => {
         expect(timeouts[1]).to.be.at.least(2000).and.below(3000);
       } finally {
         clock.restore();
+      }
+    });
+
+    it("runs schema validation on each attempt and retries structural failures", async () => {
+      const Shape = object({ wdQuota: number(), usedWdQuota: number() });
+      // First call returns a malformed payload; second returns a valid one.
+      const fn = sinon.spy(() => {
+        if (fn.callCount === 1) return Promise.resolve({ wdQuota: "wrong-type", usedWdQuota: 0 });
+        return Promise.resolve({ wdQuota: 100, usedWdQuota: 10 });
+      });
+      const result = await retry(fn, { retries: 2, delaySeconds: 0, schema: Shape });
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        expect(result.value).to.deep.equal({ wdQuota: 100, usedWdQuota: 10 });
+      }
+      expect(fn.callCount).to.equal(2);
+    });
+  });
+
+  describe("attempt", () => {
+    it("returns ok:true with the raw value when no schema is supplied", async () => {
+      const result = await attempt(() => Promise.resolve(42));
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        expect(result.value).to.equal(42);
+      }
+    });
+
+    it("catches throws into ok:false without retrying", async () => {
+      const fn = sinon.spy(() => Promise.reject(new Error("boom")));
+      const result = await attempt(fn);
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error.message).to.equal("boom");
+      }
+      expect(fn.callCount).to.equal(1);
+    });
+
+    it("validates the value with schema and narrows the returned type", async () => {
+      const Shape = object({ name: string() });
+      const result = await attempt(() => Promise.resolve({ name: "binance" }), { schema: Shape });
+      expect(result.ok).to.be.true;
+      if (result.ok) {
+        // result.value is typed as { name: string } — the .length check would be a compile
+        // error without schema-driven narrowing.
+        expect(result.value.name).to.equal("binance");
+      }
+    });
+
+    it("surfaces schema mismatches as ok:false", async () => {
+      const Shape = object({ name: string() });
+      const result = await attempt(() => Promise.resolve({ name: 123 }), { schema: Shape });
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+      }
+    });
+
+    it("wraps non-Error throws in an Error", async () => {
+      const result = await attempt(() => Promise.reject("string-throw"));
+      expect(result.ok).to.be.false;
+      if (!result.ok) {
+        expect(result.error).to.be.instanceOf(Error);
+        expect(result.error.message).to.equal("string-throw");
       }
     });
   });

@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import bs58 from "bs58";
 import { ethers } from "ethers";
+import { create, Struct } from "superstruct";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 
@@ -228,7 +229,16 @@ export function delay(seconds: number) {
 export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
 
 /**
- * Configures {@link retry}. Retries always use exponential backoff
+ * Configures a single {@link attempt}. `schema`, when supplied, runs the successful value
+ * through `create(value, schema)` before wrapping — validation failures surface as a
+ * `{ ok: false }` Result like any other throw.
+ */
+export type AttemptOptions<T = unknown> = {
+  schema?: Struct<T>;
+};
+
+/**
+ * Configures the outer loop of {@link retry}. Backoff is always exponential
  * (`delaySeconds * 2 ** attempt + random()` seconds) to play nicely with upstream
  * rate-limits; callers that want tighter spacing should lower {@link delaySeconds}.
  */
@@ -248,21 +258,55 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
 };
 
 /**
- * Attempt a function call with exponential backoff and a retryability predicate, returning a
- * {@link Result} that encodes success or the terminal failure. Exhausted retries and errors
- * rejected by `isRetryable` both surface as `{ ok: false, error }` — the caller decides how
- * to react instead of catching a throw.
- * @param call The function to call.
- * @param options Retry configuration — see {@link RetryOptions}. All fields are optional.
+ * Run a failable operation once, catching throws and returning a {@link Result}. When
+ * `schema` is supplied, the successful value is validated via `create(value, schema)`
+ * before being wrapped; a failed validation lands in `{ ok: false, error }` with the
+ * superstruct error preserved.
+ */
+export function attempt<T>(
+  call: () => Promise<unknown>,
+  options: AttemptOptions<T> & { schema: Struct<T> }
+): Promise<Result<T>>;
+export function attempt<T>(call: () => Promise<T>, options?: AttemptOptions): Promise<Result<T>>;
+export async function attempt<T>(
+  call: () => Promise<unknown>,
+  options: AttemptOptions<T> = {}
+): Promise<Result<T>> {
+  try {
+    const raw = await call();
+    const value = options.schema ? create(raw, options.schema) : (raw as T);
+    return { ok: true, value };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+/**
+ * Loop {@link attempt} with exponential backoff until success or a terminal failure —
+ * exhausted retry budget or a failure rejected by `isRetryable`. The inner attempt's
+ * validation (via `schema`) participates in the retry budget; a malformed response is
+ * retried unless `isRetryable` opts out.
+ * @param call The function to call on each attempt.
+ * @param options Retry + attempt configuration (see {@link RetryOptions}, {@link AttemptOptions}).
  * @returns A `Result<T>` wrapping the terminal outcome.
  */
-export async function retry<T>(call: () => Promise<T>, options: RetryOptions = {}): Promise<Result<T>> {
+export function retry<T>(
+  call: () => Promise<unknown>,
+  options: RetryOptions & AttemptOptions<T> & { schema: Struct<T> }
+): Promise<Result<T>>;
+export function retry<T>(call: () => Promise<T>, options?: RetryOptions): Promise<Result<T>>;
+export async function retry<T>(
+  call: () => Promise<unknown>,
+  options: RetryOptions & AttemptOptions<T> = {}
+): Promise<Result<T>> {
   const resolved: Required<RetryOptions> = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  const backoffSeconds = (attempt: number): number => resolved.delaySeconds * 2 ** attempt + Math.random();
+  const backoffSeconds = (n: number): number => resolved.delaySeconds * 2 ** n + Math.random();
 
   for (let nAttempts = 0; ; ++nAttempts) {
     try {
-      return { ok: true, value: await call() };
+      const raw = await call();
+      const value = options.schema ? create(raw, options.schema) : (raw as T);
+      return { ok: true, value };
     } catch (err) {
       if (nAttempts >= resolved.retries || !resolved.isRetryable(err)) {
         return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
