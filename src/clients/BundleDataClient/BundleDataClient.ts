@@ -1,5 +1,6 @@
 import assert from "assert";
 import _ from "lodash";
+import { create } from "superstruct";
 import {
   SlowFillRequestWithBlock,
   SpokePoolClientsByChain,
@@ -16,6 +17,7 @@ import {
   FillWithBlock,
   Deposit,
   DepositWithBlock,
+  CachingMechanismInterface,
 } from "../../interfaces";
 import { SpokePoolClient } from "..";
 import { findFillEvent as findEvmFillEvent } from "../../arch/evm";
@@ -42,10 +44,13 @@ import {
   convertRelayDataParamsToBytes32,
   convertFillParamsToBytes32,
   chainIsTvm,
+  getArweaveTopicCacheKey,
+  jsonReplacerWithBigNumbers,
 } from "../../utils";
 import winston from "winston";
 import {
   BundleDataSS,
+  BundleData as PersistedArweaveBundleData,
   getRefundInformationFromFill,
   isChainDisabledAtBlock,
   isChainPaused,
@@ -56,7 +61,7 @@ import {
 } from "./utils";
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
-
+import { DEFAULT_CACHING_TTL } from "../../constants";
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
@@ -164,7 +169,8 @@ export class BundleDataClient {
     readonly clients: Clients,
     spokePoolClients: { [chainId: number]: SpokePoolClient },
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
-    readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
+    readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {},
+    readonly arweaveTopicCache?: CachingMechanismInterface
   ) {
     this.spokePoolClientManager = new SpokePoolManager(logger, spokePoolClients);
   }
@@ -204,6 +210,50 @@ export class BundleDataClient {
     return `bundles-${BundleDataClient.getArweaveClientKey(blockRangesForChains)}`;
   }
 
+  private async getPersistedArweaveTopicFromCache(tag: string): Promise<PersistedArweaveBundleData | undefined> {
+    if (!isDefined(this.arweaveTopicCache)) {
+      return undefined;
+    }
+
+    try {
+      const cachedPayload = await this.arweaveTopicCache.get<string>(getArweaveTopicCacheKey(tag));
+      if (!isDefined(cachedPayload)) {
+        return undefined;
+      }
+
+      return create(JSON.parse(cachedPayload), BundleDataSS);
+    } catch (error) {
+      this.logger.debug({
+        at: "BundleDataClient#getPersistedArweaveTopicFromCache",
+        message: "Failed to restore persisted bundle data from topic cache, falling back to Arweave",
+        tag,
+        error: String(error),
+      });
+      return undefined;
+    }
+  }
+
+  private async backfillPersistedArweaveTopicCache(tag: string, data: PersistedArweaveBundleData): Promise<void> {
+    if (!isDefined(this.arweaveTopicCache)) {
+      return;
+    }
+
+    try {
+      await this.arweaveTopicCache.set(
+        getArweaveTopicCacheKey(tag),
+        JSON.stringify(data, jsonReplacerWithBigNumbers),
+        DEFAULT_CACHING_TTL
+      );
+    } catch (error) {
+      this.logger.debug({
+        at: "BundleDataClient#backfillPersistedArweaveTopicCache",
+        message: "Failed to backfill persisted bundle data into topic cache",
+        tag,
+        error: String(error),
+      });
+    }
+  }
+
   private async loadPersistedDataFromArweave(
     blockRangesForChains: number[][]
   ): Promise<LoadDataReturnValue | undefined> {
@@ -211,14 +261,25 @@ export class BundleDataClient {
       return undefined;
     }
     const start = performance.now();
-    const persistedData = await this.clients.arweaveClient.getByTopic(
-      this.getArweaveBundleDataClientKey(blockRangesForChains),
-      BundleDataSS
-    );
-    // If there is no data or the data is empty, return undefined because we couldn't
-    // pull info from the Arweave persistence layer.
-    if (!isDefined(persistedData) || persistedData.length < 1) {
-      return undefined;
+    const tag = this.getArweaveBundleDataClientKey(blockRangesForChains);
+    let data = await this.getPersistedArweaveTopicFromCache(tag);
+
+    if (!isDefined(data)) {
+      const persistedData = await this.clients.arweaveClient.getByTopic(tag, BundleDataSS);
+      // If there is no data or the data is empty, return undefined because we couldn't
+      // pull info from the Arweave persistence layer.
+      if (!isDefined(persistedData) || persistedData.length < 1) {
+        return undefined;
+      }
+      data = persistedData[0].data;
+      await this.backfillPersistedArweaveTopicCache(tag, data);
+    } else {
+      this.logger.debug({
+        at: "BundleDataClient#loadPersistedDataFromArweave",
+        message: "Loaded persisted bundle data from topic cache",
+        blockRanges: JSON.stringify(blockRangesForChains),
+        tag,
+      });
     }
 
     // A converter function to account for the fact that our SuperStruct schema does not support numeric
@@ -301,8 +362,6 @@ export class BundleDataClient {
         ])
       );
     };
-
-    const data = persistedData[0].data;
 
     // This section processes and transforms bundle data loaded from Arweave storage into the correct format:
     // 1. Each field (bundleFillsV3, expiredDepositsToRefundV3, etc.) contains nested records keyed by chainId and token
