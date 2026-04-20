@@ -8,8 +8,7 @@ import sinon from "sinon";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { HttpError, fetchWithTimeout, toBN } from "../src/utils";
-import { assertPromiseError } from "./utils";
-import { createSpyLogger } from "./utils";
+import { assertPromiseError, createSpyLogger } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -202,14 +201,12 @@ describe("ArweaveClient", () => {
   it("should log 404 topic fetch failures at debug instead of warn", async () => {
     const { spy, spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY]);
-    sinon
-      .stub(globalThis, "fetch")
-      .resolves(
-        new Response(JSON.stringify({ data: { transactions: { edges: [{ node: { id: "missing-tx" } }] } } }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
-      );
+    sinon.stub(globalThis, "fetch").resolves(
+      new Response(JSON.stringify({ data: { transactions: { edges: [{ node: { id: "missing-tx" } }] } } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
     sinon.stub(client, "get").rejects(new HttpError(404, "HTTP 404: Not Found"));
 
     const result = await client.getByTopic("topic-404", object({ test: string() }));
