@@ -19,6 +19,21 @@ interface Gateway {
   url: string;
 }
 
+interface ArweaveTransactionTag {
+  name: string;
+  value: string;
+}
+
+interface ArweaveTransactionResponse {
+  tags?: ArweaveTransactionTag[];
+}
+
+function decodeBase64UrlUtf8(value: string): string {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  return Buffer.from(`${normalized}${padding}`, "base64").toString("utf-8");
+}
+
 export class ArweaveClient {
   private gateways: Gateway[];
 
@@ -267,17 +282,14 @@ export class ArweaveClient {
    * @returns The metadata of the transaction if it exists, otherwise null
    */
   async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
-    const transaction = await this._raceGateways("getMetadata", async ({ client }) => {
-      return await client.transactions.get(transactionID);
+    const transaction = await this._raceGateways("getMetadata", async ({ url }) => {
+      return await fetchWithTimeout<ArweaveTransactionResponse>(`${url}/tx/${transactionID}`, {}, {}, 20_000);
     });
     if (!isDefined(transaction)) {
       return null;
     }
     const tags = Object.fromEntries(
-      transaction.tags.map((tag) => [
-        tag.get("name", { decode: true, string: true }),
-        tag.get("value", { decode: true, string: true }),
-      ])
+      (transaction.tags ?? []).map((tag) => [decodeBase64UrlUtf8(tag.name), decodeBase64UrlUtf8(tag.value)])
     );
     return {
       contentType: tags["Content-Type"],
