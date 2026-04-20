@@ -221,20 +221,47 @@ export function delay(seconds: number) {
 }
 
 /**
- * Attempt to retry a function call a number of times with a delay between each attempt
- * @param call The function to call
- * @param times The number of times to retry
- * @param delayS The number of seconds to delay between each attempt
+ * Configures {@link retry}. Retries always use exponential backoff
+ * (`delaySeconds * 2 ** attempt + random()` seconds) to play nicely with upstream
+ * rate-limits; callers that want tighter spacing should lower {@link delaySeconds}.
+ */
+export type RetryOptions = {
+  /** Maximum number of retry attempts after the initial call (total attempts = retries + 1). Defaults to 2 (3 total tries). */
+  retries?: number;
+  /** Base delay in seconds for the exponential backoff. Defaults to 1. */
+  delaySeconds?: number;
+  /** Predicate evaluated against the thrown error to decide whether to retry. Defaults to retrying every error. */
+  isRetryable?: (err: unknown) => boolean;
+};
+
+const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
+  retries: 2,
+  delaySeconds: 1,
+  isRetryable: () => true,
+};
+
+/**
+ * Attempt to retry a function call with exponential backoff and a retryability predicate.
+ * @param call The function to call.
+ * @param options Retry configuration — see {@link RetryOptions}. All fields are optional; omitted fields inherit the SDK defaults.
  * @returns The result of the function call.
  */
-export function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
-  let promiseChain = call();
-  for (let i = 0; i < times; i++)
-    promiseChain = promiseChain.catch(async () => {
-      await delay(delayS);
+export function retry<T>(call: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const resolved: Required<RetryOptions> = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  const backoffSeconds = (attempt: number): number => resolved.delaySeconds * 2 ** attempt + Math.random();
+
+  const attempt = async (nAttempts: number): Promise<T> => {
+    try {
       return await call();
-    });
-  return promiseChain;
+    } catch (err) {
+      if (nAttempts >= resolved.retries || !resolved.isRetryable(err)) {
+        throw err;
+      }
+      await delay(backoffSeconds(nAttempts));
+      return attempt(nAttempts + 1);
+    }
+  };
+  return attempt(0);
 }
 
 export type TransactionCostEstimate = {

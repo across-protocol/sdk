@@ -2,7 +2,7 @@ import assert from "assert";
 
 import { retry, toBNWei } from "../src/utils/common";
 import { BigNumber, parseUnits } from "../src/utils/BigNumberUtils";
-import { expect } from "./utils";
+import { expect, sinon } from "./utils";
 
 describe("Utils test", () => {
   it("retry", async () => {
@@ -16,13 +16,97 @@ describe("Utils test", () => {
         });
     };
     await Promise.all([
-      assert.doesNotReject(() => retry(failN(0), 0, 1)),
-      assert.rejects(() => retry(failN(1), 0, 1)),
-      assert.doesNotReject(() => retry(failN(1), 1, 1)),
-      assert.rejects(() => retry(failN(2), 1, 1)),
-      assert.doesNotReject(() => retry(failN(2), 2, 1)),
-      assert.rejects(() => retry(failN(3), 2, 1)),
+      assert.doesNotReject(() => retry(failN(0), { retries: 0, delaySeconds: 0 })),
+      assert.rejects(() => retry(failN(1), { retries: 0, delaySeconds: 0 })),
+      assert.doesNotReject(() => retry(failN(1), { retries: 1, delaySeconds: 0 })),
+      assert.rejects(() => retry(failN(2), { retries: 1, delaySeconds: 0 })),
+      assert.doesNotReject(() => retry(failN(2), { retries: 2, delaySeconds: 0 })),
+      assert.rejects(() => retry(failN(3), { retries: 2, delaySeconds: 0 })),
     ]);
+  });
+
+  describe("retry (options form)", () => {
+    // Fails the first `numFails` invocations with the supplied error, then resolves.
+    const makeFailingFn = (numFails: number, err: unknown = new Error("boom")) => {
+      const spy = sinon.spy(() => {
+        if (spy.callCount <= numFails) {
+          return Promise.reject(err);
+        }
+        return Promise.resolve(true);
+      });
+      return spy;
+    };
+
+    it("retries up to `retries` times on retryable errors", async () => {
+      const fn = makeFailingFn(2);
+      await retry(fn, { retries: 2, delaySeconds: 0 });
+      expect(fn.callCount).to.equal(3);
+    });
+
+    it("uses default retries=2 when options are omitted", async () => {
+      // Stub setTimeout so the test doesn't actually wait.
+      const clock = sinon.stub(global, "setTimeout").callsFake(((fn: () => void) => {
+        fn();
+        return 0 as unknown as NodeJS.Timeout;
+      }) as typeof setTimeout);
+      try {
+        const fn = makeFailingFn(5);
+        await assert.rejects(() => retry(fn));
+        // 2 retries after initial = 3 total attempts.
+        expect(fn.callCount).to.equal(3);
+      } finally {
+        clock.restore();
+      }
+    });
+
+    it("exhausts retries and rejects when failures outlast the budget", async () => {
+      const fn = makeFailingFn(3);
+      await assert.rejects(() => retry(fn, { retries: 2, delaySeconds: 0 }));
+      expect(fn.callCount).to.equal(3);
+    });
+
+    it("stops immediately when isRetryable returns false", async () => {
+      const fn = makeFailingFn(5, new Error("non-retryable"));
+      const isRetryable = sinon.spy((err: unknown) => (err as Error).message !== "non-retryable");
+      await assert.rejects(() => retry(fn, { retries: 5, delaySeconds: 0, isRetryable }));
+      expect(fn.callCount).to.equal(1);
+      expect(isRetryable.callCount).to.equal(1);
+    });
+
+    it("retries only errors matching isRetryable", async () => {
+      const fn = sinon.spy(() => {
+        if (fn.callCount === 1) return Promise.reject(new Error("transient"));
+        if (fn.callCount === 2) return Promise.reject(new Error("fatal"));
+        return Promise.resolve(true);
+      });
+      const isRetryable = (err: unknown) => (err as Error).message === "transient";
+      await assert.rejects(() => retry(fn, { retries: 3, delaySeconds: 0, isRetryable }), /fatal/);
+      // First call threw "transient" → retried; second call threw "fatal" → stopped.
+      expect(fn.callCount).to.equal(2);
+    });
+
+    it("uses exponential backoff by default", async () => {
+      // Stub setTimeout to capture the waits without actually delaying.
+      const timeouts: number[] = [];
+      const clock = sinon.stub(global, "setTimeout").callsFake(((fn: () => void, ms: number) => {
+        timeouts.push(ms);
+        fn();
+        return 0 as unknown as NodeJS.Timeout;
+      }) as typeof setTimeout);
+
+      try {
+        const fn = makeFailingFn(2);
+        await retry(fn, { retries: 2, delaySeconds: 1 });
+        // Expect two waits, each ~= delaySeconds * 2^attempt + jitter, in milliseconds.
+        // attempt=0 → (1 + [0,1)) s → [1000, 2000) ms
+        // attempt=1 → (2 + [0,1)) s → [2000, 3000) ms
+        expect(timeouts).to.have.length(2);
+        expect(timeouts[0]).to.be.at.least(1000).and.below(2000);
+        expect(timeouts[1]).to.be.at.least(2000).and.below(3000);
+      } finally {
+        clock.restore();
+      }
+    });
   });
 
   describe("toBNWei", () => {
