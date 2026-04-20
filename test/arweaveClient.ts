@@ -7,7 +7,7 @@ import winston from "winston";
 import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 import { fetchWithTimeout, toBN } from "../src/utils";
-import { assertPromiseError } from "./utils";
+import { assertPromiseError, sinon } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -56,6 +56,10 @@ describe("ArweaveClient", () => {
       }),
       [LOCAL_ARWEAVE_GATEWAY]
     );
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 
   it(`should have ${INITIAL_FUNDING_AMNT} initial AR in the address`, async () => {
@@ -153,6 +157,34 @@ describe("ArweaveClient", () => {
       contentType: "application/json",
       appName: ARWEAVE_TAG_APP_NAME,
       topic: topicTag,
+    });
+  });
+
+  it("should fetch metadata from /tx/{id} and decode base64url tags", async () => {
+    const fetchStub = sinon.stub(globalThis, "fetch").resolves(
+      new Response(
+        JSON.stringify({
+          tags: [
+            { name: "Q29udGVudC1UeXBl", value: "YXBwbGljYXRpb24vanNvbg" },
+            { name: "QXBwLU5hbWU", value: "YWNyb3NzLXByb3RvY29s" },
+            { name: "VG9waWM", value: "dGVzdC10b3BpYw" },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    );
+
+    const metadata = await client.getMetadata("test-tx-id");
+
+    expect(fetchStub.calledOnce).to.be.true;
+    expect(fetchStub.firstCall.args[0]).to.equal(`${LOCAL_ARWEAVE_URL}/tx/test-tx-id`);
+    expect(metadata).to.deep.equal({
+      contentType: "application/json",
+      appName: "across-protocol",
+      topic: "test-topic",
     });
   });
 
