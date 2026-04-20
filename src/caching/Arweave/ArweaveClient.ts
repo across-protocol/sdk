@@ -150,7 +150,7 @@ export class ArweaveClient {
     const message = error instanceof Error ? error.message : String(error);
     return /404/i.test(message);
   }
-  
+
   private _wrapWriteError(error: unknown, phase: WritePhase, gateway: string): ArweaveWriteError {
     if (error instanceof ArweaveWriteError) {
       return error;

@@ -244,7 +244,7 @@ describe("ArweaveClient", () => {
     expect(debugLogs.some((call) => call.lastArg.transactions?.includes("missing-tx"))).to.be.true;
     expect(warnLogs).to.have.lengthOf(0);
   });
-     
+
   it("should fail over writes when the first gateway fails during transaction creation", async () => {
     const { spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
