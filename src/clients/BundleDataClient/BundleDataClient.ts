@@ -424,7 +424,10 @@ export class BundleDataClient {
     const arweaveKey = this.getArweaveBundleDataClientKey(blockRangesForChains);
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     if (!this.arweaveDataCache[arweaveKey]) {
-      this.arweaveDataCache[arweaveKey] = this.loadPersistedDataFromArweave(blockRangesForChains);
+      this.arweaveDataCache[arweaveKey] = this.loadPersistedDataFromArweave(blockRangesForChains).catch((error) => {
+        delete this.arweaveDataCache[arweaveKey];
+        throw error;
+      });
     }
     const arweaveData = _.cloneDeep(await this.arweaveDataCache[arweaveKey]);
     return arweaveData!;
@@ -441,11 +444,18 @@ export class BundleDataClient {
     const key = JSON.stringify(blockRangesForChains);
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     if (!this.loadDataCache[key]) {
-      let arweaveData;
+      let arweaveData: LoadDataReturnValue | undefined;
       if (attemptArweaveLoad) {
-        arweaveData = await this.loadArweaveData(blockRangesForChains);
-      } else {
-        arweaveData = undefined;
+        try {
+          arweaveData = await this.loadArweaveData(blockRangesForChains);
+        } catch (error) {
+          this.logger.warn({
+            at: "BundleDataClient#loadData",
+            message: "Failed to load bundle data from Arweave, falling back to on-chain reconstruction",
+            blockRanges: JSON.stringify(blockRangesForChains),
+            error: String(error),
+          });
+        }
       }
       const data = isDefined(arweaveData)
         ? // We can return the data to a Promise to keep the return type consistent.
