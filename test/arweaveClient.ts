@@ -183,6 +183,34 @@ describe("ArweaveClient", () => {
     });
   });
 
+  it("should fetch metadata from /tx/{id} and decode base64url tags", async () => {
+    const fetchStub = sinon.stub(globalThis, "fetch").resolves(
+      new Response(
+        JSON.stringify({
+          tags: [
+            { name: "Q29udGVudC1UeXBl", value: "YXBwbGljYXRpb24vanNvbg" },
+            { name: "QXBwLU5hbWU", value: "YWNyb3NzLXByb3RvY29s" },
+            { name: "VG9waWM", value: "dGVzdC10b3BpYw" },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    );
+
+    const metadata = await client.getMetadata("test-tx-id");
+
+    expect(fetchStub.calledOnce).to.be.true;
+    expect(fetchStub.firstCall.args[0]).to.equal(`${LOCAL_ARWEAVE_URL}/tx/test-tx-id`);
+    expect(metadata).to.deep.equal({
+      contentType: "application/json",
+      appName: "across-protocol",
+      topic: "test-topic",
+    });
+  });
+
   it("should retrieve the data by the topic tag", async () => {
     const value = { test: "value" };
     const topicTag = "test-topic-for-get-by-topic";
