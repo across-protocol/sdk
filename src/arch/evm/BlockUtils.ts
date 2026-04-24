@@ -35,6 +35,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
   [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.OPTIMISM]: { average: 2, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.MEGAETH]: { average: 1, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.TRON]: { average: 3, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.UNICHAIN]: { average: 1, timestamp: now, blockRange: 1 },
 };
 
