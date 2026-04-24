@@ -256,7 +256,7 @@ export class ArweaveClient {
         topicTag
       );
     } catch (error) {
-      this.logger.error({
+      this.logger.warn({
         at: "ArweaveClient:set",
         message: "Failed to persist data to Arweave after exhausting all gateways",
         topicTag,

@@ -482,9 +482,9 @@ describe("ArweaveClient", () => {
 
     await assertPromiseError(client.set({ test: "value" }, "topic-c"), "All Arweave gateways failed for set");
 
-    const errorLogs = spy.getCalls().filter((call) => call.lastArg.level === "error");
-    expect(errorLogs).to.have.lengthOf(1);
-    expect(errorLogs[0].lastArg.at).to.equal("ArweaveClient:set");
+    const warnLogs = spy.getCalls().filter((call) => call.lastArg.level === "warn");
+    expect(warnLogs).to.have.lengthOf(1);
+    expect(warnLogs[0].lastArg.at).to.equal("ArweaveClient:set");
   });
 
   after(async () => {
