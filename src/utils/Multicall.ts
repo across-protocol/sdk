@@ -29,6 +29,7 @@ const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
 // @notice Multicall3 is an OP stack preinstall, so don't specify it here.
 const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.ARBITRUM,
+  CHAIN_IDs.AVALANCHE,
   CHAIN_IDs.BSC,
   CHAIN_IDs.HYPEREVM,
   CHAIN_IDs.LINEA,
