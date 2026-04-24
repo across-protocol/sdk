@@ -175,6 +175,7 @@ export function chainIsOFTEnabled(chainId: number): boolean {
   // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
   const oftEnabled = [
     CHAIN_IDs.ARBITRUM,
+    CHAIN_IDs.AVALANCHE, // @TODO: Should we add this here?
     CHAIN_IDs.HYPEREVM,
     CHAIN_IDs.INK,
     CHAIN_IDs.MEGAETH,
