@@ -99,9 +99,7 @@ export class ArweaveClient {
    */
   private async _raceGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>, topicTag?: string): Promise<T> {
     try {
-      return await Promise.any(
-        this.gateways.map((gw) => this._retryRequest(() => fn(gw), 0, label, gw.url, topicTag))
-      );
+      return await Promise.any(this.gateways.map((gw) => this._retryRequest(() => fn(gw), 0, label, gw.url, topicTag)));
     } catch (e) {
       if (e instanceof AggregateError) {
         const details = this.gateways.map((gw, i) => `${gw.url}: ${e.errors[i]}`).join("; ");
@@ -214,46 +212,46 @@ export class ArweaveClient {
             try {
               createdTransaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
             } catch (error) {
-            throw this._wrapWriteError(error, "createTransaction", url);
+              throw this._wrapWriteError(error, "createTransaction", url);
+            }
+
+            createdTransaction.addTag("Content-Type", "application/json");
+            createdTransaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+            createdTransaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+            if (isDefined(topicTag)) {
+              createdTransaction.addTag("Topic", topicTag);
+            }
+
+            try {
+              await client.transactions.sign(createdTransaction, this.arweaveJWT);
+            } catch (error) {
+              throw this._wrapWriteError(error, "sign", url);
+            }
+
+            signedTransaction = createdTransaction;
           }
 
-          createdTransaction.addTag("Content-Type", "application/json");
-          createdTransaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-          createdTransaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-          if (isDefined(topicTag)) {
-            createdTransaction.addTag("Topic", topicTag);
-          }
-
+          let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
           try {
-            await client.transactions.sign(createdTransaction, this.arweaveJWT);
+            result = await client.transactions.post(signedTransaction);
           } catch (error) {
-            throw this._wrapWriteError(error, "sign", url);
+            throw this._wrapWriteError(error, "post", url);
           }
 
-          signedTransaction = createdTransaction;
-        }
+          if (result.status !== 200) {
+            const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
+            throw new ArweaveWriteError(message, "post", url, result.status);
+          }
 
-        let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
-        try {
-          result = await client.transactions.post(signedTransaction);
-        } catch (error) {
-          throw this._wrapWriteError(error, "post", url);
-        }
-
-        if (result.status !== 200) {
-          const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
-          throw new ArweaveWriteError(message, "post", url, result.status);
-        }
-
-        this.logger.debug({
-          at: "ArweaveClient:set",
-          message: `Arweave transaction posted with ${signedTransaction.id}`,
-          gateway: url,
-          attempt,
-          phase: "post",
-          txn: signedTransaction.id,
-        });
-        return signedTransaction.id;
+          this.logger.debug({
+            at: "ArweaveClient:set",
+            message: `Arweave transaction posted with ${signedTransaction.id}`,
+            gateway: url,
+            attempt,
+            phase: "post",
+            txn: signedTransaction.id,
+          });
+          return signedTransaction.id;
         },
         topicTag
       );
