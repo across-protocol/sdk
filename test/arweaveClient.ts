@@ -5,10 +5,11 @@ import { expect } from "chai";
 import { object, string } from "superstruct";
 import winston from "winston";
 import sinon from "sinon";
-import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching";
+import { ArweaveClient, ArweaveGatewayConfig } from "../src/caching/Arweave";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
-import { HttpError, fetchWithTimeout, toBN } from "../src/utils";
-import { assertPromiseError, createSpyLogger } from "./utils";
+import { toBN } from "../src/utils/BigNumberUtils";
+import { HttpError, fetchWithTimeout } from "../src/utils/FetchUtils";
+import { SpyTransport } from "./utils/SpyTransport";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_GATEWAY: ArweaveGatewayConfig = {
@@ -40,6 +41,33 @@ function setStubGateways(client: ArweaveClient, gateways: StubGateway[]): void {
     configurable: true,
     value: gateways,
   });
+}
+
+async function assertPromiseError<T>(promise: Promise<T>, errMessage?: string): Promise<void> {
+  const specialErrorMessage = "Promise didn't fail";
+  try {
+    await promise;
+    throw new Error(specialErrorMessage);
+  } catch (e: unknown) {
+    const err = e as Error;
+    if (err.message.includes(specialErrorMessage)) {
+      throw err;
+    }
+    if (errMessage) {
+      expect(err.message).to.include(errMessage);
+    }
+  }
+}
+
+function createSpyLogger(): { spy: sinon.SinonSpy; spyLogger: winston.Logger } {
+  const spy = sinon.spy();
+  const spyLogger = winston.createLogger({
+    level: "debug",
+    format: winston.format.json(),
+    transports: [new SpyTransport({ level: "debug" }, { spy })],
+  });
+
+  return { spy, spyLogger };
 }
 
 describe("ArweaveClient", () => {
@@ -311,6 +339,49 @@ describe("ArweaveClient", () => {
     expect(postSecond.calledOnce).to.be.true;
   });
 
+  it("should include retry context when retrying a write on the same gateway", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY], 1, 0);
+    const createTransaction = sinon.stub().resolves({
+      id: "tx-retry-context",
+      addTag: sinon.stub(),
+    });
+    const sign = sinon.stub().resolves();
+    const post = sinon.stub();
+    post.onFirstCall().resolves({ status: 502, statusText: "Bad Gateway" });
+    post.onSecondCall().resolves({ status: 200 });
+
+    setStubGateways(client, [
+      {
+        url: "https://gateway-a",
+        client: {
+          createTransaction,
+          transactions: { sign, post },
+        },
+      },
+    ]);
+
+    const result = await client.set({ test: "value" }, "topic-retry-write");
+
+    const retryLogs = spy
+      .getCalls()
+      .map((call) => call.lastArg)
+      .filter((log) => log.at === "ArweaveClient:retryRequest");
+
+    expect(result).to.equal("tx-retry-context");
+    expect(retryLogs).to.have.lengthOf(1);
+    expect(retryLogs[0]).to.include({
+      label: "set",
+      gateway: "https://gateway-a",
+      topicTag: "topic-retry-write",
+      retryCount: 0,
+      retryAttempt: 1,
+      maxRetries: 1,
+    });
+    expect(retryLogs[0].nextRetryDelaySeconds).to.equal(0);
+    expect(retryLogs[0].error).to.include("Bad Gateway");
+  });
+
   it("should avoid error logs when a later gateway successfully posts the write", async () => {
     const { spy, spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
@@ -355,7 +426,40 @@ describe("ArweaveClient", () => {
     expect(successLog?.lastArg.attempt).to.equal(2);
   });
 
-  it("should emit one terminal warn log when all gateways fail to write", async () => {
+  it("should include retry context when retrying topic reads", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY], 1, 0);
+    const fetchStub = sinon.stub(globalThis, "fetch");
+    fetchStub.onFirstCall().rejects(new Error("fetch failed"));
+    fetchStub.onSecondCall().resolves(
+      new Response(JSON.stringify({ data: { transactions: { edges: [] } } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const result = await client.getByTopic("topic-retry-read", object({ test: string() }));
+
+    const retryLogs = spy
+      .getCalls()
+      .map((call) => call.lastArg)
+      .filter((log) => log.at === "ArweaveClient:retryRequest");
+
+    expect(result).to.deep.equal([]);
+    expect(retryLogs).to.have.lengthOf(1);
+    expect(retryLogs[0]).to.include({
+      label: "getByTopic",
+      gateway: LOCAL_ARWEAVE_URL,
+      topicTag: "topic-retry-read",
+      retryCount: 0,
+      retryAttempt: 1,
+      maxRetries: 1,
+    });
+    expect(retryLogs[0].nextRetryDelaySeconds).to.equal(0);
+    expect(retryLogs[0].error).to.include("fetch failed");
+  });
+
+  it("should emit one terminal error log when all gateways fail to write", async () => {
     const { spy, spyLogger } = createSpyLogger();
     const client = new ArweaveClient(jwk, spyLogger, [LOCAL_ARWEAVE_GATEWAY, LOCAL_ARWEAVE_GATEWAY], 0, 0);
 

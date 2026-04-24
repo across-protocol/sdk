@@ -5,16 +5,11 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import {
-  BigNumber,
-  delay,
-  fetchWithTimeout,
-  isDefined,
-  isHttpError,
-  jsonReplacerWithBigNumbers,
-  postWithTimeout,
-  toBN,
-} from "../../utils";
+import { BigNumber, toBN } from "../../utils/BigNumberUtils";
+import { delay } from "../../utils/common";
+import { fetchWithTimeout, isHttpError, postWithTimeout } from "../../utils/FetchUtils";
+import { jsonReplacerWithBigNumbers } from "../../utils/JSONUtils";
+import { isDefined } from "../../utils/TypeGuards";
 
 export interface ArweaveGatewayConfig {
   host: string;
@@ -102,9 +97,9 @@ export class ArweaveClient {
    * Races a request across all gateways, returning the first successful response.
    * If all gateways fail, throws an error with details from each gateway.
    */
-  private async _raceGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>): Promise<T> {
+  private async _raceGateways<T>(label: string, fn: (gw: Gateway) => Promise<T>, topicTag?: string): Promise<T> {
     try {
-      return await Promise.any(this.gateways.map((gw) => this._retryRequest(() => fn(gw), 0)));
+      return await Promise.any(this.gateways.map((gw) => this._retryRequest(() => fn(gw), 0, label, gw.url, topicTag)));
     } catch (e) {
       if (e instanceof AggregateError) {
         const details = this.gateways.map((gw, i) => `${gw.url}: ${e.errors[i]}`).join("; ");
@@ -118,11 +113,15 @@ export class ArweaveClient {
    * Tries gateways sequentially, returning the first successful response.
    * Used for write operations where we want exactly one successful submission.
    */
-  private async _failoverGateways<T>(label: string, fn: (gw: Gateway, attempt: number) => Promise<T>): Promise<T> {
+  private async _failoverGateways<T>(
+    label: string,
+    fn: (gw: Gateway, attempt: number) => Promise<T>,
+    topicTag?: string
+  ): Promise<T> {
     const errors: Error[] = [];
     for (const [index, gw] of this.gateways.entries()) {
       try {
-        return await this._retryRequest(() => fn(gw, index + 1), 0);
+        return await this._retryRequest(() => fn(gw, index + 1), 0, label, gw.url, topicTag);
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e));
         errors.push(error);
@@ -139,7 +138,13 @@ export class ArweaveClient {
     throw new Error(`All Arweave gateways failed for ${label}: ${details}`);
   }
 
-  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
+  private async _retryRequest<T>(
+    request: () => Promise<T>,
+    retryCount: number,
+    label: string,
+    gateway: string,
+    topicTag?: string
+  ): Promise<T> {
     try {
       return await request();
     } catch (e) {
@@ -149,11 +154,18 @@ export class ArweaveClient {
         const delayS = baseDelay + baseDelay * Math.random();
         this.logger.debug({
           at: "ArweaveClient:retryRequest",
-          message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
+          message: `Arweave request failed, retrying after waiting ${delayS} seconds`,
+          label,
+          gateway,
+          topicTag,
           retryCount,
+          retryAttempt: retryCount + 1,
+          maxRetries: this.retries,
+          nextRetryDelaySeconds: delayS,
+          error: String(e),
         });
         await delay(delayS);
-        return this._retryRequest(request, retryCount + 1);
+        return this._retryRequest(request, retryCount + 1, label, gateway, topicTag);
       } else {
         throw e;
       }
@@ -192,53 +204,57 @@ export class ArweaveClient {
     let signedTransaction: Transaction | undefined;
 
     try {
-      return await this._failoverGateways("set", async ({ client, url }, attempt) => {
-        if (!signedTransaction) {
-          let createdTransaction: Transaction;
+      return await this._failoverGateways(
+        "set",
+        async ({ client, url }, attempt) => {
+          if (!signedTransaction) {
+            let createdTransaction: Transaction;
+            try {
+              createdTransaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
+            } catch (error) {
+              throw this._wrapWriteError(error, "createTransaction", url);
+            }
+
+            createdTransaction.addTag("Content-Type", "application/json");
+            createdTransaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+            createdTransaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
+            if (isDefined(topicTag)) {
+              createdTransaction.addTag("Topic", topicTag);
+            }
+
+            try {
+              await client.transactions.sign(createdTransaction, this.arweaveJWT);
+            } catch (error) {
+              throw this._wrapWriteError(error, "sign", url);
+            }
+
+            signedTransaction = createdTransaction;
+          }
+
+          let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
           try {
-            createdTransaction = await client.createTransaction({ data: payload }, this.arweaveJWT);
+            result = await client.transactions.post(signedTransaction);
           } catch (error) {
-            throw this._wrapWriteError(error, "createTransaction", url);
+            throw this._wrapWriteError(error, "post", url);
           }
 
-          createdTransaction.addTag("Content-Type", "application/json");
-          createdTransaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
-          createdTransaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
-          if (isDefined(topicTag)) {
-            createdTransaction.addTag("Topic", topicTag);
+          if (result.status !== 200) {
+            const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
+            throw new ArweaveWriteError(message, "post", url, result.status);
           }
 
-          try {
-            await client.transactions.sign(createdTransaction, this.arweaveJWT);
-          } catch (error) {
-            throw this._wrapWriteError(error, "sign", url);
-          }
-
-          signedTransaction = createdTransaction;
-        }
-
-        let result: Awaited<ReturnType<Arweave["transactions"]["post"]>>;
-        try {
-          result = await client.transactions.post(signedTransaction);
-        } catch (error) {
-          throw this._wrapWriteError(error, "post", url);
-        }
-
-        if (result.status !== 200) {
-          const message = result?.data?.error?.msg ?? result.statusText ?? `HTTP ${result.status}`;
-          throw new ArweaveWriteError(message, "post", url, result.status);
-        }
-
-        this.logger.debug({
-          at: "ArweaveClient:set",
-          message: `Arweave transaction posted with ${signedTransaction.id}`,
-          gateway: url,
-          attempt,
-          phase: "post",
-          txn: signedTransaction.id,
-        });
-        return signedTransaction.id;
-      });
+          this.logger.debug({
+            at: "ArweaveClient:set",
+            message: `Arweave transaction posted with ${signedTransaction.id}`,
+            gateway: url,
+            attempt,
+            phase: "post",
+            txn: signedTransaction.id,
+          });
+          return signedTransaction.id;
+        },
+        topicTag
+      );
     } catch (error) {
       this.logger.warn({
         at: "ArweaveClient:set",
@@ -307,9 +323,13 @@ export class ArweaveClient {
       ) { edges { node { id } } }
     }`;
 
-    const response = await this._raceGateways("getByTopic", async ({ url }) => {
-      return await postWithTimeout<GraphQLTransactionsResponse>(`${url}/graphql`, { query }, {}, {}, 20_000);
-    });
+    const response = await this._raceGateways(
+      "getByTopic",
+      async ({ url }) => {
+        return await postWithTimeout<GraphQLTransactionsResponse>(`${url}/graphql`, { query }, {}, {}, 20_000);
+      },
+      tag
+    );
 
     const entries = response?.data?.transactions?.edges ?? [];
     this.logger.debug({
