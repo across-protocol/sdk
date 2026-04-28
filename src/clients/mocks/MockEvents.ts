@@ -88,4 +88,3 @@ export class EventManager {
     return generatedEvent;
   }
 }
-
