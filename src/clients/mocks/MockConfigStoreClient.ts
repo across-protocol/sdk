@@ -6,7 +6,6 @@ import {
   getCurrentTime,
   EventSearchConfig,
   MakeOptional,
-  isDefined,
   utf8ToHex,
   spreadEventWithBlockNumber,
 } from "../../utils";
@@ -16,7 +15,8 @@ import {
   DEFAULT_CONFIG_STORE_VERSION,
   GLOBAL_CONFIG_STORE_KEYS,
 } from "../AcrossConfigStoreClient";
-import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
+import { CHAIN_IDs } from "../../constants";
+import { EventManager, EventOverrides } from "./MockEvents";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
@@ -35,17 +35,21 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     configStore: Contract,
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     configStoreVersion: number,
-    chainId = 1,
+    chainId = CHAIN_IDs.MAINNET,
     mockUpdate = false,
-    availableChainIdsOverride?: number[]
+    availableChainIdsOverride?: number[],
+    opts: { eventManager?: EventManager } = {}
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.chainId = chainId;
-    this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
-    if (isDefined(this.eventManager) && this.eventManager) {
+    if (mockUpdate) {
+      this.eventManager = opts.eventManager ?? new EventManager();
+      this.eventManager.addEventSignatures(this.eventSignatures);
       this.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES, JSON.stringify(availableChainIdsOverride), {
         blockNumber: this.eventManager.blockNumber,
       });
+    } else {
+      this.eventManager = null;
     }
   }
 

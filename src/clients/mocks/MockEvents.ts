@@ -20,8 +20,6 @@ type EthersEventTemplate = {
   transactionIndex?: number;
 };
 
-const eventManagers: { [chainId: number]: EventManager } = {};
-
 export class EventManager {
   private logIndexes: Record<string, number> = {};
   public events: Log[] = [];
@@ -49,8 +47,8 @@ export class EventManager {
     return events;
   }
 
-  // Reset internal state. Lets a chain-keyed singleton be reused across test
-  // contexts that begin at different block numbers.
+  // Reset internal state. Useful when a long-lived EventManager instance is
+  // reused across test contexts that begin at different block numbers.
   reset(blockNumber = 0): void {
     this.blockNumber = blockNumber;
     this.logIndexes = {};
@@ -91,24 +89,3 @@ export class EventManager {
   }
 }
 
-/**
- * @description Retrieve an instance of the EventManager for a specific chain, or instantiate a new one.
- * @param chainId Chain ID to retrieve EventManager for.
- * @param eventSignatures Event Signatures to append to EventManager instance.
- * @param Initial blockNumber to use if a new EventManager is instantiated.
- * @returns EventManager instance for chain ID.
- */
-export function getEventManager(
-  chainId: number,
-  eventSignatures?: Record<string, string>,
-  blockNumber?: number
-): EventManager {
-  if (!isDefined(eventManagers[chainId])) {
-    eventManagers[chainId] = new EventManager(blockNumber);
-  }
-  const eventManager = eventManagers[chainId];
-  if (isDefined(eventSignatures)) {
-    eventManager.addEventSignatures(eventSignatures);
-  }
-  return eventManager;
-}

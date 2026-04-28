@@ -4,8 +4,8 @@ import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Ad
 import { Log, PendingRootBundle, RealizedLpFee, L1TokenInfo } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
-import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
-import { ZERO_ADDRESS } from "../../constants";
+import { EventManager, EventOverrides } from "./MockEvents";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 
 const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
@@ -34,10 +34,12 @@ export class MockHubPoolClient extends HubPoolClient {
     hubPool: Contract,
     configStoreClient: ConfigStoreClient,
     deploymentBlock = 0,
-    chainId = 1
+    chainId = CHAIN_IDs.MAINNET,
+    opts: { eventManager?: EventManager } = {}
   ) {
     super(logger, hubPool, configStoreClient, deploymentBlock, chainId);
-    this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+    this.eventManager = opts.eventManager ?? new EventManager(deploymentBlock);
+    this.eventManager.addEventSignatures(this.eventSignatures);
   }
 
   setDefaultRealizedLpFeePct(fee: BigNumber): void {
