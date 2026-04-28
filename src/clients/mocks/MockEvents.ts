@@ -49,6 +49,14 @@ export class EventManager {
     return events;
   }
 
+  // Reset internal state. Lets a chain-keyed singleton be reused across test
+  // contexts that begin at different block numbers.
+  reset(blockNumber = 0): void {
+    this.blockNumber = blockNumber;
+    this.logIndexes = {};
+    this.events = [];
+  }
+
   generateEvent(inputs: EthersEventTemplate): Log {
     const { address, event, topics, data, args } = inputs;
     let { blockNumber, transactionIndex } = inputs;
