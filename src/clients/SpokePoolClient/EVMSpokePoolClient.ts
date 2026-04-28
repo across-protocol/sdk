@@ -20,7 +20,6 @@ import {
   getNetworkName,
   InvalidFill,
   MakeOptional,
-  toBN,
   EvmAddress,
   unpackDepositEvent,
   chainIsTvm,
@@ -86,38 +85,17 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
   /**
    * Retrieve the on-chain time at a specific block.
-   * EVM reads SpokePool.getCurrentTime() via multicall with a historical blockTag.
+   * Reads the block timestamp, which is well-supported for historical queries on both EVM and TVM.
    * @param blockNumber The block number to query.
    * @returns The on-chain time as a number.
    */
   protected async _getCurrentTime(blockNumber: number): Promise<number> {
-    if (this.tvm) {
-      const block = await this.spokePool.provider.getBlock(blockNumber);
-      const currentTime = block.timestamp;
-      if (currentTime < this.currentTime) {
-        throw new Error(`EVMSpokePoolClient::_getCurrentTimeTvm: currentTime: ${currentTime} < ${this.currentTime}`);
-      }
-      return currentTime;
+    const block = await this.spokePool.provider.getBlock(blockNumber);
+    const currentTime = block.timestamp;
+    if (currentTime < this.currentTime) {
+      throw new Error(`EVMSpokePoolClient::_getCurrentTime: currentTime: ${currentTime} < ${this.currentTime}`);
     }
-    const { spokePool } = this;
-    const multicallFunctions = ["getCurrentTime"];
-    const multicallOutput = await spokePool.callStatic.multicall(
-      multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-      { blockTag: blockNumber }
-    );
-
-    const [currentTime] = multicallFunctions.map(
-      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
-    );
-
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
-    }
-
-    return currentTime.toNumber();
+    return currentTime;
   }
 
   protected override async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
