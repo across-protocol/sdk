@@ -33,7 +33,7 @@ import {
 } from "../../utils";
 import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
-import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
+import { EventManager, EventOverrides } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 // This class replaces internal SpokePoolClient functionality, enabling
@@ -50,11 +50,12 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     spokePool: Contract,
     chainId: number,
     deploymentBlock: number,
-    opts: { hubPoolClient: HubPoolClient | null } = { hubPoolClient: null }
+    opts: { hubPoolClient?: HubPoolClient | null; eventManager?: EventManager } = {}
   ) {
-    super(logger, spokePool, opts.hubPoolClient, chainId, deploymentBlock);
+    super(logger, spokePool, opts.hubPoolClient ?? null, chainId, deploymentBlock);
     this.latestHeightSearched = deploymentBlock;
-    this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+    this.eventManager = opts.eventManager ?? new EventManager(deploymentBlock);
+    this.eventManager.addEventSignatures(this.eventSignatures);
   }
 
   setConfigStoreClient(configStore?: AcrossConfigStoreClient): void {
