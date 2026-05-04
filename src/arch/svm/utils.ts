@@ -179,10 +179,35 @@ export function getEventName(rawName: string): EventName {
 }
 
 /**
- * Unwraps any data structure and converts Address types to strings and Uint8Array to hex or BigInt.
- * Recursively processes nested objects and arrays.
+ * Type guard for the shape returned at the top level by `unwrapEventDataInner` — a non-null,
+ * non-array object suitable for use as an event data record.
  */
-export function unwrapEventData(
+function isUnwrappedRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Top-level entry point for unwrapping SVM event data. Asserts at runtime that the unwrapped value
+ * is a record — the expected shape for an event data struct — and returns it as `T`. The runtime
+ * check proves record-shape; the caller's type argument names the specific shape (e.g. `Deposit`
+ * with stringified addresses). The cast is encapsulated here so call sites stay assertion-free.
+ */
+export function unwrapEventData<T = Record<string, unknown>>(
+  data: unknown,
+  uint8ArrayKeysAsBigInt?: string[]
+): T {
+  const result = unwrapEventDataInner(data, uint8ArrayKeysAsBigInt);
+  if (!isUnwrappedRecord(result)) {
+    throw new Error("unwrapEventData: top-level event data must unwrap to a non-null, non-array object");
+  }
+  return result as T;
+}
+
+/**
+ * Recursive helper. Unwraps any data structure, converting Address types to strings and Uint8Array
+ * to hex or BigInt. Returns `unknown` since intermediate values may be primitives, arrays, or scalars.
+ */
+function unwrapEventDataInner(
   data: unknown,
   uint8ArrayKeysAsBigInt: string[] = ["depositId", "outputAmount", "inputAmount"],
   currentKey?: string
@@ -210,7 +235,7 @@ export function unwrapEventData(
   }
   // Handle regular arrays (non-byte arrays)
   if (Array.isArray(data)) {
-    return data.map((item) => unwrapEventData(item, uint8ArrayKeysAsBigInt));
+    return data.map((item) => unwrapEventDataInner(item, uint8ArrayKeysAsBigInt));
   }
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
@@ -241,7 +266,7 @@ export function unwrapEventData(
     return Object.fromEntries(
       Object.entries(data as Record<string, unknown>).map(([key, value]) => [
         key,
-        unwrapEventData(value, uint8ArrayKeysAsBigInt, key),
+        unwrapEventDataInner(value, uint8ArrayKeysAsBigInt, key),
       ])
     );
   }
