@@ -49,7 +49,9 @@ describe("gasPriceOracle/adapters/solana#messageFee", () => {
   beforeEach(() => {
     getFeeForMessage = sinon.stub();
     getRecentPrioritizationFees = sinon.stub().returns(rpcCall([]));
-    getLatestBlockhash = sinon.stub();
+    getLatestBlockhash = sinon.stub().returns(
+      rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } })
+    );
 
     provider = {
       getFeeForMessage,
@@ -63,37 +65,35 @@ describe("gasPriceOracle/adapters/solana#messageFee", () => {
     } as unknown as GasPriceEstimateOptions;
   });
 
-  it("returns the base fee on the happy path (no retry)", async () => {
+  it("returns the base fee on the happy path (one confirmed refresh, no retry)", async () => {
     getFeeForMessage.returns(rpcCall({ value: 5000n }));
 
     const result = await messageFee(provider, opts);
 
     expect(result.baseFee.toString()).to.equal("5000");
     expect(getFeeForMessage.callCount).to.equal(1);
-    expect(getLatestBlockhash.callCount).to.equal(0);
+    // We always refresh to confirmed before the first call so the fee request lands
+    // on a blockhash that has already propagated to the rest of the cluster.
+    expect(getLatestBlockhash.callCount).to.equal(1);
+    expect(getLatestBlockhash.firstCall.args[0]).to.deep.equal({ commitment: "confirmed" });
   });
 
-  it("retries once with a confirmed blockhash when the first call returns null", async () => {
+  it("retries with another confirmed blockhash when the first call returns null", async () => {
     getFeeForMessage.onFirstCall().returns(rpcCall({ value: null }));
     getFeeForMessage.onSecondCall().returns(rpcCall({ value: 5000n }));
-    getLatestBlockhash.returns(
-      rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } })
-    );
 
     const result = await messageFee(provider, opts);
 
     expect(result.baseFee.toString()).to.equal("5000");
     expect(getFeeForMessage.callCount).to.equal(2);
-    expect(getLatestBlockhash.callCount).to.equal(1);
-    // Crucial: refresh must use commitment:"confirmed" — the whole point of the retry.
+    expect(getLatestBlockhash.callCount).to.equal(2);
+    // Both refreshes must be `confirmed` — retrying with `processed` defeats the point.
     expect(getLatestBlockhash.firstCall.args[0]).to.deep.equal({ commitment: "confirmed" });
+    expect(getLatestBlockhash.secondCall.args[0]).to.deep.equal({ commitment: "confirmed" });
   });
 
-  it("throws SvmGasPriceUnavailableError when the retry also returns null", async () => {
+  it("throws SvmGasPriceUnavailableError when both attempts return null", async () => {
     getFeeForMessage.returns(rpcCall({ value: null }));
-    getLatestBlockhash.returns(
-      rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } })
-    );
 
     let caught: unknown;
     try {
@@ -106,15 +106,12 @@ describe("gasPriceOracle/adapters/solana#messageFee", () => {
     expect(getFeeForMessage.callCount).to.equal(2);
   });
 
-  it("doesn't retry on the residual third call — exactly one retry", async () => {
+  it("makes at most two getFeeForMessage attempts — never a third", async () => {
     getFeeForMessage.returns(rpcCall({ value: null }));
-    getLatestBlockhash.returns(
-      rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } })
-    );
 
     await messageFee(provider, opts).catch(() => undefined);
     expect(getFeeForMessage.callCount).to.equal(2);
-    expect(getLatestBlockhash.callCount).to.equal(1);
+    expect(getLatestBlockhash.callCount).to.equal(2);
   });
 
   it("computes microLamportsPerComputeUnit as the average of nonzero recent priority fees", async () => {

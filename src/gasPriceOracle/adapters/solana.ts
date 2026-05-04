@@ -1,5 +1,5 @@
 import { SVMProvider } from "../../arch/svm";
-import { toBN, dedupArray } from "../../utils";
+import { BN, toBN, dedupArray } from "../../utils";
 import { SvmGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
 import { SvmGasPriceUnavailableError } from "../errors";
@@ -11,6 +11,8 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
 } from "@solana/kit";
 
+const MAX_BASE_FEE_ATTEMPTS = 2;
+
 /**
  * @notice Returns result of getFeeForMessage and getRecentPrioritizationFees RPC calls.
  * @returns GasPriceEstimate
@@ -21,20 +23,7 @@ export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOp
   // Cast the opaque unsignedTx type to a solana-kit TransactionMessage with fee payer.
   const unsignedTx = _unsignedTx as TransactionMessage & TransactionMessageWithFeePayer;
 
-  // Get this base fee. This should result in LAMPORTS_PER_SIGNATURE * nSignatures.
-  let baseFeeResponse = await getFeeForCompiledMessage(provider, unsignedTx);
-
-  // `getFeeForMessage` returns `{ value: null }` when the cluster has not yet recognised
-  // the blockhash referenced by the message. With a load-balanced RPC pool, this happens
-  // when the request lands on a node that hasn't seen the blockhash returned by the
-  // earlier `getLatestBlockhash` call. Refresh with a `confirmed` blockhash — by
-  // definition propagated to all healthy nodes — and retry once. Fee estimation is never
-  // sent on-chain, so there's no downside to using a slightly older blockhash.
-  if (baseFeeResponse?.value == null) {
-    const { value: confirmedBlockhash } = await provider.getLatestBlockhash({ commitment: "confirmed" }).send();
-    const refreshedTx = setTransactionMessageLifetimeUsingBlockhash(confirmedBlockhash, unsignedTx);
-    baseFeeResponse = await getFeeForCompiledMessage(provider, refreshedTx);
-  }
+  const baseFee = await getBaseFee(provider, unsignedTx);
 
   // Get the priority fee by calling `getRecentPrioritzationFees` on all the addresses in the transaction's instruction array.
   const instructionAddresses = dedupArray(unsignedTx.instructions.map((instruction) => instruction.programAddress));
@@ -51,26 +40,31 @@ export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOp
     totalPrioritizationFees / BigInt(Math.max(nonzeroPrioritizationFees.length, 1))
   );
 
-  // Even after the retry above, `value` can be null (e.g. genuinely malformed message,
-  // RPC outage). Throw a typed error so callers can map this to a transient upstream
-  // failure (5xx) rather than crashing on `toBN(null)`.
-  if (baseFeeResponse?.value == null) {
-    throw new SvmGasPriceUnavailableError(
-      "Solana getFeeForMessage returned null after refreshing the blockhash to a confirmed one"
-    );
-  }
-
-  return {
-    baseFee: toBN(baseFeeResponse.value),
-    microLamportsPerComputeUnit,
-  };
+  return { baseFee, microLamportsPerComputeUnit };
 }
 
-function getFeeForCompiledMessage(
+// `getFeeForMessage` returns `{ value: null }` when the cluster has not yet recognised
+// the blockhash referenced by the message. With a load-balanced RPC pool, this happens
+// when the request lands on a node that hasn't seen the blockhash from an earlier
+// `getLatestBlockhash` call. We side-step the race by always refreshing to a `confirmed`
+// blockhash before each attempt — by definition propagated to all healthy nodes — and
+// retrying once if a fee call still comes back null. Fee estimation is never sent
+// on-chain, so blockhash freshness doesn't matter.
+async function getBaseFee(
   provider: SVMProvider,
   tx: TransactionMessage & TransactionMessageWithFeePayer
-): Promise<Awaited<ReturnType<ReturnType<SVMProvider["getFeeForMessage"]>["send"]>>> {
-  const compiled = compileTransaction(tx);
-  const encoded = Buffer.from(compiled.messageBytes).toString("base64") as TransactionMessageBytesBase64;
-  return provider.getFeeForMessage(encoded).send();
+): Promise<BN> {
+  for (let attempt = 0; attempt < MAX_BASE_FEE_ATTEMPTS; attempt++) {
+    const { value: confirmedBlockhash } = await provider.getLatestBlockhash({ commitment: "confirmed" }).send();
+    const refreshedTx = setTransactionMessageLifetimeUsingBlockhash(confirmedBlockhash, tx);
+    const compiled = compileTransaction(refreshedTx);
+    const encoded = Buffer.from(compiled.messageBytes).toString("base64") as TransactionMessageBytesBase64;
+    const { value } = await provider.getFeeForMessage(encoded).send();
+    if (value !== null && value !== undefined) {
+      return toBN(value);
+    }
+  }
+  throw new SvmGasPriceUnavailableError(
+    "Solana getFeeForMessage returned null even after retrying with a confirmed blockhash"
+  );
 }
