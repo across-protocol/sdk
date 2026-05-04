@@ -192,10 +192,7 @@ function isUnwrappedRecord(value: unknown): value is Record<string, unknown> {
  * check proves record-shape; the caller's type argument names the specific shape (e.g. `Deposit`
  * with stringified addresses). The cast is encapsulated here so call sites stay assertion-free.
  */
-export function unwrapEventData<T = Record<string, unknown>>(
-  data: unknown,
-  uint8ArrayKeysAsBigInt?: string[]
-): T {
+export function unwrapEventData<T = Record<string, unknown>>(data: unknown, uint8ArrayKeysAsBigInt?: string[]): T {
   const result = unwrapEventDataInner(data, uint8ArrayKeysAsBigInt);
   if (!isUnwrappedRecord(result)) {
     throw new Error("unwrapEventData: top-level event data must unwrap to a non-null, non-array object");
