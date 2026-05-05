@@ -8,6 +8,7 @@ import {
   Fill,
   RelayData,
   SlowFillRequest,
+  SpeedUpCommon,
   ConvertedRelayData,
   ConvertedFill,
 } from "../interfaces";
@@ -244,10 +245,16 @@ export function isFillOrSlowFillRequestMessageEmpty(message: string): boolean {
 /**
  * Determines if a deposit was updated via a speed-up transaction.
  * @param deposit Deposit to evaluate.
- * @returns True if the deposit was updated, otherwise false.
+ * @returns True if the deposit was updated, otherwise false. Narrows the deposit type so callers
+ *          can safely access updatedRecipient/updatedOutputAmount/updatedMessage/speedUpSignature.
  */
-export function isDepositSpedUp(deposit: Deposit): boolean {
-  return isDefined(deposit.speedUpSignature) && isDefined(deposit.updatedOutputAmount);
+export function isDepositSpedUp(deposit: Deposit): deposit is Deposit & SpeedUpCommon & { speedUpSignature: string } {
+  return (
+    isDefined(deposit.speedUpSignature) &&
+    isDefined(deposit.updatedOutputAmount) &&
+    isDefined(deposit.updatedRecipient) &&
+    isDefined(deposit.updatedMessage)
+  );
 }
 
 /**
