@@ -758,10 +758,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (duplicateEvents.length > 0) {
-      this.log("debug", "Duplicate events listed", {
-        duplicateEvents,
-      });
-      this.log("error", "Duplicate events detected, check debug logs");
+      this.log("debug", "Duplicate events detected.", { duplicateEvents });
     }
 
     // Next iteration should start off from where this one ended.
