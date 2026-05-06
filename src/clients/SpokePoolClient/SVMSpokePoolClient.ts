@@ -155,11 +155,11 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         );
         return events.map(
           (event): SortableEvent => ({
+            ...unwrapEventData(event.data),
             txnRef: event.signature,
             blockNumber: Number(event.slot),
             txnIndex: 0,
             logIndex: 0,
-            ...(unwrapEventData(event.data) as Record<string, unknown>),
           })
         );
       }),

@@ -501,7 +501,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this._queryableEventNames()): Promise<void> {
-    const duplicateEvents: SortableEvent[] = [];
+    const duplicateEvents: { incoming: SortableEvent; existing: SortableEvent }[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -552,8 +552,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
           // Sanity check that this event is not a duplicate, even though the relay data hash is a duplicate.
           const allDeposits = this._getDuplicateDeposits(deposit).concat(this.depositHashes[getRelayEventKey(deposit)]);
-          if (allDeposits.some((e) => duplicateEvent(deposit, e))) {
-            duplicateEvents.push(event);
+          const existing = allDeposits.find((e) => duplicateEvent(deposit, e));
+          if (existing !== undefined) {
+            duplicateEvents.push({ incoming: deposit, existing });
             continue;
           }
           assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
@@ -650,8 +651,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const depositHash = getRelayEventKey(slowFillRequest);
 
         // Sanity check that this event is not a duplicate.
-        if (this.slowFillRequests[depositHash] !== undefined) {
-          duplicateEvents.push(slowFillRequest);
+        const existing = this.slowFillRequests[depositHash];
+        if (existing !== undefined) {
+          duplicateEvents.push({ incoming: slowFillRequest, existing });
           continue;
         }
 
@@ -680,9 +682,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const fill of fillEvents) {
         // Sanity check that this event is not a duplicate.
-        const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
-        if (duplicateFill) {
-          duplicateEvents.push(fill);
+        const existing = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
+        if (existing !== undefined) {
+          duplicateEvents.push({ incoming: fill, existing });
           continue;
         }
 
@@ -756,10 +758,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (duplicateEvents.length > 0) {
-      this.log("debug", "Duplicate events listed", {
-        duplicateEvents,
-      });
-      this.log("error", "Duplicate events detected, check debug logs");
+      this.log("debug", "Duplicate events detected.", { duplicateEvents });
     }
 
     // Next iteration should start off from where this one ended.
