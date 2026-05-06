@@ -49,9 +49,9 @@ describe("gasPriceOracle/adapters/solana#messageFee", () => {
   beforeEach(() => {
     getFeeForMessage = sinon.stub();
     getRecentPrioritizationFees = sinon.stub().returns(rpcCall([]));
-    getLatestBlockhash = sinon.stub().returns(
-      rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } })
-    );
+    getLatestBlockhash = sinon
+      .stub()
+      .returns(rpcCall({ value: { blockhash: FRESH_BLOCKHASH as Blockhash, lastValidBlockHeight: 0n } }));
 
     provider = {
       getFeeForMessage,

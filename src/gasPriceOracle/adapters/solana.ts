@@ -50,10 +50,7 @@ export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOp
 // blockhash before each attempt — by definition propagated to all healthy nodes — and
 // retrying once if a fee call still comes back null. Fee estimation is never sent
 // on-chain, so blockhash freshness doesn't matter.
-async function getBaseFee(
-  provider: SVMProvider,
-  tx: TransactionMessage & TransactionMessageWithFeePayer
-): Promise<BN> {
+async function getBaseFee(provider: SVMProvider, tx: TransactionMessage & TransactionMessageWithFeePayer): Promise<BN> {
   for (let attempt = 0; attempt < MAX_BASE_FEE_ATTEMPTS; attempt++) {
     const { value: confirmedBlockhash } = await provider.getLatestBlockhash({ commitment: "confirmed" }).send();
     const refreshedTx = setTransactionMessageLifetimeUsingBlockhash(confirmedBlockhash, tx);
