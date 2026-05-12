@@ -75,11 +75,11 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
     const eventsWithBlockNumber = events.map((eventList) =>
       eventList.map((event) => {
         return {
+          ...unwrapEventData(event.data),
           txnRef: event.signature,
           blockNumber: Number(event.slot),
           txnIndex: 0,
           logIndex: 0,
-          ...(unwrapEventData(event.data) as Record<string, unknown>),
         };
       })
     );

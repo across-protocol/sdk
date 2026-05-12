@@ -224,13 +224,15 @@ export function delay(seconds: number) {
  * Attempt to retry a function call a number of times with a delay between each attempt
  * @param call The function to call
  * @param times The number of times to retry
- * @param delayS The number of seconds to delay between each attempt
+ * @param delayS The minimum number of seconds to delay between each attempt
+ * @dev Any value of delayS > 1 will mean retries are attempted with an exponential backoff.
  * @returns The result of the function call.
  */
-export function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
+export function retry<T>(call: () => Promise<T>, times: number, _delayS: number): Promise<T> {
   let promiseChain = call();
   for (let i = 0; i < times; i++)
     promiseChain = promiseChain.catch(async () => {
+      const delayS = _delayS ** i + Math.random();
       await delay(delayS);
       return await call();
     });

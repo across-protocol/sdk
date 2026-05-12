@@ -7,6 +7,7 @@ const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 const endpoints: { [chainId: number]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arb",
   [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb-sepolia",
+  [CHAIN_IDs.AVALANCHE]: "avax",
   [CHAIN_IDs.MAINNET]: "eth",
   [CHAIN_IDs.SEPOLIA]: "eth-sepolia",
   [CHAIN_IDs.OPTIMISM]: "opt",
