@@ -144,6 +144,7 @@
   },
   "resolutions": {
     "**/@solana/codecs": "5.4.0",
-    "**/@solana/codecs-numbers": "5.4.0"
+    "**/@solana/codecs-numbers": "5.4.0",
+    "**/tronweb/axios": "1.16.1"
   }
 }
