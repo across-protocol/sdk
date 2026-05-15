@@ -54,3 +54,7 @@ export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): st
   const relayHash = getRelayEventKey(bridgeEvent);
   return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId.toString()}_${relayHash}`;
 }
+
+export function getArweaveTopicCacheKey(tag: string): string {
+  return `arweave-topic:${tag}`;
+}

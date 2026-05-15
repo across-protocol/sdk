@@ -258,22 +258,15 @@ export class SvmCpiEventsClient {
     }
 
     return depositEvents.map((event) => {
-      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, [
-        "depositId",
-        "outputAmount",
-      ]) as Record<"data", Deposit> &
-        Record<
-          "data",
-          {
-            depositor: string;
-            recipient: string;
-            exclusiveRelayer: string;
-            inputToken: string;
-            outputToken: string;
-          }
-        >;
-
-      const { data } = unwrappedEventArgs;
+      const data = unwrapEventData<
+        Deposit & {
+          depositor: string;
+          recipient: string;
+          exclusiveRelayer: string;
+          inputToken: string;
+          outputToken: string;
+        }
+      >(event.data, ["depositId", "outputAmount"]);
       return {
         ...data,
         depositor: toAddressType(data.depositor, data.originChainId),
@@ -326,22 +319,15 @@ export class SvmCpiEventsClient {
     }
 
     return fillEvents.map((event) => {
-      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>, [
-        "depositId",
-        "inputAmount",
-      ]) as Record<"data", Fill> &
-        Record<
-          "data",
-          {
-            depositor: string;
-            recipient: string;
-            exclusiveRelayer: string;
-            inputToken: string;
-            outputToken: string;
-          }
-        >;
-
-      const { data } = unwrappedEventData;
+      const data = unwrapEventData<
+        Fill & {
+          depositor: string;
+          recipient: string;
+          exclusiveRelayer: string;
+          inputToken: string;
+          outputToken: string;
+        }
+      >(event.data, ["depositId", "inputAmount"]);
       return {
         ...data,
         depositor: toAddressType(data.depositor, data.originChainId),

@@ -1,6 +1,7 @@
 import assert from "assert";
 import { fetchWithTimeout, getCoingeckoTokenIdByAddress, retry } from "../utils";
 import { Logger } from "../relayFeeCalculator";
+import { CoingeckoPriceNotFoundError } from "./CoingeckoErrors";
 
 export function msToS(ms: number) {
   return Math.floor(ms / 1000);
@@ -206,7 +207,9 @@ export class Coingecko {
     const _from = msToS(from);
     const _to = msToS(to);
     const result = await this.call<HistoricPriceChartData>(
-      `coins/ethereum/contract/${contract.toLowerCase()}/market_chart/range/?vs_currency=${currency}&from=${_from}&to=${_to}`
+      `coins/ethereum/contract/${encodeURIComponent(
+        contract.toLowerCase()
+      )}/market_chart/range/?vs_currency=${encodeURIComponent(currency)}&from=${_from}&to=${_to}`
     );
     // fyi timestamps are returned in ms in contrast to the current price endpoint
     if (result.prices) return result.prices;
@@ -230,7 +233,7 @@ export class Coingecko {
     const coingeckoTokenIdentifier = await this.getCoingeckoTokenId(contractAddress, chainId);
     assert(date, "Requires date string");
     // Build the path for the Coingecko API request
-    const url = `coins/${coingeckoTokenIdentifier}/history`;
+    const url = `coins/${encodeURIComponent(coingeckoTokenIdentifier)}/history`;
     // Build the query parameters for the Coingecko API request
     const queryParams = {
       date,
@@ -244,7 +247,9 @@ export class Coingecko {
   }
 
   getContractDetails(contract_address: string, platform_id = "ethereum") {
-    return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
+    return this.call(
+      `coins/${encodeURIComponent(platform_id)}/contract/${encodeURIComponent(contract_address.toLowerCase())}`
+    );
   }
 
   async getCurrentPriceByContract(contractAddress: string, currency = "usd", chainId = 1): Promise<[string, number]> {
@@ -256,7 +261,9 @@ export class Coingecko {
       tokenPrice = priceCache[contractAddress];
     }
 
-    assert(tokenPrice !== undefined);
+    if (tokenPrice === undefined) {
+      throw new CoingeckoPriceNotFoundError({ identifier: contractAddress, currency, lookupType: "address" });
+    }
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
 
@@ -268,22 +275,25 @@ export class Coingecko {
       const coingeckoId = await this.getCoingeckoTokenId(contractAddress, chainId);
       // Build the path for the Coingecko API request
       const result = await this.call<Record<string, CGTokenPrice>>(
-        `simple/price?ids=${coingeckoId}&vs_currencies=${currency}&include_last_updated_at=true`
+        `simple/price?ids=${encodeURIComponent(coingeckoId)}&vs_currencies=${encodeURIComponent(
+          currency
+        )}&include_last_updated_at=true`
       );
       const cgPrice = result?.[coingeckoId];
       if (cgPrice === undefined || !cgPrice?.[currency]) {
-        const errMsg = `No price found for ${coingeckoId}`;
         this.logger.debug({
           at: "Coingecko#getCurrentPriceById",
-          message: errMsg,
+          message: `No Coingecko price found for id '${coingeckoId}' in ${currency}`,
         });
-        throw new Error(errMsg);
+        throw new CoingeckoPriceNotFoundError({ identifier: coingeckoId, currency, lookupType: "id" });
       } else {
         this.updatePriceCache(cgPrice, contractAddress, currency, platform_id);
       }
     }
     tokenPrice = priceCache[contractAddress];
-    assert(tokenPrice !== undefined);
+    if (tokenPrice === undefined) {
+      throw new CoingeckoPriceNotFoundError({ identifier: contractAddress, currency, lookupType: "address" });
+    }
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
 
@@ -291,22 +301,25 @@ export class Coingecko {
     let tokenPrice = this.getCachedSymbolPrice(symbol, currency);
     if (tokenPrice === undefined) {
       const result = await this.call<Record<string, CGTokenPrice>>(
-        `simple/price?symbols=${symbol}&vs_currencies=${currency}&include_last_updated_at=true`
+        `simple/price?symbols=${encodeURIComponent(symbol)}&vs_currencies=${encodeURIComponent(
+          currency
+        )}&include_last_updated_at=true`
       );
       const cgPrice = result?.[symbol.toLowerCase()] || result?.[symbol.toUpperCase()];
       if (cgPrice === undefined || !cgPrice?.[currency]) {
-        const errMsg = `Failed to retrieve ${symbol}/${currency} price via Coingecko API`;
         this.logger.debug({
           at: "Coingecko#getCurrentPriceBySymbol",
-          message: errMsg,
+          message: `No Coingecko price found for symbol '${symbol}' in ${currency}`,
         });
-        throw new Error(errMsg);
+        throw new CoingeckoPriceNotFoundError({ identifier: symbol, currency, lookupType: "symbol" });
       } else {
         this.updatePriceCacheBySymbol(cgPrice, symbol, currency);
       }
     }
     tokenPrice = this.getCachedSymbolPrice(symbol, currency);
-    assert(tokenPrice !== undefined);
+    if (tokenPrice === undefined) {
+      throw new CoingeckoPriceNotFoundError({ identifier: symbol, currency, lookupType: "symbol" });
+    }
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
 
@@ -344,9 +357,9 @@ export class Coingecko {
     try {
       // Coingecko expects a comma-delimited (%2c) list.
       result = await this.call(
-        `simple/token_price/${platform_id}?contract_addresses=${contract_addresses.join(
-          "%2C"
-        )}&vs_currencies=${currency}&include_last_updated_at=true`
+        `simple/token_price/${encodeURIComponent(platform_id)}?contract_addresses=${contract_addresses
+          .map((addr) => encodeURIComponent(addr))
+          .join("%2C")}&vs_currencies=${encodeURIComponent(currency)}&include_last_updated_at=true`
       );
     } catch (err) {
       const errMsg = `Failed to retrieve ${platform_id}/${currency} prices (${err})`;
