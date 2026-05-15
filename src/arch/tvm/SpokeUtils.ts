@@ -2,7 +2,6 @@ import assert from "assert";
 import { Contract, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
 import { FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { get1967Upgrades } from "../evm/UpgradeUtils";
 import { relayFillStatus as evmRelayFillStatus } from "../evm/SpokeUtils";
 import {
   BigNumber,
@@ -32,12 +31,6 @@ export async function getTimeAt(spokePool: Contract, blockNumber: number): Promi
   return block.timestamp;
 }
 
-// Fallback fill deadline buffer (6 hours) used when a contract upgrade is
-// detected in the query range. An upgrade implies fillDeadlineBuffer may
-// have changed and we cannot read historical state on TRON, so we use a
-// conservative upper bound.
-const FALLBACK_FILL_DEADLINE_BUFFER = 21600; // 6 hours in seconds
-
 /**
  * @notice Return the maximum fill deadline buffer across a block range.
  * TRON does not support historical eth_call, so we read the current value.
@@ -47,21 +40,10 @@ const FALLBACK_FILL_DEADLINE_BUFFER = 21600; // 6 hours in seconds
  */
 export async function getMaxFillDeadlineInRange(
   spokePool: Contract,
-  startBlock: number,
-  endBlock: number
+  _startBlock: number,
+  _endBlock: number
 ): Promise<number> {
-  const [fillDeadlineBuffer, upgrades] = await Promise.all([
-    spokePool.fillDeadlineBuffer(),
-    get1967Upgrades(spokePool, startBlock, endBlock),
-  ]);
-
-  const currentBuffer = Number(fillDeadlineBuffer);
-
-  if (upgrades.length > 0) {
-    return Math.max(currentBuffer, FALLBACK_FILL_DEADLINE_BUFFER);
-  }
-
-  return currentBuffer;
+  return await spokePool.fillDeadlineBuffer();
 }
 
 /**
