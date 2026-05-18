@@ -32,11 +32,8 @@ export async function getTimeAt(spokePool: Contract, blockNumber: number): Promi
 }
 
 /**
- * @notice Return the maximum fill deadline buffer across a block range.
- * TRON does not support historical eth_call, so we read the current value.
- * If a contract upgrade (EIP-1967 Upgraded event) occurred within the range,
- * the value may have changed at the upgrade boundary. In that case, return
- * the greater of the current value and a conservative 6-hour fallback.
+ * @notice Return the fill deadline buffer. TRON does not support historical
+ * eth_call so the current value is returned regardless of block range.
  */
 export async function getMaxFillDeadlineInRange(
   spokePool: Contract,

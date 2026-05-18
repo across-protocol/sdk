@@ -421,4 +421,27 @@ describe("HubPoolClient: RootBundle Events", function () {
       /No cross chain contract found before block/
     );
   });
+
+  it("returns activation block for each registered spoke pool address", async function () {
+    const adapter = randomAddress();
+    const spokePool1 = randomAddress();
+    const spokePool2 = randomAddress();
+    const unregistered = randomAddress();
+
+    await hubPool.connect(owner).setCrossChainContracts([11], adapter, spokePool1);
+    const firstUpdateBlockNumber = await hubPool.provider.getBlockNumber();
+    await hre.network.provider.send("evm_mine");
+    await hre.network.provider.send("evm_mine");
+    await hubPool.connect(owner).setCrossChainContracts([11], adapter, spokePool2);
+    const secondUpdateBlockNumber = await hubPool.provider.getBlockNumber();
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    expect(hubPoolClient.getSpokePoolActivationBlock(11, EvmAddress.from(spokePool1))).to.equal(firstUpdateBlockNumber);
+    expect(hubPoolClient.getSpokePoolActivationBlock(11, EvmAddress.from(spokePool2))).to.equal(
+      secondUpdateBlockNumber
+    );
+    expect(hubPoolClient.getSpokePoolActivationBlock(11, EvmAddress.from(unregistered))).to.be.undefined;
+  });
 });
