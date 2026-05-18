@@ -72,7 +72,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     const activationBlock = this.spokePoolAddress
       ? this.hubPoolClient?.getSpokePoolActivationBlock(this.chainId, this.spokePoolAddress)
       : undefined;
-    const effectiveStartBlock = activationBlock !== undefined ? Math.max(startBlock, activationBlock) : startBlock;
+    const effectiveStartBlock = Math.max(startBlock, activationBlock ?? 0);
 
     const maxFillDeadlineInRangeHandler = this.tvm ? getMaxFillDeadlineTvm : getMaxFillDeadline;
     return maxFillDeadlineInRangeHandler(this.spokePool, effectiveStartBlock, endBlock);
