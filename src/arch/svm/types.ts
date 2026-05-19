@@ -1,4 +1,4 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SvmSpokeClient } from "../../svm";
 import {
   Address,
   Rpc,

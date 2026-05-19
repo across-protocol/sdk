@@ -5,7 +5,7 @@ import { hexlify, arrayify, hexZeroPad } from "ethers/lib/utils";
 import { random } from "lodash";
 import { Address, UnixTimestamp, signature } from "@solana/kit";
 import { Idl } from "@coral-xyz/anchor";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SvmSpokeClient } from "../../svm";
 import { CHAIN_IDs } from "@across-protocol/constants";
 
 import { MockSolanaRpcFactory } from "../../providers/mocks";

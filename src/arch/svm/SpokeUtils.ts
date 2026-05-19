@@ -1,6 +1,5 @@
-import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "@across-protocol/contracts";
-import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { decodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "../../svm";
+import { decodeMessageHeader } from "../../svm/web3-v1/cctpHelpers";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -210,7 +209,7 @@ async function _callGetTimestampForSlotWithRetry(
  * @returns fill deadline buffer
  */
 export async function getFillDeadline(provider: SVMProvider, statePda: Address): Promise<number> {
-  const state = await fetchState(provider, statePda);
+  const state = await SvmSpokeClient.fetchState(provider, statePda);
   return state.data.fillDeadlineBuffer;
 }
 
@@ -341,7 +340,7 @@ export async function relayFillStatus(
 
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
-      const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
+      const decodedAccountData = SvmSpokeClient.decodeFillStatusAccount(fillStatusAccount);
       return decodedAccountData.data.status;
     }
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
@@ -1068,7 +1067,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
     // If the PDA exists, we can fetch the status directly.
     if (account.exists) {
-      const decodedAccount = decodeFillStatusAccount(account);
+      const decodedAccount = SvmSpokeClient.decodeFillStatusAccount(account);
       return decodedAccount.data.status;
     }
 

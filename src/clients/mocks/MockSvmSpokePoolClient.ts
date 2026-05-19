@@ -1,5 +1,5 @@
 import winston from "winston";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SvmSpokeClient } from "../../svm";
 import { Address } from "@solana/kit";
 import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../interfaces";
 import {
