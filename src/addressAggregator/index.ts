@@ -27,7 +27,7 @@ export class AddressAggregator {
       const addresses = (await adapter.update())
         .map((address) => {
           const normalized = normalizeAddressString(address);
-          if (normalized === undefined) {
+          if (!normalized) {
             invalidAddresses.push(address);
             return INVALID_ADDRESS;
           }
