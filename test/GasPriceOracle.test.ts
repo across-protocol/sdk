@@ -12,7 +12,7 @@ import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
 const expectedLineaMaxFeePerGas = BigNumber.from("7");
-const legacyChainIds = [324, 534352];
+const legacyChainIds = [324];
 const arbOrbitChainIds = [42161];
 const ethersProviderChainIds = [10, 8453, ...legacyChainIds, ...arbOrbitChainIds];
 const lineaEstimateGasUnsignedTxMultiplier = 2; // Amount that priority fee scales by if unsignedTx has data. Applied
