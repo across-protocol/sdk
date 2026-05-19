@@ -1,4 +1,13 @@
-import { bs58, EvmAddress, SvmAddress, TvmAddress, toAddressType, isValidEvmAddress } from "../src/utils";
+import { TronWeb } from "tronweb";
+import {
+  bs58,
+  EvmAddress,
+  normalizeAddressString,
+  SvmAddress,
+  TvmAddress,
+  toAddressType,
+  isValidEvmAddress,
+} from "../src/utils";
 import { CHAIN_IDs } from "../src/constants";
 import { expect, ethers } from "./utils";
 
@@ -380,5 +389,36 @@ describe("Address Utils: Address Type", function () {
         expect(addr.isZeroAddress()).to.be.false;
       });
     });
+  });
+});
+
+describe("Address Utils: normalizeAddressString", function () {
+  const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
+
+  it("Normalizes EVM addresses to checksummed hex", function () {
+    const evm = EvmAddress.from(randomBytes(20));
+    const lower = evm.toNative().toLowerCase();
+    expect(normalizeAddressString(lower)).to.equal(evm.toNative());
+  });
+
+  it("Normalizes SVM addresses to base58", function () {
+    const svm = SvmAddress.from(randomBytes(32));
+    expect(normalizeAddressString(svm.toNative())).to.equal(svm.toNative());
+  });
+
+  it("Normalizes TVM addresses to TRON base58", function () {
+    const tvm = TvmAddress.from(randomBytes(20));
+    expect(normalizeAddressString(tvm.toNative())).to.equal(tvm.toNative());
+  });
+
+  it("Normalizes TVM hex addresses with the 41 prefix", function () {
+    const tvm = TvmAddress.from(randomBytes(20));
+    const tronHex = TronWeb.address.toHex(tvm.toNative());
+    expect(normalizeAddressString(tronHex)).to.equal(tvm.toNative());
+  });
+
+  it("Returns undefined for malformed addresses", function () {
+    expect(normalizeAddressString("not-an-address")).to.be.undefined;
+    expect(normalizeAddressString("")).to.be.undefined;
   });
 });
