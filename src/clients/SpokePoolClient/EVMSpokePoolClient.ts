@@ -67,12 +67,9 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   }
 
   public override getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    // Clamp startBlock to this SpokePool's activation block; state before
-    // that belongs to a prior contract and is not reachable from this instance.
-    const activationBlock = this.spokePoolAddress
-      ? this.hubPoolClient?.getSpokePoolActivationBlock(this.chainId, this.spokePoolAddress)
-      : undefined;
-    const effectiveStartBlock = Math.max(startBlock, activationBlock ?? 0);
+    // Clamp startBlock to the SpokePool's deployment block; reading state at
+    // an earlier block reverts because the contract did not yet exist.
+    const effectiveStartBlock = Math.max(startBlock, this.deploymentBlock);
 
     const maxFillDeadlineInRangeHandler = this.tvm ? getMaxFillDeadlineTvm : getMaxFillDeadline;
     return maxFillDeadlineInRangeHandler(this.spokePool, effectiveStartBlock, endBlock);

@@ -214,11 +214,7 @@ describe("SpokePoolClient: Find Deposits", function () {
   describe("getMaxFillDeadlineInRange", function () {
     // Without the clamp, the EVM helper would call fillDeadlineBuffer({ blockTag: 0 })
     // against a contract that did not exist yet and revert.
-    it("clamps startBlock to the SpokePool activation block", async function () {
-      // MockHubPoolClient._update bypasses on-chain CrossChainContractsSet
-      // events, so seed the activation block directly.
-      hubPoolClient.setCrossChainContracts(originChainId, spokePool_1.address, spokePool1DeploymentBlock);
-
+    it("clamps startBlock to the SpokePool deployment block", async function () {
       const latestBlock = await spokePool_1.provider.getBlockNumber();
       const expected = Number(await spokePool_1.fillDeadlineBuffer());
 
