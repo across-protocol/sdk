@@ -1,5 +1,4 @@
-import { utils as ethersUtils } from "ethers";
-import { Logger, mapAsync } from "../utils";
+import { Logger, mapAsync, normalizeAddressString } from "../utils";
 import { AddressListAdapter, INVALID_ADDRESS } from "./types";
 import * as adapters from "./adapters";
 
@@ -27,12 +26,12 @@ export class AddressAggregator {
       const invalidAddresses: string[] = [];
       const addresses = (await adapter.update())
         .map((address) => {
-          try {
-            return ethersUtils.getAddress(address.toLowerCase());
-          } catch {
+          const normalized = normalizeAddressString(address);
+          if (!normalized) {
             invalidAddresses.push(address);
             return INVALID_ADDRESS;
           }
+          return normalized;
         })
         .filter((address) => address !== INVALID_ADDRESS);
 
