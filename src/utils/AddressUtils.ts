@@ -80,6 +80,29 @@ export function toEvmAddress(hexString: string): string {
   return utils.getAddress(rawAddress);
 }
 
+/**
+ * Normalizes an address to its canonical native string for the detected family
+ * (checksummed EVM hex, Solana base58, or TRON base58). Returns undefined when
+ * the input is not valid in any supported format.
+ */
+export function normalizeAddressString(address: string): string | undefined {
+  const value = address.trim();
+  if (!value) return undefined;
+
+  try {
+    // TVM base58 (T..., 34 chars).
+    if (value.length === 34 && TronWeb.isAddress(value)) return TvmAddress.from(value).toNative();
+    // TVM hex (41 + 40 hex chars, no 0x prefix) — distinct from EVM (0x + 40 hex chars).
+    if (value.length === 42 && TronWeb.isAddress(value)) return TvmAddress.from(value).toNative();
+    // EVM hex (0x + 40 hex).
+    if (value.length === 42 && isValidEvmAddress(value)) return EvmAddress.from(value).toNative();
+    // SVM base58 or 32-byte hex.
+    return SvmAddress.from(value).toNative();
+  } catch {
+    return undefined;
+  }
+}
+
 export function isValidEvmAddress(address: string): boolean {
   if (isAddress(address)) {
     return true;

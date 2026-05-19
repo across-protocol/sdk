@@ -111,7 +111,6 @@ function getGasPriceEthers(provider: providers.Provider, opts: GasPriceEstimateO
   const gasPriceFeeds = {
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
-    [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.TEMPO]: ethereum.eip1559,
     [CHAIN_IDs.TRON]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,

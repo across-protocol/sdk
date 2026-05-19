@@ -210,4 +210,16 @@ describe("SpokePoolClient: Find Deposits", function () {
       queryFilterStub.restore();
     });
   });
+
+  describe("getMaxFillDeadlineInRange", function () {
+    // Without the clamp, the EVM helper would call fillDeadlineBuffer({ blockTag: 0 })
+    // against a contract that did not exist yet and revert.
+    it("clamps startBlock to the SpokePool deployment block", async function () {
+      const latestBlock = await spokePool_1.provider.getBlockNumber();
+      const expected = Number(await spokePool_1.fillDeadlineBuffer());
+
+      const buffer = await spokePoolClient1.getMaxFillDeadlineInRange(0, latestBlock);
+      expect(buffer).to.equal(expected);
+    });
+  });
 });
