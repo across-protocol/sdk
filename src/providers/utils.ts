@@ -148,6 +148,55 @@ export function createSendErrorWithMessage(message: string, sendError: unknown):
 }
 
 /**
+ * Render a single-line, log-safe summary of a provider error.
+ *
+ * Prefers the parsed JSON-RPC error message (e.g. `execution reverted: …`),
+ * falling back to ethers' short `.reason` and `.code` fields. Avoids
+ * `err.message` / `err.stack` for ethers-shaped errors because, at the
+ * transport layer, they embed the failed RPC URL with its API key.
+ *
+ * The original error remains reachable via `error.cause` on the aggregate
+ * thrown error, so callers that want full forensic detail still have it.
+ */
+export function summarizeProviderError(err: unknown): string {
+  if (err === null || err === undefined) {
+    return "unknown error";
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  if (typeof err !== "object") {
+    return String(err);
+  }
+  const e = err as { error?: unknown; reason?: string; code?: string; message?: string };
+
+  // Ethers may carry the upstream JSON-RPC body either on the top-level error (SERVER_ERROR shape)
+  // or one level down on `err.error`. Surface its `message` if we can parse it.
+  const rpcError = parseJsonRpcError(err) ?? parseJsonRpcError(e.error);
+  if (rpcError?.message) {
+    return rpcError.message;
+  }
+
+  // Ethers populates `.reason` with a short, URL-free description ("processing response error",
+  // "execution reverted", etc.) — safe to surface.
+  if (typeof e.reason === "string" && e.reason.length > 0) {
+    return e.reason;
+  }
+
+  // Non-ethers errors (no `code` / no `reason`) — fall back to `.message`, which is safe here
+  // because there's no transport-layer URL to leak.
+  if (e.code === undefined && typeof e.message === "string" && e.message.length > 0) {
+    return e.message;
+  }
+
+  if (typeof e.code === "string" && e.code.length > 0) {
+    return e.code;
+  }
+
+  return "unknown error";
+}
+
+/**
  * Validate and parse a possible JSON-RPC error response.
  * @param error An unknown error object received in response to a JSON-RPC request.
  * @returns A JSON-RPC error object, or undefined.

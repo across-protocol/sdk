@@ -1,7 +1,7 @@
 import { Logger } from "winston";
 import { RpcFromTransport, RpcResponse, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
 import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
-import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
+import { compareSvmRpcResults, createSendErrorWithMessage, summarizeProviderError } from "../utils";
 import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
 import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { shouldFailImmediate } from "./utils";
@@ -57,9 +57,9 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           .transport<TResponse>(...args)
           .then((result): [SolanaClusterRpcFactory, RpcResponse<TResponse>] => [factory.rpcFactory, result])
           .catch((error) => {
-            // Append the provider and error to the error array.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            errors.push([factory.rpcFactory, (error as any)?.stack || error?.toString()]);
+            // Record a short, log-safe summary. Avoid `error.stack` / `error.toString()` to keep
+            // RPC URLs (and any embedded API keys) out of the aggregate error message and logs.
+            errors.push([factory.rpcFactory, summarizeProviderError(error)]);
 
             // If all fallback providers fail, then return the last received error.
             if (fallbackFactories.length === 0) {
@@ -200,7 +200,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .transport<TResponse>(...args)
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
-              errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
+              errors.push([factory.rpcFactory, summarizeProviderError(err)]);
               throw new Error("Fallback RPC call failed while trying to reach quorum");
             });
         })
