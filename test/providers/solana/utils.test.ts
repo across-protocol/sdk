@@ -76,11 +76,11 @@ describe("formatRpcError", () => {
     expect(formatRpcError(err)).to.equal(`SolanaError [${SVM_SLOT_SKIPPED}]: fallback message`);
   });
 
-  it("falls back to stack/toString for non-Solana errors", () => {
+  it("falls back to a log-safe summary (no stack) for non-Solana errors", () => {
     const networkError = new Error("network down");
-    expect(formatRpcError(networkError)).to.include("network down");
+    expect(formatRpcError(networkError)).to.equal("network down");
 
     expect(formatRpcError("plain string error")).to.equal("plain string error");
-    expect(formatRpcError(undefined)).to.equal("undefined");
+    expect(formatRpcError(undefined)).to.equal("unknown error");
   });
 });
