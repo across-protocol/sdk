@@ -12,7 +12,9 @@ describe("createSendErrorWithMessage", () => {
   it("preserves the wrapper message and stack", () => {
     const wrapped = createSendErrorWithMessage(wrapperMessage, new Error("inner"));
     expect(wrapped.message).to.equal(wrapperMessage);
-    expect(wrapped.stack).to.be.a("string").and.satisfy((stack: string) => stack.includes(wrapperMessage));
+    expect(wrapped.stack)
+      .to.be.a("string")
+      .and.satisfy((stack: string) => stack.includes(wrapperMessage));
   });
 
   it("propagates the underlying error on `cause`", () => {
