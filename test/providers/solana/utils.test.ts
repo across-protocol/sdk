@@ -2,9 +2,9 @@ import {
   SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
   SVM_SLOT_SKIPPED,
   SVM_TRANSACTION_PREFLIGHT_FAILURE,
-} from "../src/arch/svm/provider";
-import { shouldFailImmediate } from "../src/providers/solana/utils";
-import { expect } from "./utils";
+} from "../../../src/arch/svm/provider";
+import { shouldFailImmediate } from "../../../src/providers/solana/utils";
+import { expect } from "../../utils";
 
 const solanaError = (code: number, context: Record<string, unknown> = {}) => ({
   name: "SolanaError",
