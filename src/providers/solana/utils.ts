@@ -1,6 +1,11 @@
 import { RpcTransport } from "@solana/rpc-spec";
 import { SolanaRpcApi } from "@solana/kit";
-import { isSolanaError, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../arch/svm";
+import {
+  isSolanaError,
+  SVM_SLOT_SKIPPED,
+  SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
+  SVM_TRANSACTION_PREFLIGHT_FAILURE,
+} from "../../arch/svm";
 
 /**
  * This is the type we pass to define a Solana RPC request "task".
@@ -76,6 +81,9 @@ export function shouldFailImmediate(method: string, error: unknown): boolean {
     case "getBlockTime":
       // No block at the requested slot. This may not be correct for blocks > 1 year old.
       return [SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
+    case "sendTransaction":
+      // Preflight failures are deterministic across providers; falling back only succeeds on RPCs that skip preflight.
+      return code === SVM_TRANSACTION_PREFLIGHT_FAILURE;
     default:
       return false;
   }
