@@ -66,10 +66,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               throw error;
             }
 
-            // If one RPC provider reverted, others likely will too. Skip them. Preserve the
-            // underlying RPC error (e.g. the SolanaError carrying the preflight `__code` and
-            // `__serverMessage`) on `cause` so downstream callers and error loggers can still
-            // surface it.
+            // If one RPC provider reverted, others likely will too. Skip them.
             if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
               throw new Error(`RPC provider reverted for method ${method}`, { cause: error });
             }

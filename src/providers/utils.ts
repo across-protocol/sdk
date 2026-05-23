@@ -141,19 +141,8 @@ export function formatProviderError(provider: providers.StaticJsonRpcProvider, r
   return `Provider ${getOriginFromURL(provider.connection.url)} failed with error: ${rawErrorText}`;
 }
 
-/**
- * Wraps an underlying RPC failure into a standard Error whose message is the caller's summary
- * (which providers failed, which succeeded, etc.) and whose `cause` is the original rejection
- * reason. Use this when surfacing a quorum/fallback failure: consumers can match on
- * `instanceof Error`, read the wrapper context from `.message` / `.stack`, and traverse to the
- * underlying RPC error via `.cause`.
- *
- * The previous implementation returned `{ ...sendError, ...new Error(message) }`, which silently
- * stripped the Error prototype (so `instanceof Error` failed downstream) and -- because Error's
- * own `message` / `stack` properties are non-enumerable -- discarded the wrapper message entirely.
- * The net effect was an unintrospectable plain object propagating up through `throw`, which
- * masked the underlying RPC failure shape from every caller and from every error logger.
- */
+// `{ cause }` keeps the wrapper an actual Error (was a spread-collapsed plain object) and keeps
+// the underlying rejection reason reachable for callers and loggers.
 export function createSendErrorWithMessage(message: string, sendError: unknown): Error {
   return new Error(message, { cause: sendError });
 }
