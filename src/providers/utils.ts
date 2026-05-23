@@ -141,9 +141,10 @@ export function formatProviderError(provider: providers.StaticJsonRpcProvider, r
   return `Provider ${getOriginFromURL(provider.connection.url)} failed with error: ${rawErrorText}`;
 }
 
-export function createSendErrorWithMessage(message: string, sendError: Record<string, unknown>) {
-  const error = new Error(message);
-  return { ...sendError, ...error };
+// `{ cause }` keeps the wrapper an actual Error (was a spread-collapsed plain object) and keeps
+// the underlying rejection reason reachable for callers and loggers.
+export function createSendErrorWithMessage(message: string, sendError: unknown): Error {
+  return new Error(message, { cause: sendError });
 }
 
 /**

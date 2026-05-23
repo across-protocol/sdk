@@ -68,7 +68,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
             // If one RPC provider reverted, others likely will too. Skip them.
             if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
-              throw new Error(`RPC provider reverted for method ${method}`);
+              throw new Error(`RPC provider reverted for method ${method}`, { cause: error });
             }
 
             const currentFactory = factory.rpcFactory.clusterUrl;
