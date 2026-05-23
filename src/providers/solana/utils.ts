@@ -82,10 +82,7 @@ export function shouldFailImmediate(method: string, error: unknown): boolean {
       // No block at the requested slot. This may not be correct for blocks > 1 year old.
       return [SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
     case "sendTransaction":
-      // Preflight simulates the tx against current chain state. A failure here is deterministic across
-      // providers: any other validator-backed RPC will simulate the same tx the same way and reject it
-      // for the same reason. Walking the rest of the fallback chain only succeeds when a provider
-      // bypasses preflight (e.g. skipPreflight), which lets objectively-broken txs land on chain.
+      // Preflight failures are deterministic across providers; falling back only succeeds on RPCs that skip preflight.
       return code === SVM_TRANSACTION_PREFLIGHT_FAILURE;
     default:
       return false;

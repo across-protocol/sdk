@@ -36,28 +36,10 @@ describe("shouldFailImmediate", () => {
 
   describe("sendTransaction", () => {
     it("short-circuits on preflight simulation failure", () => {
-      // Mirrors the production payload: outer SolanaError with __code = -32002 and a full
-      // preflight context (accounts, fee, logs, etc.).
-      const preflightError = solanaError(SVM_TRANSACTION_PREFLIGHT_FAILURE, {
-        accounts: null,
-        fee: null,
-        innerInstructions: null,
-        loadedAccountsDataSize: 0,
-        loadedAddresses: null,
-        logs: [],
-        postBalances: null,
-        postTokenBalances: null,
-        preBalances: null,
-        preTokenBalances: null,
-        replacementBlockhash: null,
-        returnData: null,
-        unitsConsumed: "0",
-      });
-      expect(shouldFailImmediate("sendTransaction", preflightError)).to.be.true;
+      expect(shouldFailImmediate("sendTransaction", solanaError(SVM_TRANSACTION_PREFLIGHT_FAILURE))).to.be.true;
     });
 
     it("does not short-circuit on other Solana errors", () => {
-      // E.g. transport-level errors should still walk the fallback chain.
       expect(shouldFailImmediate("sendTransaction", solanaError(SVM_SLOT_SKIPPED))).to.be.false;
       expect(shouldFailImmediate("sendTransaction", solanaError(-32000))).to.be.false;
     });
