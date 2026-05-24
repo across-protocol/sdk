@@ -1,9 +1,9 @@
 import { RpcResponse, RpcTransport } from "@solana/kit";
 import { expect } from "chai";
 import winston from "winston";
-import { SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../src/arch/svm/provider";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
-import { QuorumFallbackSolanaRpcFactory } from "../src/providers/solana/quorumFallbackRpcFactory";
+import { SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../../src/arch/svm/provider";
+import { CachedSolanaRpcFactory } from "../../../src/providers/solana/cachedRpcFactory";
+import { QuorumFallbackSolanaRpcFactory } from "../../../src/providers/solana/quorumFallbackRpcFactory";
 
 const silentLogger = winston.createLogger({
   silent: true,
