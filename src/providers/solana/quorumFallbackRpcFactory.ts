@@ -66,9 +66,8 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               throw error;
             }
 
-            // If one RPC provider reverted, others likely will too. Skip them and rethrow the original
-            // error so callers can branch on the underlying SolanaError code (e.g. SVM_SLOT_SKIPPED)
-            // via `isSolanaError(...)`.
+            // If one RPC provider reverted, others likely will too. Skip them and preserve the
+            // original error so callers can branch on `isSolanaError(...)`.
             if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
               throw error;
             }
@@ -97,11 +96,8 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       };
 
       if (!results.every(isPromiseFulfilled)) {
-        // If every required-provider rejection encodes a deterministic chain-level failure
-        // (e.g. SVM_SLOT_SKIPPED on getBlockTime, preflight failure on sendTransaction),
-        // surface the underlying SolanaError so callers can branch on `isSolanaError(err)`
-        // and the matching `__code`. Wrapping it in a generic Error here would erase the
-        // SolanaError type and break `getNearestSlotTime`'s slot walk-back, among others.
+        // If every rejection is shouldFailImmediate, rethrow the original so callers can branch
+        // on `isSolanaError(...)` rather than seeing a wrapped Error.
         const rejections = results.filter(isPromiseRejected);
         if (rejections.length > 0 && rejections.every(({ reason }) => shouldFailImmediate(method, reason))) {
           throw rejections[0].reason;

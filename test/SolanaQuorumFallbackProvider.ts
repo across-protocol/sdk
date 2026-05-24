@@ -5,7 +5,6 @@ import { SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../src/arc
 import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { QuorumFallbackSolanaRpcFactory } from "../src/providers/solana/quorumFallbackRpcFactory";
 
-// Silent logger — these tests assert on thrown errors, not log output.
 const silentLogger = winston.createLogger({
   silent: true,
   transports: [new winston.transports.Console({ silent: true })],
@@ -25,8 +24,6 @@ type RpcFactoryEntry = {
   rpcFactory: { clusterUrl: string };
 };
 
-// Build a QuorumFallbackSolanaRpcFactory and replace its internal rpcFactories with mocks that throw whatever
-// the caller wants. The real CachedSolanaRpcFactory chain is constructed but never invoked.
 function buildFactory(transports: RpcTransport[], quorumThreshold = 1) {
   const logger = silentLogger;
   const factoryParams = transports.map(
@@ -50,7 +47,6 @@ function buildFactory(transports: RpcTransport[], quorumThreshold = 1) {
     rpcClient: {},
     rpcFactory: { clusterUrl: `https://test${i}.example.com/` },
   }));
-  // rpcFactories is `readonly` only at the TS level; mutate the array to swap real factories for mocks.
   (factory.rpcFactories as unknown as RpcFactoryEntry[]).length = 0;
   (factory.rpcFactories as unknown as RpcFactoryEntry[]).push(...replacement);
 
@@ -110,7 +106,6 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
       caught = err;
     }
 
-    // The first rejection's reason wins, matching Promise.allSettled ordering.
     expect(caught).to.equal(skipped1);
   });
 
@@ -128,12 +123,10 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
 
     expect(caught).to.be.instanceOf(Error);
     expect((caught as Error).message).to.match(/Not enough providers succeeded/);
-    // Underlying rejection remains reachable via `.cause`.
     expect((caught as Error).cause).to.equal(networkError);
   });
 
   it("still wraps the error for shouldFailImmediate codes on unrelated methods", async () => {
-    // SVM_SLOT_SKIPPED is only treated as fail-immediate for getBlock / getBlockTime, not e.g. getAccountInfo.
     const skipped = solanaError(SVM_SLOT_SKIPPED, "not really a skipped slot");
     const factory = buildFactory([rejectingTransport(skipped)]);
 
