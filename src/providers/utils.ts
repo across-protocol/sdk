@@ -118,6 +118,169 @@ const IGNORED_FIELDS = {
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
 
+// Cap on entries reported per bucket in an eth_getLogs delta, to keep log payloads bounded
+// when a provider returns thousands of stale or extra logs.
+const LOG_DIFF_MAX_ENTRIES = 5;
+
+export interface LogDiffEntry {
+  key: string;
+  entry?: Record<string, unknown>;
+  fieldDiffs?: Record<string, { a: unknown; b: unknown }>;
+}
+
+export interface LogDiff {
+  totalA: number;
+  totalB: number;
+  onlyInA: LogDiffEntry[];
+  onlyInB: LogDiffEntry[];
+  differing: LogDiffEntry[];
+  truncated?: { onlyInA?: number; onlyInB?: number; differing?: number };
+}
+
+function fieldDiff(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined
+): Record<string, { a: unknown; b: unknown }> {
+  const diff: Record<string, { a: unknown; b: unknown }> = {};
+  const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
+  for (const key of keys) {
+    if (!isEqual(a?.[key], b?.[key])) {
+      diff[key] = { a: a?.[key], b: b?.[key] };
+    }
+  }
+  return diff;
+}
+
+function deepDiff(a: unknown, b: unknown): Record<string, { a: unknown; b: unknown }> {
+  const out: Record<string, { a: unknown; b: unknown }> = {};
+  const visit = (lhs: unknown, rhs: unknown, path: string) => {
+    if (isEqual(lhs, rhs)) {
+      return;
+    }
+    const lhsIsObj = isDefined(lhs) && typeof lhs === "object";
+    const rhsIsObj = isDefined(rhs) && typeof rhs === "object";
+    if (!lhsIsObj || !rhsIsObj || Array.isArray(lhs) !== Array.isArray(rhs)) {
+      out[path || "."] = { a: lhs, b: rhs };
+      return;
+    }
+    if (Array.isArray(lhs)) {
+      const arrA = lhs as unknown[];
+      const arrB = rhs as unknown[];
+      const len = Math.max(arrA.length, arrB.length);
+      for (let i = 0; i < len; i++) {
+        visit(arrA[i], arrB[i], `${path}[${i}]`);
+      }
+      return;
+    }
+    const oa = lhs as Record<string, unknown>;
+    const ob = rhs as Record<string, unknown>;
+    const keys = new Set([...Object.keys(oa), ...Object.keys(ob)]);
+    for (const k of keys) {
+      visit(oa[k], ob[k], path ? `${path}.${k}` : k);
+    }
+  };
+  visit(a, b, "");
+  return out;
+}
+
+function logKey(log: Record<string, unknown>): string {
+  return `${(log?.transactionHash as string) ?? "?"}:${(log?.logIndex as string | number) ?? "?"}`;
+}
+
+function diffLogResults(
+  ignoredKeys: string[],
+  rpcResultA: unknown[] | undefined,
+  rpcResultB: unknown[] | undefined
+): LogDiff {
+  const stripA = (rpcResultA ?? []).map(
+    (entry) => (deleteIgnoredKeys(ignoredKeys, entry as Record<string, unknown>) ?? {}) as Record<string, unknown>
+  );
+  const stripB = (rpcResultB ?? []).map(
+    (entry) => (deleteIgnoredKeys(ignoredKeys, entry as Record<string, unknown>) ?? {}) as Record<string, unknown>
+  );
+  const mapA = new Map(stripA.map((e) => [logKey(e), e]));
+  const mapB = new Map(stripB.map((e) => [logKey(e), e]));
+
+  const onlyInA: LogDiffEntry[] = [];
+  const onlyInB: LogDiffEntry[] = [];
+  const differing: LogDiffEntry[] = [];
+  let droppedOnlyInA = 0;
+  let droppedOnlyInB = 0;
+  let droppedDiffering = 0;
+
+  for (const [key, entry] of mapA) {
+    const other = mapB.get(key);
+    if (other === undefined) {
+      if (onlyInA.length < LOG_DIFF_MAX_ENTRIES) {
+        onlyInA.push({ key, entry });
+      } else {
+        droppedOnlyInA++;
+      }
+    } else if (!isEqual(entry, other)) {
+      if (differing.length < LOG_DIFF_MAX_ENTRIES) {
+        differing.push({ key, fieldDiffs: fieldDiff(entry, other) });
+      } else {
+        droppedDiffering++;
+      }
+    }
+  }
+  for (const [key, entry] of mapB) {
+    if (!mapA.has(key)) {
+      if (onlyInB.length < LOG_DIFF_MAX_ENTRIES) {
+        onlyInB.push({ key, entry });
+      } else {
+        droppedOnlyInB++;
+      }
+    }
+  }
+
+  const truncated: NonNullable<LogDiff["truncated"]> = {};
+  if (droppedOnlyInA) {
+    truncated.onlyInA = droppedOnlyInA;
+  }
+  if (droppedOnlyInB) {
+    truncated.onlyInB = droppedOnlyInB;
+  }
+  if (droppedDiffering) {
+    truncated.differing = droppedDiffering;
+  }
+
+  return {
+    totalA: stripA.length,
+    totalB: stripB.length,
+    onlyInA,
+    onlyInB,
+    differing,
+    ...(Object.keys(truncated).length > 0 ? { truncated } : {}),
+  };
+}
+
+/**
+ * Compact, JSON-safe diff between two RPC results for the same method. Strips the same fields
+ * `compareRpcResults` strips, so the diff only reflects mismatches that actually mattered to
+ * quorum. Intended for use after `compareRpcResults` has already determined the results disagree.
+ *
+ * - `eth_getLogs`: returns a `LogDiff` (per-log onlyInA / onlyInB / differing, capped at 5 entries
+ *   per bucket with a truncation counter).
+ * - `eth_getBlockByNumber`: returns a `{ key: { a, b }, ... }` map for non-ignored field diffs.
+ * - any other method: returns a path-keyed deep diff (e.g. `"receipt.logs[0].data": { a, b }`).
+ */
+export function diffRpcResults(method: string, rpcResultA: unknown, rpcResultB: unknown): unknown {
+  if (method === "eth_getLogs") {
+    return diffLogResults(
+      IGNORED_FIELDS.eth_getLogs,
+      rpcResultA as unknown[] | undefined,
+      rpcResultB as unknown[] | undefined
+    );
+  }
+  if (method === "eth_getBlockByNumber") {
+    const a = deleteIgnoredKeys(IGNORED_FIELDS.eth_getBlockByNumber, rpcResultA as Record<string, unknown>);
+    const b = deleteIgnoredKeys(IGNORED_FIELDS.eth_getBlockByNumber, rpcResultB as Record<string, unknown>);
+    return fieldDiff(a, b);
+  }
+  return deepDiff(rpcResultA, rpcResultB);
+}
+
 /**
  * This is the type we pass to define a request "task".
  */

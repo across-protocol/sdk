@@ -4,7 +4,13 @@ import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
-import { compareRpcResults, createSendErrorWithMessage, formatProviderError, parseJsonRpcError } from "./utils";
+import {
+  compareRpcResults,
+  createSendErrorWithMessage,
+  diffRpcResults,
+  formatProviderError,
+  parseJsonRpcError,
+} from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
 import { Logger } from "winston";
 
@@ -134,11 +140,22 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         .map(([provider]) => getOriginFromURL(provider.connection.url));
     };
 
+    const getMismatchDetails = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
+      const details: Record<string, unknown> = {};
+      for (const [provider, result] of values) {
+        if (!compareRpcResults(method, result, quorumResult)) {
+          details[getOriginFromURL(provider.connection.url)] = diffRpcResults(method, quorumResult, result);
+        }
+      }
+      return details;
+    };
+
     const logQuorumMismatchOrFailureDetails = (
       method: string,
       params: Array<unknown>,
       quorumProviders: string[],
       mismatchedProviders: string[],
+      mismatchDetails: Record<string, unknown>,
       errors: [ethers.providers.StaticJsonRpcProvider, string][]
     ) => {
       this.logger?.warn({
@@ -149,6 +166,9 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         params: JSON.stringify(params),
         quorumProviders,
         mismatchedProviders,
+        // Per-provider diff vs the quorum result, keyed by RPC origin. Surfaces the exact
+        // log entries / fields that diverged so the warn alert is actionable on its own.
+        mismatchDetails,
         erroringProviders: errors.map(([provider, errorText]) => formatProviderError(provider, errorText)),
       });
     };
@@ -156,8 +176,17 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
       const successfulProviderUrls = values.map(([provider]) => getOriginFromURL(provider.connection.url));
-      const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
-      logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
+      const allValues = [...values, ...(fallbackValues || [])];
+      const mismatchedProviders = getMismatchedProviders(allValues);
+      const mismatchDetails = getMismatchDetails(allValues);
+      logQuorumMismatchOrFailureDetails(
+        method,
+        params,
+        successfulProviderUrls,
+        mismatchedProviders,
+        mismatchDetails,
+        errors
+      );
       throw new Error(
         "Not enough providers agreed to meet quorum.\n" +
           "Providers that errored:\n" +
@@ -220,12 +249,14 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
-    const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
-    const quorumProviders = [...values, ...fallbackValues]
+    const allValues = [...values, ...fallbackValues];
+    const mismatchedProviders = getMismatchedProviders(allValues);
+    const quorumProviders = allValues
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
       .map(([provider]) => getOriginFromURL(provider.connection.url));
     if (mismatchedProviders.length > 0 || errors.length > 0) {
-      logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
+      const mismatchDetails = getMismatchDetails(allValues);
+      logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, mismatchDetails, errors);
     }
 
     return quorumResult;
