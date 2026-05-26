@@ -76,9 +76,13 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
       const txIdForUrl = txHexNoPrefix.toLowerCase();
       return `<${constructURL(explorerDomain, ["#", "transaction", txIdForUrl])} | ${shortURLString}>`;
     }
-    const addressTvm = TronWeb.isAddress(addr) ? addr : TvmAddress.from(addr).toNative();
-    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addressTvm)) {
-      return `<${constructURL(explorerDomain, ["#", "address", addressTvm])} | ${shortURLString}>`;
+    try {
+      const addressTvm = TronWeb.isAddress(addr) ? addr : TvmAddress.from(addr).toNative();
+      if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addressTvm)) {
+        return `<${constructURL(explorerDomain, ["#", "address", addressTvm])} | ${shortURLString}>`;
+      }
+    } catch {
+      return null;
     }
     return null;
   } else if (chainIsEvm(chainId)) {
