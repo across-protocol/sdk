@@ -4,6 +4,8 @@ import { createShortenedString } from "./FormattingUtils";
 import { chainIsEvm, chainIsTvm } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import bs58 from "bs58";
+import { TronWeb } from "tronweb";
+import { TvmAddress } from "./AddressUtils";
 
 /**
  * Creates a block explorer link for a transaction or address on a given network.
@@ -74,8 +76,13 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
       const txIdForUrl = txHexNoPrefix.toLowerCase();
       return `<${constructURL(explorerDomain, ["#", "transaction", txIdForUrl])} | ${shortURLString}>`;
     }
-    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr)) {
-      return `<${constructURL(explorerDomain, ["#", "address", addr])} | ${shortURLString}>`;
+    try {
+      const addressTvm = TronWeb.isAddress(addr) ? addr : TvmAddress.from(addr).toNative();
+      if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addressTvm)) {
+        return `<${constructURL(explorerDomain, ["#", "address", addressTvm])} | ${shortURLString}>`;
+      }
+    } catch {
+      return null;
     }
     return null;
   } else if (chainIsEvm(chainId)) {

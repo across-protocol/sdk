@@ -1,5 +1,6 @@
 import { CHAIN_IDs } from "../src/constants";
 import { blockExplorerLinks, blockExplorerLink, resolveBlockExplorerDomain } from "../src/utils/BlockExplorerUtils";
+import { createShortenedString, TvmAddress } from "../src/utils";
 import { expect } from "./utils";
 
 const TRON_CHAIN_ID = CHAIN_IDs.TRON;
@@ -51,9 +52,16 @@ describe("BlockExplorerUtils", () => {
       expect(blockExplorerLink(TRON_ADDRESS_BASE58, TRON_CHAIN_ID)).to.be.eq(expectedLink);
     });
 
-    it("TVM: should return <> for hex account strings (addresses must be Base58Check)", () => {
-      expect(blockExplorerLink("0x1234567890abcdef1234567890abcdef12345678", TRON_CHAIN_ID)).to.be.eq("<>");
-      expect(blockExplorerLink("0x4184716914c0fdf7110a44030d04d0c4923504d9cc", TRON_CHAIN_ID)).to.be.eq("<>");
+    it("TVM: should link hex addresses by converting to Base58Check", () => {
+      const hex20 = "0x1234567890abcdef1234567890abcdef12345678";
+      const base58 = TvmAddress.from(hex20).toNative();
+      const expectedLink = `<https://tronscan.org/#/address/${base58} | ${createShortenedString(hex20)}>`;
+      expect(blockExplorerLink(hex20, TRON_CHAIN_ID)).to.be.eq(expectedLink);
+    });
+
+    it("TVM: should return <> for Tron hex without 0x prefix (not Base58Check)", () => {
+      // TronWeb accepts this form but it is not a T-prefixed address for the explorer URL.
+      expect(blockExplorerLink("4184716914c0fdf7110a44030d04d0c4923504d9cc", TRON_CHAIN_ID)).to.be.eq("<>");
     });
 
     it("TVM: should return <> for invalid input (not tx hex, not Tron base58)", () => {
