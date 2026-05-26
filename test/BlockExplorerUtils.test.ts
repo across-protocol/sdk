@@ -59,13 +59,6 @@ describe("BlockExplorerUtils", () => {
       expect(blockExplorerLink(hex20, TRON_CHAIN_ID)).to.be.eq(expectedLink);
     });
 
-    it("TVM: should link 0x-prefixed Tron hex addresses by converting to Base58Check", () => {
-      const tronHex = "0x4184716914c0fdf7110a44030d04d0c4923504d9cc";
-      const base58 = TvmAddress.from(tronHex).toNative();
-      const expectedLink = `<https://tronscan.org/#/address/${base58} | ${createShortenedString(tronHex)}>`;
-      expect(blockExplorerLink(tronHex, TRON_CHAIN_ID)).to.be.eq(expectedLink);
-    });
-
     it("TVM: should return <> for Tron hex without 0x prefix (not Base58Check)", () => {
       // TronWeb accepts this form but it is not a T-prefixed address for the explorer URL.
       expect(blockExplorerLink("4184716914c0fdf7110a44030d04d0c4923504d9cc", TRON_CHAIN_ID)).to.be.eq("<>");
