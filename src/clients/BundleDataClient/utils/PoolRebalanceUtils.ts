@@ -43,9 +43,13 @@ export async function getWidestPossibleExpectedBlockRange(
     const provider = spokePoolClient.svmEventsClient.getRpc();
     const { logger } = spokePoolClient;
     const maxSlot = BigInt(resolveEndBlock(chainId, idx)); // Respect any configured buffer for Solana.
-    const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
-    if (finalizedSlot <= maxSlot) return Number(finalizedSlot);
-    const { slot } = await getNearestSlotTime(provider, { slot: maxSlot }, logger);
+
+    let slot: bigint;
+    let opts: { slot: bigint } | { commitment: "finalized" } = { commitment: "finalized" };
+    do {
+      ({ slot } = await getNearestSlotTime(provider, opts, logger));
+      opts = { slot: maxSlot };
+    } while (slot > maxSlot);
     return Number(slot);
   };
 
