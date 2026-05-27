@@ -25,7 +25,7 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -86,36 +86,6 @@ export async function getNearestSlotTime(
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
   return { slot, timestamp };
-}
-
-/**
- * Resolve the latest finalized slot, and then work backwards to find the nearest slot containing a block.
- * In most cases the first-resolved slot should also have a block. Avoid making arbitrary decisions about
- * how many slots to rotate through.
- */
-export async function getLatestFinalizedSlotWithBlock(
-  provider: SVMProvider,
-  logger: winston.Logger,
-  maxSlot: bigint,
-  maxLookback = 1000
-): Promise<number> {
-  const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
-  const endSlot = biMin(maxSlot, finalizedSlot);
-
-  let slot = endSlot;
-  do {
-    const block = await provider.getBlock(slot, opts).send();
-    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
-      break;
-    }
-  } while (--maxLookback > 0 && --slot > 0);
-
-  if (maxLookback === 0) {
-    throw new Error(`Unable to find Solana block between slots [${slot}, ${endSlot}]`);
-  }
-
-  return Number(slot);
 }
 
 /**
