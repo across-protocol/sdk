@@ -203,8 +203,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     if (!isDefined(cached)) {
       cached = this._resolveTimestampForBlock(slot);
       this.timestampForBlockCache.set(slot, cached);
-      // Evict failed lookups so a transient RPC error doesn't poison the cache for the lifetime of
-      // the client. The caller's own await still observes the rejection.
+      // Evict on failure so a transient RPC error doesn't poison the cache.
       cached.catch(() => this.timestampForBlockCache.delete(slot));
     }
     return cached;
@@ -217,12 +216,12 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
     }
     const timestamp = await getTimestampForSlot(rpc, producedSlot, undefined, this.logger);
-    if (!isDefined(timestamp)) {
-      throw new Error(
-        `Missing block time for produced ${getNetworkName(this.chainId)} slot ${producedSlot} (queried for ${slot})`
-      );
+    if (isDefined(timestamp)) {
+      return timestamp;
     }
-    return timestamp;
+    throw new Error(
+      `Missing block time for produced ${getNetworkName(this.chainId)} slot ${producedSlot} (queried for ${slot})`
+    );
   }
 
   /**
