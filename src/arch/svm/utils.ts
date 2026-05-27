@@ -77,10 +77,17 @@ export async function getNearestSlotTime(
   logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
   const inputSlot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
-  // getBlocks rejects "processed"; fall back to the API default in that case. None of the
-  // callers in this codebase pass "processed", but the public type historically allowed it.
-  const commitment = "commitment" in opts && opts.commitment !== "processed" ? opts.commitment : undefined;
 
+  // Happy path: the input slot itself has a block. One RPC, no widening.
+  const directTimestamp = await getTimestampForSlot(provider, inputSlot, undefined, logger);
+  if (isDefined(directTimestamp)) {
+    return { slot: inputSlot, timestamp: directTimestamp };
+  }
+
+  // Input slot was skipped — walk backwards via getBlocks() in fixed windows. getBlocks rejects
+  // "processed"; fall back to the API default in that case. None of the callers in this codebase
+  // pass "processed", but the public type historically allowed it.
+  const commitment = "commitment" in opts && opts.commitment !== "processed" ? opts.commitment : undefined;
   const slot = await findNearestProducedSlot(provider, inputSlot, { commitment });
   assert(isDefined(slot), `Unable to find a produced SVM slot at or before ${inputSlot}`);
   const timestamp = await getTimestampForSlot(provider, slot, undefined, logger);

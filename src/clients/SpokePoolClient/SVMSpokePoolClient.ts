@@ -211,7 +211,14 @@ export class SVMSpokePoolClient extends SpokePoolClient {
 
   private async _resolveTimestampForBlock(slot: number): Promise<number> {
     const rpc = this.svmEventsClient.getRpc();
-    const producedSlot = await findNearestProducedSlot(rpc, BigInt(slot));
+    const target = BigInt(slot);
+    // Happy path: the target slot itself has a block. One RPC, no widening.
+    const direct = await getTimestampForSlot(rpc, target, undefined, this.logger);
+    if (isDefined(direct)) {
+      return direct;
+    }
+    // Target slot was skipped — walk backwards via getBlocks() in fixed windows.
+    const producedSlot = await findNearestProducedSlot(rpc, target);
     if (!isDefined(producedSlot)) {
       throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
     }
