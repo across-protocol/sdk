@@ -1,5 +1,9 @@
-import { describeSolanaError, SVM_TRANSACTION_PREFLIGHT_FAILURE, SVM_SLOT_SKIPPED } from "../src/arch/svm/provider";
-import { expect } from "./utils";
+import {
+  describeSolanaError,
+  SVM_TRANSACTION_PREFLIGHT_FAILURE,
+  SVM_SLOT_SKIPPED,
+} from "../../../src/arch/svm/provider";
+import { expect } from "../../utils";
 
 describe("describeSolanaError", () => {
   it("returns an empty object for non-Solana errors", () => {
