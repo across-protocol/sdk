@@ -26,7 +26,7 @@ import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
-import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
+import { findNearestProducedSlot, getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
   EventName,
@@ -76,13 +76,14 @@ export async function getNearestSlotTime(
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
   logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
-  let timestamp: number | undefined;
-  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
-  const maxRetries = undefined; // Inherit defaults
+  const inputSlot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
+  // getBlocks rejects "processed"; fall back to the API default in that case. None of the
+  // callers in this codebase pass "processed", but the public type historically allowed it.
+  const commitment = "commitment" in opts && opts.commitment !== "processed" ? opts.commitment : undefined;
 
-  do {
-    timestamp = await getTimestampForSlot(provider, slot, maxRetries, logger);
-  } while (!isDefined(timestamp) && --slot);
+  const slot = await findNearestProducedSlot(provider, inputSlot, { commitment });
+  assert(isDefined(slot), `Unable to find a produced SVM slot at or before ${inputSlot}`);
+  const timestamp = await getTimestampForSlot(provider, slot, undefined, logger);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
   return { slot, timestamp };

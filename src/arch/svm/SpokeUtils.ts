@@ -204,6 +204,58 @@ async function _callGetTimestampForSlotWithRetry(
 }
 
 /**
+ * Defaults for {@link findNearestProducedSlot}. The 32-slot initial window covers ~13s of Solana
+ * time at 400ms/slot, which is more than enough for typical skipped-slot runs around bundle
+ * boundaries. The iteration bound caps total backward coverage at 32 windows × 32 slots = 1024
+ * slots; beyond that something is wrong upstream and we want to surface that rather than walk
+ * for hours.
+ */
+const DEFAULT_GET_BLOCKS_WINDOW = 32;
+const DEFAULT_GET_BLOCKS_ITERATIONS = 32;
+
+/**
+ * Find the largest slot ≤ targetSlot that produced a block. Issues one getBlocks() call per
+ * window, iterating backwards in fixed-size windows when the initial range contains no produced
+ * slots (e.g. when targetSlot lands inside a skipped-slot run).
+ *
+ * Prefer this over scanning slot-by-slot with getBlockTime(): a single getBlocks() round-trip
+ * resolves the entire window at once, and the cost is bounded even for long skipped-slot runs.
+ *
+ * @param provider SVM Provider instance.
+ * @param targetSlot The slot at or below which to search.
+ * @param opts Optional commitment level, per-iteration window size, and max iteration count.
+ * @returns The largest slot ≤ targetSlot with a produced block, or undefined if none is found
+ *          within the bounded search range.
+ */
+export async function findNearestProducedSlot(
+  provider: SVMProvider,
+  targetSlot: bigint,
+  opts: {
+    commitment?: Exclude<Commitment, "processed">;
+    window?: number;
+    maxIterations?: number;
+  } = {}
+): Promise<bigint | undefined> {
+  const window = BigInt(opts.window ?? DEFAULT_GET_BLOCKS_WINDOW);
+  const maxIterations = opts.maxIterations ?? DEFAULT_GET_BLOCKS_ITERATIONS;
+  assert(window > 0n, `findNearestProducedSlot: window must be > 0 (got ${window})`);
+  assert(maxIterations > 0, `findNearestProducedSlot: maxIterations must be > 0 (got ${maxIterations})`);
+  const commitmentArg = opts.commitment ? { commitment: opts.commitment } : undefined;
+
+  let upper = targetSlot;
+  for (let i = 0; i < maxIterations; i++) {
+    const lower = upper >= window ? upper - window + 1n : 0n;
+    const blocks = await provider.getBlocks(lower, upper, commitmentArg).send();
+    if (blocks.length > 0) {
+      return BigInt(blocks[blocks.length - 1]);
+    }
+    if (lower === 0n) return undefined;
+    upper = lower - 1n;
+  }
+  return undefined;
+}
+
+/**
  * Returns the current fill deadline buffer.
  * @param provider SVM Provider instance
  * @param statePda Spoke Pool's State PDA
