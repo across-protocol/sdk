@@ -2,7 +2,7 @@ import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
 import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress, isDefined } from "../../../utils";
-import { getLatestFinalizedSlotWithBlock } from "../../../arch/svm";
+import { getNearestSlotTime } from "../../../arch/svm";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
@@ -36,16 +36,17 @@ export async function getWidestPossibleExpectedBlockRange(
     Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[idx], 0);
 
   // Across bundles are bounded by slots on Solana. The UMIP requires that the bundle end slot is backed by a block.
-  const resolveSVMEndBlock = (chainId: number, idx: number): Promise<number> => {
+  const resolveSVMEndBlock = async (chainId: number, idx: number): Promise<number> => {
     const spokePoolClient = spokeClients[chainId];
     assert(isSVMSpokePoolClient(spokePoolClient));
 
-    const maxSlot = resolveEndBlock(chainId, idx); // Respect any configured buffer for Solana.
-    return getLatestFinalizedSlotWithBlock(
-      spokePoolClient.svmEventsClient.getRpc(),
-      spokePoolClient.logger,
-      BigInt(maxSlot)
-    );
+    const provider = spokePoolClient.svmEventsClient.getRpc();
+    const { logger } = spokePoolClient;
+    const maxSlot = BigInt(resolveEndBlock(chainId, idx)); // Respect any configured buffer for Solana.
+    const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
+    if (finalizedSlot <= maxSlot) return Number(finalizedSlot);
+    const { slot } = await getNearestSlotTime(provider, { slot: maxSlot }, logger);
+    return Number(slot);
   };
 
   const latestPossibleBundleEndBlockNumbers = await Promise.all(

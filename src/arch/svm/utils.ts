@@ -89,20 +89,6 @@ export async function getNearestSlotTime(
 }
 
 /**
- * Resolve the latest finalized slot that is backed by a block, capped at `maxSlot`.
- */
-export async function getLatestFinalizedSlotWithBlock(
-  provider: SVMProvider,
-  logger: winston.Logger,
-  maxSlot: bigint
-): Promise<number> {
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
-  if (finalizedSlot <= maxSlot) return Number(finalizedSlot);
-  const { slot } = await getNearestSlotTime(provider, { slot: maxSlot }, logger);
-  return Number(slot);
-}
-
-/**
  * Parses event data from a transaction.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
