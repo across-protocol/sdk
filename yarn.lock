@@ -12,10 +12,10 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.108.tgz#982e230c0193f3b4124e3cb880eb6cb481f76a7e"
   integrity sha512-uYcIw6VjWhSRal9+xv5aTgk3cK1qVH/8SkpSCpa6KMQUXmCKZ3eGGaVMl7Nogl6S0Cj/D76LnMgM3jUP6NK9ag==
 
-"@across-protocol/constants@^3.1.110":
-  version "3.1.110"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.110.tgz#8db121beb440187295874476ad05b1a8d4729acf"
-  integrity sha512-4GfJed7zziPBW4ywsaQaqtT5kSnIo0xthMcAJYqVcDm37e1oIv5lHFNoyGT8bOUNa0T1ZeEGcHLTOzbz+mfTnw==
+"@across-protocol/constants@^3.1.112-alpha.2":
+  version "3.1.112-alpha.2"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.112-alpha.2.tgz#30914528d9ff05d4abf1cd08100f8bd2ac140e63"
+  integrity sha512-KvoRzufTAcwg4YVP5k8c/PFN8WZKtXX4Ju9y2wFykxn8M12eFARwfPjD/TOYvAnwjdA2cvBZPQJMuGd3r0kCjA==
 
 "@across-protocol/contracts@5.0.10":
   version "5.0.10"
