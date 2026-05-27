@@ -54,3 +54,61 @@ export interface SolanaErrorLike {
 export function isSolanaError(error: unknown): error is SolanaErrorLike {
   return _isSolanaError(error) || is(error, SolanaErrorStruct);
 }
+
+/**
+ * Structured description of a SolanaError suitable for logging.
+ *
+ * `code` and `context` mirror the underlying SolanaError's `context.__code` and `context` —
+ * `context` carries the rich diagnostic payload for typed errors (e.g. for
+ * `SVM_TRANSACTION_PREFLIGHT_FAILURE`, the `RpcSimulateTransactionResult` with `logs[]`,
+ * `accounts`, `returnData`, `unitsConsumed`). `cause` is recursively described when the
+ * underlying cause is itself a SolanaError (e.g. the `TransactionError` /
+ * `InstructionError` wrapped inside a preflight failure).
+ */
+export type SolanaErrorDescription = {
+  name: string;
+  message?: string;
+  code: number;
+  context: SolanaErrorLike["context"];
+  cause?: SolanaErrorDescription | { message: string };
+};
+
+/**
+ * Extract a structured, log-friendly description of a SolanaError. Returns `{}` for
+ * anything that isn't a SolanaError so callers can spread the result unconditionally.
+ *
+ * Motivation: most JSON logger formatters either (a) replace an `Error` field with its
+ * `.stack` string or (b) JSON.stringify it, which drops `context` and `cause` on
+ * SolanaErrors because those are own enumerable properties on the SolanaError instance
+ * but the loggers consult `.stack`/`.message` instead. This helper produces a plain
+ * object holding the fields you actually need to diagnose an SVM failure (program logs,
+ * underlying instruction error, etc.) that survives any standard serializer.
+ *
+ * @example
+ * try { await sendAndConfirmSolanaTransaction(tx, provider); }
+ * catch (err) {
+ *   logger.error({ at: "...", message: "...", error: err, ...describeSolanaError(err) });
+ * }
+ */
+export function describeSolanaError(err: unknown): { solanaError?: SolanaErrorDescription } {
+  if (!isSolanaError(err)) {
+    return {};
+  }
+  const solanaError: SolanaErrorDescription = {
+    name: err.name,
+    code: err.context.__code,
+    context: err.context,
+  };
+  if (err instanceof Error) {
+    solanaError.message = err.message;
+  }
+  if (err.cause !== undefined) {
+    const describedCause = describeSolanaError(err.cause);
+    if (describedCause.solanaError) {
+      solanaError.cause = describedCause.solanaError;
+    } else if (err.cause instanceof Error) {
+      solanaError.cause = { message: err.cause.message };
+    }
+  }
+  return { solanaError };
+}
