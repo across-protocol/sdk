@@ -203,6 +203,9 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     if (!isDefined(cached)) {
       cached = this._resolveTimestampForBlock(slot);
       this.timestampForBlockCache.set(slot, cached);
+      // Evict failed lookups so a transient RPC error doesn't poison the cache for the lifetime of
+      // the client. The caller's own await still observes the rejection.
+      cached.catch(() => this.timestampForBlockCache.delete(slot));
     }
     return cached;
   }
@@ -215,9 +218,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     }
     const timestamp = await getTimestampForSlot(rpc, producedSlot, undefined, this.logger);
     if (!isDefined(timestamp)) {
-      // findNearestProducedSlot reported a produced block at this slot, but getBlockTime came back
-      // empty. Treat this as a transient RPC inconsistency rather than caching a bad answer.
-      this.timestampForBlockCache.delete(slot);
       throw new Error(
         `Missing block time for produced ${getNetworkName(this.chainId)} slot ${producedSlot} (queried for ${slot})`
       );
