@@ -1,5 +1,5 @@
 import assert from "assert";
-import { clamp, sortedIndexBy } from "lodash";
+import lodash from "lodash";
 import { BlockFinder, type Block, type BlockTimeAverage, type BlockFinderHints } from "../../utils/BlockFinder";
 import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
@@ -7,6 +7,8 @@ import { CHAIN_IDs } from "../../constants";
 import { SVMProvider } from "./";
 import { getNearestSlotTime } from "./utils";
 import winston from "winston";
+
+const { clamp, sortedIndexBy } = lodash;
 
 type SVMBlock = Block;
 

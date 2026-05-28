@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Provider, Block as EthersBlock } from "@ethersproject/abstract-provider";
-import { clamp, sortedIndexBy } from "lodash";
+import lodash from "lodash";
 import { chainIsOPStack, getNetworkName } from "../../utils/NetworkUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import {
@@ -12,6 +12,8 @@ import {
 } from "../../utils/BlockFinder";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
+
+const { clamp, sortedIndexBy } = lodash;
 
 // Extension of the EthersBlock type which implements `Block`.
 interface EVMBlock extends Block, EthersBlock {}

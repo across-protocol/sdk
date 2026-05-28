@@ -72,8 +72,9 @@ async function run() {
   console.log(`Event transaction hash: ${result.txnRef}`);
 }
 
-// Only run the CLI entry point in Node.js environments
-if (typeof window === "undefined" && require.main === module) {
+// Only run the CLI entry point in Node.js CJS environments.
+// Guarded so this file remains importable from ESM, where `require` is undefined.
+if (typeof window === "undefined" && typeof require !== "undefined" && require.main === module) {
   run()
     .then(() => {
       process.exitCode = 0;

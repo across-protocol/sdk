@@ -1,6 +1,8 @@
 import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
-import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import anchor, { type Idl } from "@coral-xyz/anchor";
+
+const { BN, BorshEventCoder } = anchor;
 import {
   Address,
   Instruction,

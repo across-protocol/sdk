@@ -1,6 +1,6 @@
 import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "@across-protocol/contracts";
-import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { decodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke/index.js";
+import { decodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1/index.js";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -40,7 +40,7 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
-import { arrayify } from "ethers/lib/utils";
+import { arrayify } from "ethers/lib/utils.js";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import {
   DepositWithBlock,

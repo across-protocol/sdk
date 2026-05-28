@@ -1,4 +1,4 @@
-import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
+import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree.js";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
 import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress, isDefined } from "../../../utils";

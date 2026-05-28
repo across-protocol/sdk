@@ -1,5 +1,5 @@
-import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
+import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider.js";
+import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider.js";
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";

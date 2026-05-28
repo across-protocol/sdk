@@ -1,10 +1,11 @@
 import assert from "assert";
 import { utils as ethersUtils } from "ethers";
-import { random } from "lodash";
+import lodash from "lodash";
 import { Log } from "../../interfaces";
 import { isDefined } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
+const { random } = lodash;
 export type EventOverrides = {
   blockNumber?: number;
 };
