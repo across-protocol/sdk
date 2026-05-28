@@ -145,6 +145,7 @@
   },
   "resolutions": {
     "**/@solana/codecs": "5.4.0",
-    "**/@solana/codecs-numbers": "5.4.0"
+    "**/@solana/codecs-numbers": "5.4.0",
+    "**/@noble/hashes": "^1.8.0"
   }
 }
