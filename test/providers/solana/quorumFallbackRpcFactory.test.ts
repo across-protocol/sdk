@@ -1,7 +1,11 @@
 import { RpcResponse, RpcTransport } from "@solana/kit";
 import { expect } from "chai";
 import winston from "winston";
-import { SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../../src/arch/svm/provider";
+import {
+  SVM_BLOCK_NOT_AVAILABLE,
+  SVM_SLOT_SKIPPED,
+  SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
+} from "../../../src/arch/svm/provider";
 import { CachedSolanaRpcFactory } from "../../../src/providers/solana/cachedRpcFactory";
 import { QuorumFallbackSolanaRpcFactory } from "../../../src/providers/solana/quorumFallbackRpcFactory";
 
@@ -91,6 +95,25 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
     }
 
     expect(caught).to.equal(skipped);
+  });
+
+  it("rethrows the underlying SolanaError for SVM_BLOCK_NOT_AVAILABLE on getBlockTime", async () => {
+    // Third-party RPCs (QuickNode, Chainstack) return BLOCK_NOT_AVAILABLE for skipped slots
+    // whose blockstore marker has been pruned. The quorum layer should treat this the same
+    // as SLOT_SKIPPED so callers can branch on isSolanaError(...).
+    const notAvailable = solanaError(SVM_BLOCK_NOT_AVAILABLE, "Block not available for slot 422715124");
+    const factory = buildFactory([rejectingTransport(notAvailable)]);
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getBlockTime", [422715124]));
+      expect.fail("Expected the transport to reject");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).to.equal(notAvailable);
+    expect((caught as { context: { __code: number } }).context.__code).to.equal(SVM_BLOCK_NOT_AVAILABLE);
   });
 
   it("rethrows the SolanaError when every required-provider rejection is shouldFailImmediate", async () => {

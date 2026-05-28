@@ -1,4 +1,5 @@
 import {
+  SVM_BLOCK_NOT_AVAILABLE,
   SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
   SVM_SLOT_SKIPPED,
   SVM_TRANSACTION_PREFLIGHT_FAILURE,
@@ -25,6 +26,10 @@ describe("shouldFailImmediate", () => {
 
       it(`${method}: short-circuits on SVM_LONG_TERM_STORAGE_SLOT_SKIPPED`, () => {
         expect(shouldFailImmediate(method, solanaError(SVM_LONG_TERM_STORAGE_SLOT_SKIPPED))).to.be.true;
+      });
+
+      it(`${method}: short-circuits on SVM_BLOCK_NOT_AVAILABLE`, () => {
+        expect(shouldFailImmediate(method, solanaError(SVM_BLOCK_NOT_AVAILABLE))).to.be.true;
       });
 
       it(`${method}: does not short-circuit on other codes`, () => {

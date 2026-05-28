@@ -2,6 +2,7 @@ import { RpcTransport } from "@solana/rpc-spec";
 import { SolanaRpcApi } from "@solana/kit";
 import {
   isSolanaError,
+  SVM_BLOCK_NOT_AVAILABLE,
   SVM_SLOT_SKIPPED,
   SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
   SVM_TRANSACTION_PREFLIGHT_FAILURE,
@@ -79,8 +80,12 @@ export function shouldFailImmediate(method: string, error: unknown): boolean {
   switch (method) {
     case "getBlock":
     case "getBlockTime":
-      // No block at the requested slot. This may not be correct for blocks > 1 year old.
-      return [SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
+      // No block at the requested slot. Some third-party RPCs (e.g. QuickNode, Chainstack) return
+      // BLOCK_NOT_AVAILABLE for skipped slots whose marker has been pruned from the local blockstore
+      // — the same physical condition canonical Solana RPCs surface as SLOT_SKIPPED. Treat all three
+      // codes as deterministic across providers so the quorum layer short-circuits instead of
+      // re-trying every fallback and wrapping the result in a "Not enough providers succeeded" error.
+      return [SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
     case "sendTransaction":
       // Preflight failures are deterministic across providers; falling back only succeeds on RPCs that skip preflight.
       return code === SVM_TRANSACTION_PREFLIGHT_FAILURE;
