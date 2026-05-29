@@ -1,7 +1,12 @@
 import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
-import anchor, { type Idl } from "@coral-xyz/anchor";
+// Cross-runtime CJS interop: Node ESM exposes the CJS module as `default`
+// (cjs-module-lexer can't see anchor's named exports), while the browser
+// ESM build has only named exports. Reach through `default` if present.
+import * as anchorModule from "@coral-xyz/anchor";
+import type { Idl } from "@coral-xyz/anchor";
 
+const anchor: typeof anchorModule = (anchorModule as { default?: typeof anchorModule }).default ?? anchorModule;
 const { BN, BorshEventCoder } = anchor;
 import {
   Address,
