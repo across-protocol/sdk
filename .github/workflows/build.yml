@@ -11,3 +11,9 @@ jobs:
           node-version: 22.18.0
       - run: yarn install
       - run: yarn build
+      # Smoke-test that dist/esm/**/*.js is actually importable under Node's
+      # strict ESM resolver. Catches missing .js extensions, named imports
+      # from CJS-only deps, and `require.main` slipping into ESM output —
+      # the failure modes that the build emits silently and only show up
+      # downstream (Vite SSR, Next.js SSR, vm modules).
+      - run: yarn test:esm-smoke

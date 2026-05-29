@@ -6,7 +6,7 @@ import lodash from "lodash";
 import { Address, UnixTimestamp, signature } from "@solana/kit";
 
 const { random } = lodash;
-import { Idl } from "@coral-xyz/anchor";
+import type { Idl } from "@coral-xyz/anchor";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { CHAIN_IDs } from "@across-protocol/constants";
 

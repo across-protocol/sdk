@@ -2,8 +2,10 @@ import { expect } from "chai";
 import { utils, interfaces } from "../src";
 import { ZERO_ADDRESS } from "../src/constants";
 import { randomAddress, toBN } from "./utils";
-import { cloneDeep } from "lodash";
+import lodash from "lodash";
 import { objectWithBigNumberReviver, bnOne } from "../src/utils";
+
+const { cloneDeep } = lodash;
 import { Deposit } from "../src/interfaces";
 
 describe("validatorUtils", () => {

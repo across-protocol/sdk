@@ -43,6 +43,27 @@ module.exports = {
         ],
       },
     ],
+    // Block named imports from CJS-only deps. Under Node ESM the named
+    // import fails with "Named export 'X' not found" because
+    // cjs-module-lexer can't statically detect the exports. AST selectors
+    // (rather than no-restricted-imports.importNames) so namespace and
+    // type-only imports are still allowed — only runtime named imports
+    // are blocked.
+    "no-restricted-syntax": [
+      "error",
+      {
+        selector:
+          "ImportDeclaration[importKind!='type'][source.value='lodash'] > ImportSpecifier[importKind!='type']",
+        message:
+          "lodash is CJS-only under Node ESM. Use `import lodash from 'lodash'; const { ... } = lodash;` instead.",
+      },
+      {
+        selector:
+          "ImportDeclaration[importKind!='type'][source.value='@coral-xyz/anchor'] > ImportSpecifier[importKind!='type']",
+        message:
+          "@coral-xyz/anchor's browser ESM has no default export but its Node CJS path needs default-interop. Use `import * as anchorModule from '@coral-xyz/anchor'; const anchor = anchorModule.default ?? anchorModule; const { ... } = anchor;` instead.",
+      },
+    ],
     "@typescript-eslint/no-unused-vars": [
       "error",
       {
