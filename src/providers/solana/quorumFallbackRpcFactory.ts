@@ -57,9 +57,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           .transport<TResponse>(...args)
           .then((result): [SolanaClusterRpcFactory, RpcResponse<TResponse>] => [factory.rpcFactory, result])
           .catch((error) => {
-            // Append the provider and error to the error array. For SolanaErrors this surfaces
-            // the JSON-RPC error code so wrap-message readers can tell -32007/-32009 (canonical
-            // skip determinations) apart from -32004 (generic "couldn't return a block").
+            // Preserve the underlying JSON-RPC error code in the wrap message.
             errors.push([factory.rpcFactory, formatRpcError(error)]);
 
             // If all fallback providers fail, then return the last received error.
