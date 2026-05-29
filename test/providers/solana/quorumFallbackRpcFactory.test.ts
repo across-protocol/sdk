@@ -1,7 +1,11 @@
 import { RpcResponse, RpcTransport } from "@solana/kit";
 import { expect } from "chai";
 import winston from "winston";
-import { SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../../src/arch/svm/provider";
+import {
+  SVM_BLOCK_NOT_AVAILABLE,
+  SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
+  SVM_SLOT_SKIPPED,
+} from "../../../src/arch/svm/provider";
 import { CachedSolanaRpcFactory } from "../../../src/providers/solana/cachedRpcFactory";
 import { QuorumFallbackSolanaRpcFactory } from "../../../src/providers/solana/quorumFallbackRpcFactory";
 
@@ -158,6 +162,29 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
 
     expect(caught).to.be.instanceOf(Error);
     expect((caught as Error).message).to.match(/Not enough providers succeeded/);
+  });
+
+  it("includes the JSON-RPC error code in the wrap message for SolanaError rejections", async () => {
+    // Regression: the previous wrap used `error.stack || error.toString()`, which on @solana/kit
+    // SolanaErrors drops `context.__code` and only leaves the server message. When two providers
+    // both fail with the canonical "Block not available for slot N" message, downstream readers
+    // can't tell from the wrap whether the underlying code was -32004 (generic, inconclusive) or
+    // some other code rendered with the same server text. Surface the code explicitly.
+    const blockNotAvailable = solanaError(SVM_BLOCK_NOT_AVAILABLE, "Block not available for slot 422715124");
+    const factory = buildFactory([rejectingTransport(blockNotAvailable), rejectingTransport(blockNotAvailable)], 2);
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getBlockTime", [422715124]));
+      expect.fail("Expected the transport to reject");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).to.be.instanceOf(Error);
+    expect((caught as Error).message).to.match(/Not enough providers succeeded/);
+    expect((caught as Error).message).to.include(`SolanaError [${SVM_BLOCK_NOT_AVAILABLE}]`);
+    expect((caught as Error).message).to.include("Block not available for slot 422715124");
   });
 
   it("succeeds normally when the provider returns a result", async () => {

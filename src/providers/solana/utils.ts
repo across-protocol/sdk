@@ -64,6 +64,20 @@ export interface JitoInterface extends SolanaRpcApi {
 }
 
 /**
+ * Render an RPC error for log/wrap messages. For SolanaErrors, includes the numeric JSON-RPC
+ * code alongside the server message; otherwise falls back to stack/toString.
+ */
+export function formatRpcError(error: unknown): string {
+  if (isSolanaError(error)) {
+    const { __code: code, __serverMessage: serverMessage } = error.context;
+    const message = serverMessage ?? (error as { message?: string }).message ?? "";
+    return `SolanaError [${code}]: ${message}`;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (error as any)?.stack || (error as any)?.toString?.() || String(error);
+}
+
+/**
  * Determine whether a Solana RPC error indicates an unrecoverable error that should not be retried.
  * @param method RPC method name.
  * @param error Error object from the RPC call.

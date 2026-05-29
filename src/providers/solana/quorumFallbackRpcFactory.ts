@@ -4,7 +4,7 @@ import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
 import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
 import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
-import { shouldFailImmediate } from "./utils";
+import { formatRpcError, shouldFailImmediate } from "./utils";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
 // and the factory will fallback through them if any RPC calls fail. This factory also implements quorum logic amongst
@@ -57,9 +57,8 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           .transport<TResponse>(...args)
           .then((result): [SolanaClusterRpcFactory, RpcResponse<TResponse>] => [factory.rpcFactory, result])
           .catch((error) => {
-            // Append the provider and error to the error array.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            errors.push([factory.rpcFactory, (error as any)?.stack || error?.toString()]);
+            // Preserve the underlying JSON-RPC error code in the wrap message.
+            errors.push([factory.rpcFactory, formatRpcError(error)]);
 
             // If all fallback providers fail, then return the last received error.
             if (fallbackFactories.length === 0) {
@@ -208,7 +207,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .transport<TResponse>(...args)
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
-              errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
+              errors.push([factory.rpcFactory, formatRpcError(err)]);
               throw new Error("Fallback RPC call failed while trying to reach quorum");
             });
         })
