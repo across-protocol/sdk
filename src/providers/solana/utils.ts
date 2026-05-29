@@ -64,12 +64,8 @@ export interface JitoInterface extends SolanaRpcApi {
 }
 
 /**
- * Render an RPC error for inclusion in log/wrap messages. For SolanaErrors, surfaces the numeric
- * JSON-RPC error code alongside the server message so downstream readers can distinguish canonical
- * positive determinations (SLOT_SKIPPED, LONG_TERM_STORAGE_SLOT_SKIPPED) from generic catch-all
- * codes (BLOCK_NOT_AVAILABLE) without parsing the message string. @solana/kit's default message
- * template for these codes is `$__serverMessage` — pass-through — so the code is otherwise lost.
- * Falls back to the stack/toString for non-Solana errors.
+ * Render an RPC error for log/wrap messages. For SolanaErrors, includes the numeric JSON-RPC
+ * code alongside the server message; otherwise falls back to stack/toString.
  */
 export function formatRpcError(error: unknown): string {
   if (isSolanaError(error)) {
