@@ -4,7 +4,7 @@ import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
 import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
 import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
-import { formatRpcError, shouldFailImmediate } from "./utils";
+import { formatRpcError, isChainWideFailure, shouldFailImmediate } from "./utils";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
 // and the factory will fallback through them if any RPC calls fail. This factory also implements quorum logic amongst
@@ -65,9 +65,15 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               throw error;
             }
 
-            // If one RPC provider reverted, others likely will too. Skip them and preserve the
-            // original error so callers can branch on `isSolanaError(...)`.
-            if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
+            // If the error is a deterministic, network-wide chain fact (slot skipped,
+            // preflight failure), every fallback provider will return the same answer.
+            // Skip the fallback so the chain rejects with the underlying SolanaError —
+            // both to save RPC budget and to keep `rejections.every(shouldFailImmediate)`
+            // below from being defeated by a non-Solana failure on a later fallback.
+            // Note: `isChainWideFailure` is intentionally narrower than `shouldFailImmediate`.
+            // SVM_LONG_TERM_STORAGE_SLOT_SKIPPED is provider-local (the slot may be missing from
+            // *this* provider's archive but present elsewhere), so we still try fallbacks for it.
+            if (isChainWideFailure(method, error)) {
               throw error;
             }
 

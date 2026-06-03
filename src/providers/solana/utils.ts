@@ -102,3 +102,29 @@ export function shouldFailImmediate(method: string, error: unknown): boolean {
       return false;
   }
 }
+
+/**
+ * Subset of `shouldFailImmediate` for errors that are deterministic *across the entire network*,
+ * not just for the provider that returned them. Used to decide whether to skip fallback providers
+ * after a required provider rejects.
+ *
+ * Excludes SVM_LONG_TERM_STORAGE_SLOT_SKIPPED: that code can mean "the slot is missing from this
+ * provider's long-term storage" rather than "the slot was skipped on the network", so an archival
+ * fallback may still be able to answer.
+ */
+export function isChainWideFailure(method: string, error: unknown): boolean {
+  if (!isSolanaError(error)) {
+    return false;
+  }
+
+  const { __code: code } = error.context;
+  switch (method) {
+    case "getBlock":
+    case "getBlockTime":
+      return code === SVM_SLOT_SKIPPED;
+    case "sendTransaction":
+      return code === SVM_TRANSACTION_PREFLIGHT_FAILURE;
+    default:
+      return false;
+  }
+}
