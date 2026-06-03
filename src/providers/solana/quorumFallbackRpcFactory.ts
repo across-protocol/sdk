@@ -65,9 +65,12 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               throw error;
             }
 
-            // If one RPC provider reverted, others likely will too. Skip them and preserve the
-            // original error so callers can branch on `isSolanaError(...)`.
-            if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
+            // If the error is a deterministic, network-wide chain fact (slot skipped,
+            // preflight failure), every fallback provider will return the same answer.
+            // Skip the fallback so the chain rejects with the underlying SolanaError —
+            // both to save RPC budget and to keep `rejections.every(shouldFailImmediate)`
+            // below from being defeated by a non-Solana failure on a later fallback.
+            if (shouldFailImmediate(method, error)) {
               throw error;
             }
 

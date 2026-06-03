@@ -187,6 +187,47 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
     expect((caught as Error).message).to.include("Block not available for slot 422715124");
   });
 
+  it("does not fall back when a required provider rejects with a shouldFailImmediate code", async () => {
+    // Regression for production incident on 2026-06-03: when canonical chain slot 423907443 was
+    // skipped, QuickNode/Alchemy/Chainstack all returned SVM_SLOT_SKIPPED, but the chain still
+    // fell through to drpc/Helius. If any fallback returned a non-SolanaError (e.g. a timeout
+    // wrapping a JSON parse failure), the post-allSettled `rejections.every(shouldFailImmediate)`
+    // check was defeated and the SolanaError was wrapped in a plain Error, so the SVM_SLOT_SKIPPED
+    // case in `_callGetTimestampForSlotWithRetry` never matched and `getNearestSlotTime` could
+    // not advance to the next produced slot.
+    const skipped1 = solanaError(SVM_SLOT_SKIPPED, "Slot 423907443 was skipped (provider 1)");
+    const skipped2 = solanaError(SVM_SLOT_SKIPPED, "Slot 423907443 was skipped (provider 2)");
+    let drpcCalled = false;
+    let heliusCalled = false;
+    const drpcTimeout: RpcTransport = (() => {
+      drpcCalled = true;
+      return Promise.reject(new Error("drpc timeout"));
+    }) as unknown as RpcTransport;
+    const heliusTimeout: RpcTransport = (() => {
+      heliusCalled = true;
+      return Promise.reject(new Error("helius timeout"));
+    }) as unknown as RpcTransport;
+    const factory = buildFactory(
+      [rejectingTransport(skipped1), rejectingTransport(skipped2), drpcTimeout, heliusTimeout],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getBlockTime", [423907443]));
+      expect.fail("Expected the transport to reject");
+    } catch (err) {
+      caught = err;
+    }
+
+    // Both required providers' SolanaError shouldFailImmediate codes are preserved.
+    expect(caught).to.equal(skipped1);
+    expect((caught as { context: { __code: number } }).context.__code).to.equal(SVM_SLOT_SKIPPED);
+    // And the fallback providers were never asked, saving RPC budget on a deterministic chain fact.
+    expect(drpcCalled).to.equal(false);
+    expect(heliusCalled).to.equal(false);
+  });
+
   it("succeeds normally when the provider returns a result", async () => {
     const ok = (() => Promise.resolve({ result: "ok" })) as unknown as RpcTransport;
     const factory = buildFactory([ok]);
