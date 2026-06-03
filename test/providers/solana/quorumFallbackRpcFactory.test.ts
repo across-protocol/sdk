@@ -228,6 +228,24 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
     expect(heliusCalled).to.equal(false);
   });
 
+  it("still tries fallback providers when SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, in case an archival provider can answer", async () => {
+    // SVM_LONG_TERM_STORAGE_SLOT_SKIPPED is provider-local: it can mean "this provider does not
+    // have the slot in its long-term storage", not "the slot was skipped on the network". An
+    // archival fallback (e.g. Helius) may still have the data, so we must not short-circuit it.
+    const archivalMiss = solanaError(SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, "missing in long-term storage");
+    let archivalFallbackCalled = false;
+    const archivalSuccess: RpcTransport = (() => {
+      archivalFallbackCalled = true;
+      return Promise.resolve({ result: 1735689600 } as unknown as RpcResponse<unknown>);
+    }) as unknown as RpcTransport;
+    const factory = buildFactory([rejectingTransport(archivalMiss), archivalSuccess], 1);
+
+    const response = (await factory.createTransport()(payload("getBlockTime", [421829272]))) as RpcResponse<unknown>;
+
+    expect(archivalFallbackCalled).to.equal(true);
+    expect(response).to.deep.equal({ result: 1735689600 });
+  });
+
   it("succeeds normally when the provider returns a result", async () => {
     const ok = (() => Promise.resolve({ result: "ok" })) as unknown as RpcTransport;
     const factory = buildFactory([ok]);
