@@ -217,8 +217,9 @@ describe("SpokeUtils", function () {
       expect(invalidFills).to.be.an("array").that.is.empty;
     });
 
-    it("detects fills with unsafe deposit IDs after the grace period", async function () {
+    it("detects fills with unsafe deposit IDs after the grace period using in-memory lookup only", async function () {
       const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
+      let findDepositCalled = false;
       mockSpokePoolClient.getFills = () => [
         {
           ...sampleData,
@@ -228,8 +229,18 @@ describe("SpokeUtils", function () {
         },
       ];
       mockSpokePoolClient.getTimestampForBlock = () => Promise.resolve(getCurrentTime() - 11 * 60);
+      mockSpokePoolClient.getDeposit = () => undefined;
+      mockSpokePoolClient.findDeposit = () => {
+        findDepositCalled = true;
+        return Promise.resolve({
+          found: false,
+          code: InvalidFill.DepositIdNotFound,
+          reason: "Deposit not found",
+        });
+      };
 
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(findDepositCalled).to.be.false;
       expect(invalidFills).to.have.lengthOf(1);
       expect(invalidFills[0].reason).to.include("deposit with depositId");
     });

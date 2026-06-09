@@ -193,20 +193,29 @@ export async function findInvalidFills(
     // Process fills in parallel for this client
     const fillDepositPairs = await Promise.all(
       fills.map(async (fill) => {
+        const originClient = spokePoolClients[fill.originChainId];
+        const unsafeDeposit = isUnsafeDepositId(fill.depositId);
+
         // Fills from unsafeDepositV3() use uint256 deposit IDs. Allow time for the origin-chain
         // deposit to be indexed before treating the fill as invalid.
-        if (isUnsafeDepositId(fill.depositId)) {
+        if (unsafeDeposit) {
           const fillTimestamp = await spokePoolClient.getTimestampForBlock(fill.blockNumber);
           if (getCurrentTime() - fillTimestamp < unsafeDepositGracePeriodSec) {
             return null;
           }
         }
 
-        // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
-        const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
+        // Unsafe deposit IDs cannot be located via on-chain historical binary search, so only consult
+        // deposits already indexed in the origin SpokePoolClient's memory.
+        let deposit;
+        if (unsafeDeposit) {
+          deposit = originClient?.getDeposit(fill.depositId);
+        } else {
+          const depositResult = await originClient?.findDeposit(fill.depositId);
+          deposit = depositResult?.found ? depositResult.deposit : undefined;
+        }
 
-        // If no deposits found at all
-        if (!depositResult?.found) {
+        if (!deposit) {
           return {
             fill,
             deposit: null,
@@ -215,11 +224,11 @@ export async function findInvalidFills(
         }
 
         // Check if fill is valid for deposit
-        const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+        const validationResult = validateFillForDeposit(fill, deposit);
         if (!validationResult.valid) {
           return {
             fill,
-            deposit: depositResult.deposit,
+            deposit,
             reason: validationResult.reason,
           };
         }
