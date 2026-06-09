@@ -13,12 +13,13 @@ import {
   SortableEvent,
 } from "../interfaces";
 import { svm } from "../arch";
+import { averageBlockTime as evmAverageBlockTime } from "../arch/evm";
+import { averageBlockTime as svmAverageBlockTime } from "../arch/svm";
+import { isEVMSpokePoolClient, isSVMSpokePoolClient, SpokePoolClient } from "../clients";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
-import { getCurrentTime } from "./TimeUtils";
 import { toAddressType } from "./AddressUtils";
-import { SpokePoolClient } from "../clients";
 
 export function isSlowFill(fill: Fill): boolean {
   return fill.relayExecutionInfo.fillType === FillType.SlowFill;
@@ -179,6 +180,28 @@ export function getMessageHash(message: string): string {
 /** Grace period before reporting fills with unsafe deposit IDs as invalid. */
 export const DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC = 10 * 60;
 
+/**
+ * Estimates how many seconds have elapsed since a fill was included on-chain by extrapolating
+ * from the gap between the client's latest searched height and the fill's block/slot.
+ */
+export async function estimateFillAgeSec(spokePoolClient: SpokePoolClient, fill: FillWithBlock): Promise<number> {
+  const heightDelta = Math.max(0, spokePoolClient.latestHeightSearched - fill.blockNumber);
+
+  if (isEVMSpokePoolClient(spokePoolClient)) {
+    const { average } = await evmAverageBlockTime(spokePoolClient.spokePool.provider);
+    return heightDelta * average;
+  }
+
+  if (isSVMSpokePoolClient(spokePoolClient)) {
+    const { average } = svmAverageBlockTime();
+    return heightDelta * average;
+  }
+
+  throw new Error(
+    `Unable to estimate fill age for unsupported SpokePoolClient type (${spokePoolClient.type}) on chain ${spokePoolClient.chainId}`
+  );
+}
+
 export async function findInvalidFills(
   spokePoolClients: { [chainId: number]: SpokePoolClient },
   unsafeDepositGracePeriodSec = DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC
@@ -196,15 +219,6 @@ export async function findInvalidFills(
         const originClient = spokePoolClients[fill.originChainId];
         const unsafeDeposit = isUnsafeDepositId(fill.depositId);
 
-        // Fills from unsafeDepositV3() use uint256 deposit IDs. Allow time for the origin-chain
-        // deposit to be indexed before treating the fill as invalid.
-        if (unsafeDeposit) {
-          const fillTimestamp = await spokePoolClient.getTimestampForBlock(fill.blockNumber);
-          if (getCurrentTime() - fillTimestamp < unsafeDepositGracePeriodSec) {
-            return null;
-          }
-        }
-
         // Unsafe deposit IDs cannot be located via on-chain historical binary search, so only consult
         // deposits already indexed in the origin SpokePoolClient's memory.
         let deposit;
@@ -216,6 +230,15 @@ export async function findInvalidFills(
         }
 
         if (!deposit) {
+          // Fills from unsafeDepositV3() use uint256 deposit IDs. Allow time for the origin-chain
+          // deposit to be indexed before treating the fill as invalid.
+          if (unsafeDeposit) {
+            const estimatedFillAgeSec = await estimateFillAgeSec(spokePoolClient, fill);
+            if (estimatedFillAgeSec < unsafeDepositGracePeriodSec) {
+              return null;
+            }
+          }
+
           return {
             fill,
             deposit: null,
