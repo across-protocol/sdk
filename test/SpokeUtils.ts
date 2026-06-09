@@ -4,6 +4,7 @@ import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES, MAX_SAFE_DEPOSIT_ID } from "../src/
 import { FillStatus } from "../src/interfaces";
 import {
   findInvalidFills,
+  getCurrentTime,
   getMessageHash,
   getRelayEventKey,
   keccak256,
@@ -200,7 +201,7 @@ describe("SpokeUtils", function () {
       expect(invalidFills).to.be.an("array").that.is.empty;
     });
 
-    it("skips fills with unsafe deposit IDs", async function () {
+    it("skips recent fills with unsafe deposit IDs within the grace period", async function () {
       const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
       mockSpokePoolClient.getFills = () => [
         {
@@ -210,9 +211,27 @@ describe("SpokeUtils", function () {
           ...dummyFillProps,
         },
       ];
+      mockSpokePoolClient.getTimestampForBlock = () => Promise.resolve(getCurrentTime());
 
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
       expect(invalidFills).to.be.an("array").that.is.empty;
+    });
+
+    it("detects fills with unsafe deposit IDs after the grace period", async function () {
+      const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
+      mockSpokePoolClient.getFills = () => [
+        {
+          ...sampleData,
+          depositId: unsafeDepositId,
+          messageHash,
+          ...dummyFillProps,
+        },
+      ];
+      mockSpokePoolClient.getTimestampForBlock = () => Promise.resolve(getCurrentTime() - 11 * 60);
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.have.lengthOf(1);
+      expect(invalidFills[0].reason).to.include("deposit with depositId");
     });
 
     it("detects fills with no matching deposits", async function () {

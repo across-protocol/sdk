@@ -16,6 +16,7 @@ import { svm } from "../arch";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
+import { getCurrentTime } from "./TimeUtils";
 import { toAddressType } from "./AddressUtils";
 import { SpokePoolClient } from "../clients";
 
@@ -175,9 +176,13 @@ export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
 }
 
-export async function findInvalidFills(spokePoolClients: {
-  [chainId: number]: SpokePoolClient;
-}): Promise<InvalidFill[]> {
+/** Grace period before reporting fills with unsafe deposit IDs as invalid. */
+export const DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC = 10 * 60;
+
+export async function findInvalidFills(
+  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  unsafeDepositGracePeriodSec = DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC
+): Promise<InvalidFill[]> {
   const invalidFills: InvalidFill[] = [];
 
   // Iterate through each spoke pool client
@@ -188,9 +193,13 @@ export async function findInvalidFills(spokePoolClients: {
     // Process fills in parallel for this client
     const fillDepositPairs = await Promise.all(
       fills.map(async (fill) => {
-        // Skip fills with unsafe deposit IDs
+        // Fills from unsafeDepositV3() use uint256 deposit IDs. Allow time for the origin-chain
+        // deposit to be indexed before treating the fill as invalid.
         if (isUnsafeDepositId(fill.depositId)) {
-          return null; // Return null for unsafe deposits
+          const fillTimestamp = await spokePoolClient.getTimestampForBlock(fill.blockNumber);
+          if (getCurrentTime() - fillTimestamp < unsafeDepositGracePeriodSec) {
+            return null;
+          }
         }
 
         // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
