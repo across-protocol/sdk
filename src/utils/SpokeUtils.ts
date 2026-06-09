@@ -15,7 +15,7 @@ import {
 import { svm } from "../arch";
 import { averageBlockTime as evmAverageBlockTime } from "../arch/evm";
 import { averageBlockTime as svmAverageBlockTime } from "../arch/svm";
-import type { SpokePoolClient } from "../clients/SpokePoolClient/SpokePoolClient";
+import { EVMSpokePoolClient, SpokePoolClient } from "../clients";
 import { EVM_SPOKE_POOL_CLIENT_TYPE, SVM_SPOKE_POOL_CLIENT_TYPE } from "../clients/SpokePoolClient/types";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
@@ -190,7 +190,7 @@ export async function estimateFillAgeSec(spokePoolClient: SpokePoolClient, fill:
 
   // Compare client type strings directly to avoid importing the clients barrel (circular dep with utils).
   if (spokePoolClient.type === EVM_SPOKE_POOL_CLIENT_TYPE) {
-    const { spokePool } = spokePoolClient as SpokePoolClient & { spokePool: { provider: Parameters<typeof evmAverageBlockTime>[0] } };
+    const { spokePool } = spokePoolClient as EVMSpokePoolClient;
     const { average } = await evmAverageBlockTime(spokePool.provider);
     return heightDelta * average;
   }
