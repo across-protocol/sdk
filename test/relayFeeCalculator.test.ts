@@ -36,7 +36,8 @@ import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
-import { QueryBase, QueryBase__factory, DEFAULT_LOGGER, SvmQuery } from "../src/relayFeeCalculator";
+import { QueryBase, QueryBase__factory, DEFAULT_LOGGER, SvmQuery, TvmQuery } from "../src/relayFeeCalculator";
+import * as tvmArch from "../src/arch/tvm";
 import { getDefaultProvider } from "ethers";
 import { MockedProvider } from "../src/providers/mocks";
 import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
@@ -797,5 +798,70 @@ describe("getAuxiliaryNativeTokenCost", function () {
     };
 
     expect(() => svmQueries.getAuxiliaryNativeTokenCost(deposit)).to.throw();
+  });
+
+  describe("TVM bandwidth cost", function () {
+    // Tron bandwidth burns at 1000 SUN/byte. The fixed-tx cost (no message) is the
+    // raw-data envelope + the static portion of the fillRelay ABI calldata: 290 + 4 +
+    // 96 + 384 + 32 = 806 bytes → 806,000 SUN.
+    const FIXED_BANDWIDTH_SUN = 806_000;
+
+    function makeDeposit(message: string): RelayData {
+      return {
+        originChainId: 1,
+        depositor: EvmAddress.from(ZERO_ADDRESS),
+        recipient: EvmAddress.from(ZERO_ADDRESS),
+        depositId: BigNumber.from(1),
+        inputToken: EvmAddress.from(ZERO_ADDRESS),
+        inputAmount: BigNumber.from(1),
+        outputToken: EvmAddress.from(ZERO_ADDRESS),
+        outputAmount: BigNumber.from(1),
+        message,
+        fillDeadline: 0,
+        exclusiveRelayer: EvmAddress.from(ZERO_ADDRESS),
+        exclusivityDeadline: 0,
+      };
+    }
+
+    it("returns fixed envelope cost for empty-message deposits", function () {
+      const fee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+      expect(fee.eq(FIXED_BANDWIDTH_SUN)).to.equal(true);
+    });
+
+    it("returns fixed envelope cost for 0x deposits", function () {
+      const fee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit("0x"));
+      expect(fee.eq(FIXED_BANDWIDTH_SUN)).to.equal(true);
+    });
+
+    it("scales linearly with padded message length", function () {
+      // Two 16-byte payloads should each pad up to a single 32-byte word.
+      const sixteenBytes = "0x" + "ab".repeat(16);
+      const oneWordFee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(sixteenBytes));
+      expect(oneWordFee.eq(FIXED_BANDWIDTH_SUN + 32 * 1000)).to.equal(true);
+
+      // 64 bytes spans exactly two 32-byte words → +64 * 1000 SUN.
+      const sixtyFourBytes = "0x" + "ab".repeat(64);
+      const twoWordFee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(sixtyFourBytes));
+      expect(twoWordFee.eq(FIXED_BANDWIDTH_SUN + 64 * 1000)).to.equal(true);
+    });
+
+    it("matches the observed onchain bandwidth for a 2112-byte multicall message", function () {
+      // Reproduces the fill for deposit #3984372 (Mainnet → Tron). Onchain net_fee was
+      // 2,908,000 SUN; our estimate should be within ~1% of that.
+      const messageBytes = 2112;
+      const message = "0x" + "00".repeat(messageBytes);
+      const fee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(message));
+      const expected = FIXED_BANDWIDTH_SUN + messageBytes * 1000;
+      expect(fee.eq(expected)).to.equal(true);
+      // Match to actual onchain 2,908,000 SUN within 1%.
+      const observedSun = 2_908_000;
+      const deltaPct = Math.abs(fee.toNumber() - observedSun) / observedSun;
+      expect(deltaPct).to.be.lessThan(0.01);
+    });
+  });
+
+  it("factory returns a TvmQuery for TRON", function () {
+    const queries = QueryBase__factory.create(CHAIN_IDs.TRON, getDefaultProvider());
+    expect(queries).to.be.instanceOf(TvmQuery);
   });
 });
