@@ -858,6 +858,38 @@ describe("getAuxiliaryNativeTokenCost", function () {
       const deltaPct = Math.abs(fee.toNumber() - observedSun) / observedSun;
       expect(deltaPct).to.be.lessThan(0.01);
     });
+
+    it("adds the fillRelayWithUpdatedDeposit overhead when a speed-up signature is present", function () {
+      // Speed-up fills carry 4 extra ABI head slots (128) + updatedMessage length
+      // header (32) + speedUpSignature length header (32) + padded 65-byte sig (96)
+      // = 288 fixed extra bytes, plus the padded updatedMessage body.
+      const SPEED_UP_FIXED_EXTRA_SUN = 288 * 1000;
+      const speedUpSignature = "0x" + "11".repeat(65);
+
+      // Empty original + empty updated message: only the fixed speed-up extra applies.
+      const emptySpeedUp = {
+        ...makeDeposit(EMPTY_MESSAGE),
+        updatedRecipient: EvmAddress.from(ZERO_ADDRESS),
+        updatedOutputAmount: BigNumber.from(1),
+        updatedMessage: EMPTY_MESSAGE,
+        speedUpSignature,
+      };
+      const emptyFee = tvmArch.getAuxiliaryNativeTokenCost(emptySpeedUp);
+      expect(emptyFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN)).to.equal(true);
+
+      // 48-byte updated message → pads to 64 bytes (two 32-byte words).
+      const updatedMessage = "0x" + "ab".repeat(48);
+      const withUpdatedMessage = { ...emptySpeedUp, updatedMessage };
+      const updatedFee = tvmArch.getAuxiliaryNativeTokenCost(withUpdatedMessage);
+      expect(updatedFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN + 64 * 1000)).to.equal(true);
+
+      // Original message bytes are still charged on top, since V3RelayData still carries
+      // the original `message` field inside fillRelayWithUpdatedDeposit.
+      const originalMessage = "0x" + "cd".repeat(32);
+      const both = { ...withUpdatedMessage, message: originalMessage };
+      const bothFee = tvmArch.getAuxiliaryNativeTokenCost(both);
+      expect(bothFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN + 64 * 1000 + 32 * 1000)).to.equal(true);
+    });
   });
 
   it("factory returns a TvmQuery for TRON", function () {
