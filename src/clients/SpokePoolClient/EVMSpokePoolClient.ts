@@ -58,8 +58,15 @@ export class EVMSpokePoolClient extends SpokePoolClient {
   }
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
-    const fillStatusHandler = this.tvm ? relayFillStatusTvm : relayFillStatus;
-    return fillStatusHandler(this.spokePool, relayData, atHeight, this.chainId);
+    if (this.tvm) {
+      // TVM reconstructs the historical status from events; thread the search
+      // config so paginatedEventQuery chunks on capped RPCs (e.g. Chainstack Tron).
+      return relayFillStatusTvm(this.spokePool, relayData, atHeight, this.chainId, {
+        from: this.deploymentBlock,
+        maxLookBack: this.eventSearchConfig.maxLookBack,
+      });
+    }
+    return relayFillStatus(this.spokePool, relayData, atHeight, this.chainId);
   }
 
   public override fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]> {
@@ -71,8 +78,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     // an earlier block reverts because the contract did not yet exist.
     const effectiveStartBlock = Math.max(startBlock, this.deploymentBlock);
 
-    const maxFillDeadlineInRangeHandler = this.tvm ? getMaxFillDeadlineTvm : getMaxFillDeadline;
-    return maxFillDeadlineInRangeHandler(this.spokePool, effectiveStartBlock, endBlock);
+    if (this.tvm) {
+      return getMaxFillDeadlineTvm(this.spokePool, effectiveStartBlock, endBlock, {
+        maxLookBack: this.eventSearchConfig.maxLookBack,
+      });
+    }
+    return getMaxFillDeadline(this.spokePool, effectiveStartBlock, endBlock);
   }
 
   private _availableEventsOnSpoke(eventNames: string[] = knownEventNames): { [eventName: string]: EventFilter } {
@@ -216,8 +227,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
    * TVM overrides this with an event-based lookup.
    */
   protected _findDepositBlock(depositId: BigNumber, lowBlock: number, highBlock?: number): Promise<number | undefined> {
-    const findDepositBlockHandler = this.tvm ? findDepositBlockTvm : findDepositBlock;
-    return findDepositBlockHandler(this.spokePool, depositId, lowBlock, highBlock);
+    if (this.tvm) {
+      return findDepositBlockTvm(this.spokePool, depositId, lowBlock, highBlock, {
+        maxLookBack: this.eventSearchConfig.maxLookBack,
+      });
+    }
+    return findDepositBlock(this.spokePool, depositId, lowBlock, highBlock);
   }
 
   protected async queryDepositEvents(
