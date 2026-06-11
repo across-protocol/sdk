@@ -594,10 +594,7 @@ export class RelayFeeCalculator {
     // fees are taken out. Kept in per-amount terms for backwards compatibility with
     // callers that display it as a live percentage.
     const maxGasFeePercent = max(
-      toBNWei(this.feeLimitPercent)
-        .div(100)
-        .sub(capitalFeePercent)
-        .sub(auxNativeFeePercent),
+      toBNWei(this.feeLimitPercent).div(100).sub(capitalFeePercent).sub(auxNativeFeePercent),
       bnZero
     );
 
