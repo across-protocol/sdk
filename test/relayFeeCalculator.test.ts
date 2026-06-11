@@ -195,6 +195,49 @@ describe("RelayFeeCalculator", () => {
       true
     );
   });
+
+  it("relayerFeeDetails: minDeposit stays finite when aux native cost dominates a small simulation amount", async () => {
+    // Regression for the case reported by Melisa on quote-api#2779 against SDK 4.3.166:
+    // a /api/limits call without an `amount` falls back to a tiny simulation amount
+    // (100 raw units ≈ 1e-4 USDT). With Tron's non-zero `getAuxiliaryNativeTokenCost`,
+    // the legacy `auxNativeFeePercent` (= auxCost / outputAmount) exploded, clamping
+    // `maxGasFeePercent` to 0 and returning `minDeposit = MAX_BIG_INT` for an
+    // otherwise viable route. Solving for `minDeposit` directly from the absolute
+    // aux cost keeps the result finite.
+    class FixedAuxQueries extends ExampleQueries {
+      override getAuxiliaryNativeTokenCost(): BigNumber {
+        // Arbitrary non-zero native-token cost; magnitude is large enough to have
+        // exploded the legacy closed-form against the tiny outputAmount below.
+        return toBN("1000000000");
+      }
+    }
+
+    const auxQueries = new FixedAuxQueries();
+    const tinyAmount = 100; // matches the simulationAmount fallback in callers like /api/limits
+    const auxClient = new RelayFeeCalculator({
+      queries: auxQueries,
+      feeLimitPercent: 25,
+      capitalCostsConfig: testCapitalCostsConfig,
+    });
+    const details = await auxClient.relayerFeeDetails(
+      buildDepositForRelayerFeeTest(tinyAmount, "usdc", 1, 10),
+      tinyAmount
+    );
+
+    // minDeposit must be finite (not MAX_BIG_INT) — that's the regression.
+    assert.notEqual(details.minDeposit, Number.MAX_SAFE_INTEGER.toString());
+
+    // minDeposit should be invariant in the probe `outputAmount`: callers that probe
+    // with a throwaway amount should get the same value as callers that pass a real
+    // one. (The legacy formula folded `outputAmount` in via the per-amount
+    // `auxNativeFeePercent`, so the two would have differed.)
+    const probeDetails = await auxClient.relayerFeeDetails(
+      buildDepositForRelayerFeeTest(1000e6, "usdc", 1, 10),
+      1000e6
+    );
+    assert.equal(details.minDeposit, probeDetails.minDeposit);
+  });
+
   it("capitalFeePercent", () => {
     // Invalid capital cost configs throws on construction:
     assert.throws(
