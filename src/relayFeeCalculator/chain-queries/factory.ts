@@ -4,12 +4,13 @@ import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
+import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, chainIsTvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
+import { TvmQuery } from "./tvmQuery";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -35,7 +36,12 @@ export class QueryBase__factory {
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
     if (chainIsEvm(chainId) && isDefined(customGasTokenSymbol)) {
       assert(relayerAddress.isEVM());
-      return new CustomGasTokenQueries({
+      // TVM chains route through TvmQuery so that bandwidth — a Tron-native cost the
+      // EVM compatibility layer's `eth_estimateGas` does not surface — is included in
+      // `auxiliaryNativeTokenCost`. Otherwise fall back to the EVM-flavoured custom gas
+      // token query.
+      const QueryCtor = chainIsTvm(chainId) ? TvmQuery : CustomGasTokenQueries;
+      return new QueryCtor({
         queryBaseArgs: [
           provider as providers.Provider,
           symbolMapping,
