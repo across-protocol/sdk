@@ -594,10 +594,11 @@ export class RelayFeeCalculator {
     // fees are taken out. Kept in per-amount terms for backwards compatibility with
     // callers that display it as a live percentage.
     const maxGasFeePercent = max(
-      toBNWei(this.feeLimitPercent / 100)
+      toBNWei(this.feeLimitPercent)
+        .div(100)
         .sub(capitalFeePercent)
         .sub(auxNativeFeePercent),
-      toBN(0)
+      bnZero
     );
 
     // `minDeposit` is the smallest `outputAmount` for which gas, capital, and
@@ -617,7 +618,7 @@ export class RelayFeeCalculator {
     // to `MAX_BIG_INT` for any small simulation amount on chains with non-zero
     // auxiliary cost (e.g. Tron bandwidth) — even though a real deposit would have
     // been feasible. Computing it directly from absolute aux cost avoids that.
-    const minDepositBudget = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), bnZero);
+    const minDepositBudget = max(toBNWei(this.feeLimitPercent).div(100).sub(capitalFeePercent), bnZero);
     let minDeposit: BigNumber, isAmountTooLow: boolean;
     if (minDepositBudget.eq(bnZero)) {
       // Capital fee alone has exhausted the budget; no deposit amount can satisfy
