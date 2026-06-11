@@ -617,9 +617,9 @@ export class RelayFeeCalculator {
     // to `MAX_BIG_INT` for any small simulation amount on chains with non-zero
     // auxiliary cost (e.g. Tron bandwidth) — even though a real deposit would have
     // been feasible. Computing it directly from absolute aux cost avoids that.
-    const minDepositBudget = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), toBN(0));
+    const minDepositBudget = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), bnZero);
     let minDeposit: BigNumber, isAmountTooLow: boolean;
-    if (minDepositBudget.eq(toBN(0))) {
+    if (minDepositBudget.eq(bnZero)) {
       // Capital fee alone has exhausted the budget; no deposit amount can satisfy
       // the limit.
       minDeposit = MAX_BIG_INT;
