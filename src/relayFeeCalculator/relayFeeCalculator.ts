@@ -299,17 +299,19 @@ export class RelayFeeCalculator {
   }
 
   /**
-   * Calculate the auxiliary native token fee as a % of the amount to relay.
+   * Resolve the auxiliary native token fee in absolute output-token units and as a
+   * percentage of `outputAmount`. The absolute form is amount-invariant (it depends
+   * only on the deposit and price), so callers reasoning about `minDeposit` should
+   * prefer it over the percent — the percent diverges as `outputAmount → 0`.
+   *
    * Treats auxiliary native outlay as value forwarded to user, reported separately.
    */
-  async auxNativeFeePercent(
+  protected async resolveAuxNativeFee(
     deposit: RelayData & { destinationChainId: number },
     outputAmount: BigNumberish,
     outputTokenInfo: TokenInfo,
     _tokenPrice?: number
-  ): Promise<BigNumber> {
-    if (toBN(outputAmount).eq(bnZero)) return MAX_BIG_INT;
-
+  ): Promise<{ auxFeesInToken: BigNumber; auxNativeFeePercent: BigNumber }> {
     let auxNativeCost = bnZero;
     try {
       auxNativeCost = this.queries.getAuxiliaryNativeTokenCost(deposit);
@@ -325,8 +327,26 @@ export class RelayFeeCalculator {
     }
 
     const tokenPrice = await this.resolveTokenPrice(outputTokenInfo, _tokenPrice, deposit);
-    const auxFeesInToken = nativeToToken(auxNativeCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals);
-    return percent(auxFeesInToken, outputAmount);
+    const auxFeesInToken = toBN(
+      nativeToToken(auxNativeCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals)
+    );
+    const auxNativeFeePercent = toBN(outputAmount).eq(bnZero) ? MAX_BIG_INT : percent(auxFeesInToken, outputAmount);
+    return { auxFeesInToken, auxNativeFeePercent };
+  }
+
+  /**
+   * Calculate the auxiliary native token fee as a % of the amount to relay.
+   * Treats auxiliary native outlay as value forwarded to user, reported separately.
+   */
+  async auxNativeFeePercent(
+    deposit: RelayData & { destinationChainId: number },
+    outputAmount: BigNumberish,
+    outputTokenInfo: TokenInfo,
+    _tokenPrice?: number
+  ): Promise<BigNumber> {
+    if (toBN(outputAmount).eq(bnZero)) return MAX_BIG_INT;
+    const { auxNativeFeePercent } = await this.resolveAuxNativeFee(deposit, outputAmount, outputTokenInfo, _tokenPrice);
+    return auxNativeFeePercent;
   }
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
@@ -554,7 +574,13 @@ export class RelayFeeCalculator {
     );
     const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
 
-    const auxNativeFeePercent = await this.auxNativeFeePercent(deposit, outputAmount, outputTokenInfo, tokenPrice);
+    const { auxFeesInToken, auxNativeFeePercent } = await this.resolveAuxNativeFee(
+      deposit,
+      outputAmount,
+      outputTokenInfo,
+      tokenPrice
+    );
+    const auxFeesInInputDecimals = toBN(outToInDecimals(auxFeesInToken.toString()));
     const auxNativeFeeTotal = auxNativeFeePercent
       .mul(outToInDecimals(outputAmount.toString()))
       .div(fixedPointAdjustment);
@@ -563,26 +589,43 @@ export class RelayFeeCalculator {
     const relayFeePercent = gasFeePercent.add(capitalFeePercent).add(auxNativeFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal).add(auxNativeFeeTotal);
 
-    // We don't want the relayer to incur an excessive gas fee charge as a % of the deposited total. The maximum
-    // gas fee % charged is equal to the remaining fee % leftover after subtracting the capital fee % and aux fee %
-    // from the fee limit %. We then compute the minimum deposited amount required to not exceed the maximum
-    // gas fee %: maxGasFeePercent = gasFeeTotal / minDeposit. Refactor this to figure out the minDeposit:
-    // minDeposit = gasFeeTotal / maxGasFeePercent, and subsequently determine
-    // isAmountTooLow = amountToRelay < minDeposit.
+    // `maxGasFeePercent` reports the remaining fee budget at the given `outputAmount`:
+    // what fraction of the input can still be spent on gas after capital and auxiliary
+    // fees are taken out. Kept in per-amount terms for backwards compatibility with
+    // callers that display it as a live percentage.
     const maxGasFeePercent = max(
       toBNWei(this.feeLimitPercent / 100)
         .sub(capitalFeePercent)
         .sub(auxNativeFeePercent),
       toBN(0)
     );
-    // If maxGasFee % is 0, then the min deposit should be infinite because there is no deposit amount that would
-    // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
+
+    // `minDeposit` is the smallest `outputAmount` for which gas, capital, and
+    // auxiliary fees together stay under `feeLimitPercent`. Solving with the variable
+    // costs in absolute terms (gas + aux scale as constant_cost / amount; capital is
+    // ~constant near the bound):
+    //
+    //   (gasFeeTotal + auxFeesInInputDecimals) / minDeposit + capitalFeePercent
+    //     <= feeLimitPercent
+    //
+    //   ⇒ minDeposit = (gasFeeTotal + auxFeesInInputDecimals) /
+    //                  (feeLimitPercent − capitalFeePercent)
+    //
+    // The earlier closed-form derived `minDeposit` from the per-amount
+    // `maxGasFeePercent`, which incorporated `auxNativeFeePercent = auxCost /
+    // outputAmount`. That ratio diverges as `outputAmount → 0`, pinning `minDeposit`
+    // to `MAX_BIG_INT` for any small simulation amount on chains with non-zero
+    // auxiliary cost (e.g. Tron bandwidth) — even though a real deposit would have
+    // been feasible. Computing it directly from absolute aux cost avoids that.
+    const minDepositBudget = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), toBN(0));
     let minDeposit: BigNumber, isAmountTooLow: boolean;
-    if (maxGasFeePercent.eq(toBN(0))) {
+    if (minDepositBudget.eq(toBN(0))) {
+      // Capital fee alone has exhausted the budget; no deposit amount can satisfy
+      // the limit.
       minDeposit = MAX_BIG_INT;
       isAmountTooLow = true;
     } else {
-      minDeposit = gasFeeTotal.mul(fixedPointAdjustment).div(maxGasFeePercent);
+      minDeposit = gasFeeTotal.add(auxFeesInInputDecimals).mul(fixedPointAdjustment).div(minDepositBudget);
       isAmountTooLow = toBN(outputAmount).lt(minDeposit);
     }
 
