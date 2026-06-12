@@ -1380,8 +1380,6 @@ export class BundleDataClient {
       );
     } else if (isEVMSpokePoolClient(spokePoolClient)) {
       if (chainIsTvm(spokePoolClient.chainId)) {
-        // Thread the eventSearchConfig so paginatedEventQuery chunks the
-        // deploymentBlock→latestHeightSearched range on capped RPCs.
         return await findTvmFillEvent(
           spokePoolClient.spokePool,
           deposit,

@@ -59,8 +59,6 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
     if (this.tvm) {
-      // TVM reconstructs the historical status from events; thread the search
-      // config so paginatedEventQuery chunks on capped RPCs (e.g. Chainstack Tron).
       return relayFillStatusTvm(this.spokePool, relayData, atHeight, this.chainId, {
         from: this.deploymentBlock,
         maxLookBack: this.eventSearchConfig.maxLookBack,

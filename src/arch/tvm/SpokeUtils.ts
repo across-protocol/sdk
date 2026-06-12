@@ -16,10 +16,6 @@ import {
 
 type BlockTag = providers.BlockTag;
 
-// Search config plumbed through TVM helpers so paginated event queries actually
-// chunk on RPCs that cap eth_getLogs ranges (Chainstack caps Tron at 5,000).
-// Mirrors the {from, maxLookBack} shape that the SpokePoolClient already
-// threads through its EVM event queries (see EVMSpokePoolClient.queryDepositEvents).
 type SearchConfig = { from?: number; maxLookBack?: number };
 
 // Re-export functions that work unchanged on TRON's JSON-RPC.
@@ -141,9 +137,6 @@ export async function relayFillStatus(
     return FillStatus.Unfilled;
   }
 
-  // Reconstruct from events up to the requested block. Default fromBlock to 0
-  // when the caller did not supply one, but the SpokePoolClient passes the
-  // deployment block to keep the scan bounded — events cannot exist before then.
   const fromBlock = eventSearchConfig?.from ?? 0;
   const toBlock = Number(blockTag);
   const { maxLookBack } = eventSearchConfig ?? {};
