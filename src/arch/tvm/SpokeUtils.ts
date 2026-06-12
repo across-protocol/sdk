@@ -16,6 +16,8 @@ import {
 
 type BlockTag = providers.BlockTag;
 
+type SearchConfig = { from?: number; maxLookBack?: number };
+
 // Re-export functions that work unchanged on TRON's JSON-RPC.
 export { populateV3Relay, getTimestampForBlock, fillStatusArray } from "../evm/SpokeUtils";
 
@@ -48,11 +50,12 @@ const FALLBACK_FILL_DEADLINE_BUFFER = 21600; // 6 hours in seconds
 export async function getMaxFillDeadlineInRange(
   spokePool: Contract,
   startBlock: number,
-  endBlock: number
+  endBlock: number,
+  eventSearchConfig?: SearchConfig
 ): Promise<number> {
   const [fillDeadlineBuffer, upgrades] = await Promise.all([
     spokePool.fillDeadlineBuffer(),
-    get1967Upgrades(spokePool, startBlock, endBlock),
+    get1967Upgrades(spokePool, startBlock, endBlock, eventSearchConfig?.maxLookBack),
   ]);
 
   const currentBuffer = Number(fillDeadlineBuffer);
@@ -80,7 +83,8 @@ export async function findDepositBlock(
   spokePool: Contract,
   depositId: BigNumber,
   lowBlock: number,
-  highBlock?: number
+  highBlock?: number,
+  eventSearchConfig?: SearchConfig
 ): Promise<number | undefined> {
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot search for depositId ${depositId}`);
@@ -92,7 +96,7 @@ export async function findDepositBlock(
   const events = await paginatedEventQuery(
     spokePool,
     spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-    { from: lowBlock, to: highBlock }
+    { from: lowBlock, to: highBlock, maxLookBack: eventSearchConfig?.maxLookBack }
   );
 
   if (events.length === 0) {
@@ -113,7 +117,8 @@ export async function relayFillStatus(
   spokePool: Contract,
   relayData: RelayData,
   blockTag: BlockTag = "latest",
-  destinationChainId?: number
+  destinationChainId?: number,
+  eventSearchConfig?: SearchConfig
 ): Promise<FillStatus> {
   if (blockTag === "latest") {
     return evmRelayFillStatus(spokePool, relayData, blockTag, destinationChainId);
@@ -132,14 +137,14 @@ export async function relayFillStatus(
     return FillStatus.Unfilled;
   }
 
-  // Reconstruct from events up to the requested block.
-  const fromBlock = 0;
+  const fromBlock = eventSearchConfig?.from ?? 0;
   const toBlock = Number(blockTag);
+  const { maxLookBack } = eventSearchConfig ?? {};
 
   const fillEvents = await paginatedEventQuery(
     spokePool,
     spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-    { from: fromBlock, to: toBlock }
+    { from: fromBlock, to: toBlock, maxLookBack }
   );
 
   if (fillEvents.length > 0) {
@@ -151,7 +156,7 @@ export async function relayFillStatus(
     const slowFillEvents = await paginatedEventQuery(
       spokePool,
       spokePool.filters.RequestedSlowFill(null, null, null, null, relayData.originChainId, relayData.depositId),
-      { from: fromBlock, to: toBlock }
+      { from: fromBlock, to: toBlock, maxLookBack }
     );
 
     if (slowFillEvents.length > 0) {
@@ -171,7 +176,8 @@ export async function findFillBlock(
   spokePool: Contract,
   relayData: RelayData,
   lowBlockNumber: number,
-  highBlockNumber?: number
+  highBlockNumber?: number,
+  eventSearchConfig?: SearchConfig
 ): Promise<number | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
@@ -180,7 +186,7 @@ export async function findFillBlock(
   const events = await paginatedEventQuery(
     spokePool,
     spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-    { from: lowBlockNumber, to: highBlockNumber }
+    { from: lowBlockNumber, to: highBlockNumber, maxLookBack: eventSearchConfig?.maxLookBack }
   );
 
   if (events.length === 0) {
@@ -198,7 +204,8 @@ export async function findFillEvent(
   spokePool: Contract,
   relayData: RelayData,
   lowBlockNumber: number,
-  highBlockNumber?: number
+  highBlockNumber?: number,
+  eventSearchConfig?: SearchConfig
 ): Promise<FillWithBlock | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
@@ -206,7 +213,7 @@ export async function findFillEvent(
   const events = await paginatedEventQuery(
     spokePool,
     spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-    { from: lowBlockNumber, to: highBlockNumber }
+    { from: lowBlockNumber, to: highBlockNumber, maxLookBack: eventSearchConfig?.maxLookBack }
   );
 
   if (events.length === 0) {

@@ -1379,8 +1379,16 @@ export class BundleDataClient {
         spokePoolClient.logger
       );
     } else if (isEVMSpokePoolClient(spokePoolClient)) {
-      const findFillEventHandler = chainIsTvm(spokePoolClient.chainId) ? findTvmFillEvent : findEvmFillEvent;
-      return await findFillEventHandler(
+      if (chainIsTvm(spokePoolClient.chainId)) {
+        return await findTvmFillEvent(
+          spokePoolClient.spokePool,
+          deposit,
+          spokePoolClient.deploymentBlock,
+          spokePoolClient.latestHeightSearched,
+          { maxLookBack: spokePoolClient.eventSearchConfig.maxLookBack }
+        );
+      }
+      return await findEvmFillEvent(
         spokePoolClient.spokePool,
         deposit,
         spokePoolClient.deploymentBlock,
