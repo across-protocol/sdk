@@ -40,7 +40,6 @@ import {
   shouldCache,
   sortEventsDescending,
   spreadEventWithBlockNumber,
-  toBN,
   getTokenInfo,
   getUsdcSymbol,
   chainIsSvm,
@@ -130,6 +129,26 @@ export class HubPoolClient extends BaseAbstractClient {
       RootBundleDisputed: this.hubPool.filters.RootBundleDisputed(),
       RootBundleExecuted: this.hubPool.filters.RootBundleExecuted(),
       CrossChainContractsSet: this.hubPool.filters.CrossChainContractsSet(),
+    };
+  }
+
+  // Decode a RootBundleExecuted log and normalize it into ExecutedRootBundle. runningBalances may carry
+  // incentive balances in the second half — keep only the first nTokens entries, matching the on-chain layout.
+  private decodeExecutedRootBundle(event: Log): ExecutedRootBundle {
+    const spread = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
+      l1Tokens: string[];
+    };
+    const nTokens = spread.l1Tokens.length;
+    if (![nTokens, nTokens * 2].includes(spread.runningBalances.length)) {
+      throw new Error(
+        `Invalid runningBalances length: ${spread.runningBalances.length}.` +
+          ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${spread.txnRef}`
+      );
+    }
+    return {
+      ...spread,
+      runningBalances: spread.runningBalances.slice(0, nTokens),
+      l1Tokens: spread.l1Tokens.map((token) => EvmAddress.from(token)),
     };
   }
 
@@ -803,8 +822,36 @@ export class HubPoolClient extends BaseAbstractClient {
     });
   }
 
-  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: EvmAddress): TokenRunningBalance {
-    const executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
+  async getRunningBalanceBeforeBlockForChain(
+    block: number,
+    chain: number,
+    l1Token: EvmAddress
+  ): Promise<TokenRunningBalance> {
+    let executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
+
+    // `executedRootBundles` only spans the configured event lookback. If there's no balance update for this
+    // (chain, l1Token) within it, query the preceding history on the fly before assuming a zero running
+    // balance -- otherwise a balance carried by a token idle longer than the lookback is silently dropped,
+    // under-pulling spoke liquidity.
+    if (!isDefined(executedRootBundle)) {
+      const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
+      if (to >= this.deploymentBlock) {
+        const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
+          from: this.deploymentBlock,
+          to,
+          maxLookBack: this.eventSearchConfig.maxLookBack,
+        });
+        const historical = events
+          .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
+          .map((event) => this.decodeExecutedRootBundle(event));
+        executedRootBundle = sortEventsDescending(historical).find(
+          (executedLeaf) =>
+            executedLeaf.blockNumber <= block &&
+            executedLeaf.chainId === chain &&
+            executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
+        );
+      }
+    }
 
     return this.getRunningBalanceForToken(l1Token, executedRootBundle);
   }
@@ -813,7 +860,7 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: EvmAddress,
     executedRootBundle: ExecutedRootBundle | undefined
   ): TokenRunningBalance {
-    let runningBalance = toBN(0);
+    let runningBalance = bnZero;
     if (executedRootBundle) {
       const indexOfL1Token = executedRootBundle.l1Tokens.findIndex((tokenInBundle) => tokenInBundle.eq(l1Token));
       if (indexOfL1Token !== -1) {
@@ -1067,26 +1114,7 @@ export class HubPoolClient extends BaseAbstractClient {
         if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
           continue;
         }
-
-        // Set running balances and incentive balances for this bundle.
-        const executedRootBundle = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
-          l1Tokens: string[];
-        };
-        const { l1Tokens, runningBalances } = executedRootBundle;
-        const nTokens = l1Tokens.length;
-
-        // Safeguard
-        if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
-          throw new Error(
-            `Invalid runningBalances length: ${runningBalances.length}.` +
-              ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${event.transactionHash}`
-          );
-        }
-        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        this.executedRootBundles.push({
-          ...executedRootBundle,
-          l1Tokens: l1Tokens.map((l1Token) => EvmAddress.from(l1Token)),
-        });
+        this.executedRootBundles.push(this.decodeExecutedRootBundle(event));
       }
     }
 

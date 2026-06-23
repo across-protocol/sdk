@@ -184,23 +184,23 @@ export function updateRunningBalance(
   }
 }
 
-export function addLastRunningBalance(
+export async function addLastRunningBalance(
   latestMainnetBlock: number,
   runningBalances: RunningBalances,
   hubPoolClient: HubPoolClient
-): void {
-  Object.keys(runningBalances).forEach((repaymentChainId) => {
-    Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
-      const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+): Promise<void> {
+  for (const repaymentChainId of Object.keys(runningBalances).map(Number)) {
+    for (const l1TokenAddress of Object.keys(runningBalances[repaymentChainId])) {
+      const { runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
         latestMainnetBlock,
-        Number(repaymentChainId),
+        repaymentChainId,
         EvmAddress.from(l1TokenAddress)
       );
       if (!runningBalance.eq(bnZero)) {
-        updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalance);
+        updateRunningBalance(runningBalances, repaymentChainId, l1TokenAddress, runningBalance);
       }
-    });
-  });
+    }
+  }
 }
 
 export function updateRunningBalanceForDeposit(
