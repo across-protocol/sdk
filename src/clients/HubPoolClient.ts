@@ -132,6 +132,26 @@ export class HubPoolClient extends BaseAbstractClient {
     };
   }
 
+  // Decode a RootBundleExecuted log and normalize it into ExecutedRootBundle. runningBalances may carry
+  // incentive balances in the second half — keep only the first nTokens entries, matching the on-chain layout.
+  private decodeExecutedRootBundle(event: Log): ExecutedRootBundle {
+    const spread = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
+      l1Tokens: string[];
+    };
+    const nTokens = spread.l1Tokens.length;
+    if (![nTokens, nTokens * 2].includes(spread.runningBalances.length)) {
+      throw new Error(
+        `Invalid runningBalances length: ${spread.runningBalances.length}.` +
+          ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${spread.txnRef}`
+      );
+    }
+    return {
+      ...spread,
+      runningBalances: spread.runningBalances.slice(0, nTokens),
+      l1Tokens: spread.l1Tokens.map((token) => EvmAddress.from(token)),
+    };
+  }
+
   hasPendingProposal(): boolean {
     return this.pendingRootBundle !== undefined;
   }
@@ -816,21 +836,14 @@ export class HubPoolClient extends BaseAbstractClient {
     if (!isDefined(executedRootBundle)) {
       const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
       if (to >= this.deploymentBlock) {
-        // Mirror update(): query RootBundleExecuted unfiltered and match chainId in-memory (chainId is not
-        // reliably filterable across HubPool versions).
         const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
           from: this.deploymentBlock,
           to,
           maxLookBack: this.eventSearchConfig.maxLookBack,
         });
-        const historical = events.map((event) => {
-          const spread = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
-            l1Tokens: string[];
-          };
-          // runningBalances may include incentive balances in the second half; keep the first nTokens.
-          spread.runningBalances = spread.runningBalances.slice(0, spread.l1Tokens.length);
-          return { ...spread, l1Tokens: spread.l1Tokens.map((token) => EvmAddress.from(token)) } as ExecutedRootBundle;
-        });
+        const historical = events
+          .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
+          .map((event) => this.decodeExecutedRootBundle(event));
         executedRootBundle = sortEventsDescending(historical).find(
           (executedLeaf) =>
             executedLeaf.blockNumber <= block &&
@@ -1101,26 +1114,7 @@ export class HubPoolClient extends BaseAbstractClient {
         if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
           continue;
         }
-
-        // Set running balances and incentive balances for this bundle.
-        const executedRootBundle = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
-          l1Tokens: string[];
-        };
-        const { l1Tokens, runningBalances } = executedRootBundle;
-        const nTokens = l1Tokens.length;
-
-        // Safeguard
-        if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
-          throw new Error(
-            `Invalid runningBalances length: ${runningBalances.length}.` +
-              ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${event.transactionHash}`
-          );
-        }
-        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        this.executedRootBundles.push({
-          ...executedRootBundle,
-          l1Tokens: l1Tokens.map((l1Token) => EvmAddress.from(l1Token)),
-        });
+        this.executedRootBundles.push(this.decodeExecutedRootBundle(event));
       }
     }
 
