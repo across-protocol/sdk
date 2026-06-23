@@ -194,7 +194,7 @@ export async function _buildPoolRebalanceRoot(
  * @param clients Clients required to construct a new pool rebalance root.
  * @maxL1TokenCountOverride Optional parameter to cap the number of tokens in a single pool rebalance leaf.
  */
-export function _buildHistoricalPoolRebalanceRoot(
+export async function _buildHistoricalPoolRebalanceRoot(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -207,7 +207,7 @@ export function _buildHistoricalPoolRebalanceRoot(
     configStoreClient: AcrossConfigStoreClient;
   },
   maxL1TokenCountOverride?: number
-): PoolRebalanceRoot {
+): Promise<PoolRebalanceRoot> {
   const { runningBalances, realizedLpFees, chainWithRefundsOnly } = _getMarginalRunningBalances(
     mainnetBundleEndBlock,
     bundleV3Deposits,
@@ -217,7 +217,7 @@ export function _buildHistoricalPoolRebalanceRoot(
     expiredDepositsToRefundV3,
     clients
   );
-  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
+  await addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
   const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
     mainnetBundleEndBlock,
     runningBalances,
@@ -286,7 +286,7 @@ export async function _buildOptimisticPoolRebalanceRoot(
     true
   );
   // Build the pool rebalance root for the pending root bundle.
-  const { leaves, tree } = _buildHistoricalPoolRebalanceRoot(
+  const { leaves, tree } = await _buildHistoricalPoolRebalanceRoot(
     latestMainnetBlock,
     blockRangesForChains[0][1],
     pendingRootBundleData.bundleDepositsV3,
@@ -302,9 +302,8 @@ export async function _buildOptimisticPoolRebalanceRoot(
 
   // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
   // The running balance for this entry was unchanged since the last root bundle.
-  Object.keys(runningBalances).forEach((_repaymentChainId) => {
-    Object.keys(runningBalances[Number(_repaymentChainId)]).forEach((_l1TokenAddress) => {
-      const repaymentChainId = Number(_repaymentChainId);
+  for (const repaymentChainId of Object.keys(runningBalances).map(Number)) {
+    for (const _l1TokenAddress of Object.keys(runningBalances[repaymentChainId])) {
       const l1TokenAddress = EvmAddress.from(_l1TokenAddress);
       const pendingPoolRebalanceLeaf = leaves.find(
         (leaf) => leaf.chainId === repaymentChainId && leaf.l1Tokens.some((l1Token) => l1Token.eq(l1TokenAddress))
@@ -322,7 +321,7 @@ export async function _buildOptimisticPoolRebalanceRoot(
       } else {
         // Otherwise, add the last running balance for this token.
         const { runningBalance: lastExecutedBundleRunningBalance } =
-          clients.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+          await clients.hubPoolClient.getRunningBalanceBeforeBlockForChain(
             latestMainnetBlock,
             repaymentChainId,
             l1TokenAddress
@@ -331,8 +330,8 @@ export async function _buildOptimisticPoolRebalanceRoot(
           updateRunningBalance(runningBalances, repaymentChainId, _l1TokenAddress, lastExecutedBundleRunningBalance);
         }
       }
-    });
-  });
+    }
+  }
   const poolRebalanceLeaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
     mainnetBundleEndBlock,
     runningBalances,

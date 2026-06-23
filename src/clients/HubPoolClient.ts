@@ -40,7 +40,6 @@ import {
   shouldCache,
   sortEventsDescending,
   spreadEventWithBlockNumber,
-  toBN,
   getTokenInfo,
   getUsdcSymbol,
   chainIsSvm,
@@ -803,8 +802,43 @@ export class HubPoolClient extends BaseAbstractClient {
     });
   }
 
-  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: EvmAddress): TokenRunningBalance {
-    const executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
+  async getRunningBalanceBeforeBlockForChain(
+    block: number,
+    chain: number,
+    l1Token: EvmAddress
+  ): Promise<TokenRunningBalance> {
+    let executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
+
+    // `executedRootBundles` only spans the configured event lookback. If there's no balance update for this
+    // (chain, l1Token) within it, query the preceding history on the fly before assuming a zero running
+    // balance -- otherwise a balance carried by a token idle longer than the lookback is silently dropped,
+    // under-pulling spoke liquidity.
+    if (!isDefined(executedRootBundle)) {
+      const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
+      if (to >= this.deploymentBlock) {
+        // Mirror update(): query RootBundleExecuted unfiltered and match chainId in-memory (chainId is not
+        // reliably filterable across HubPool versions).
+        const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
+          from: this.deploymentBlock,
+          to,
+          maxLookBack: this.eventSearchConfig.maxLookBack,
+        });
+        const historical = events.map((event) => {
+          const spread = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
+            l1Tokens: string[];
+          };
+          // runningBalances may include incentive balances in the second half; keep the first nTokens.
+          spread.runningBalances = spread.runningBalances.slice(0, spread.l1Tokens.length);
+          return { ...spread, l1Tokens: spread.l1Tokens.map((token) => EvmAddress.from(token)) } as ExecutedRootBundle;
+        });
+        executedRootBundle = sortEventsDescending(historical).find(
+          (executedLeaf) =>
+            executedLeaf.blockNumber <= block &&
+            executedLeaf.chainId === chain &&
+            executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
+        );
+      }
+    }
 
     return this.getRunningBalanceForToken(l1Token, executedRootBundle);
   }
@@ -813,7 +847,7 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: EvmAddress,
     executedRootBundle: ExecutedRootBundle | undefined
   ): TokenRunningBalance {
-    let runningBalance = toBN(0);
+    let runningBalance = bnZero;
     if (executedRootBundle) {
       const indexOfL1Token = executedRootBundle.l1Tokens.findIndex((tokenInBundle) => tokenInBundle.eq(l1Token));
       if (indexOfL1Token !== -1) {

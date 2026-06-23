@@ -203,7 +203,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves1[1]), tree1.getHexProof(leaves1[1]));
     const firstRootBundleBlockNumber = await hubPool.provider.getBlockNumber();
 
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(l1Token_1.address)
@@ -212,7 +212,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPoolClient.update();
 
     // Happy case where client returns most recent running balance for chain ID and l1 token.
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(l1Token_1.address)
@@ -220,7 +220,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
 
     // Target block is before event.
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       0,
       constants.originChainId,
       EvmAddress.from(l1Token_1.address)
@@ -228,14 +228,14 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(runningBalance.eq(0)).to.be.true;
 
     // chain ID and L1 token combination not found.
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.destinationChainId,
       EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(timer.address)
@@ -243,7 +243,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(runningBalance.eq(0)).to.be.true;
 
     // Running balance at index of L1 token returned:
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(l1Token_2.address)
@@ -261,19 +261,62 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPoolClient.update();
 
     // Grabs most up to date running balance for block:
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       secondRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true; // Grabs second running balance
 
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    ({ runningBalance } = await hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
       EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true; // Grabs first running balance
+  });
+
+  it("falls back to a full-history query for a running balance that precedes the event lookback", async function () {
+    const { tree, leaves } = await constructSimpleTree(toBNWei(100));
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    // Propose + execute a root bundle establishing a non-zero running balance for (originChainId, l1Token_1).
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
+    const bundleBlock = await hubPool.provider.getBlockNumber();
+    // Ensure at least one block exists after the bundle so the short-lookback search range is valid.
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + 1);
+
+    // A client whose event lookback STARTS AFTER the executed bundle never loads it into memory -- the
+    // production failure mode for a token idle longer than the lookback window.
+    const shortLookbackClient = new HubPoolClient(logger, hubPool, configStoreClient, 0, 1, {
+      from: bundleBlock + 1,
+      maxLookBack: 0,
+    });
+    await shortLookbackClient.update();
+
+    // In-memory lookup misses it -- previously this caused getRunningBalanceBeforeBlockForChain to assume 0.
+    expect(
+      shortLookbackClient.getLatestExecutedRootBundleContainingL1Token(
+        bundleBlock,
+        constants.originChainId,
+        EvmAddress.from(l1Token_1.address)
+      )
+    ).to.be.undefined;
+
+    // The full-history fallback recovers the true running balance instead of defaulting to 0.
+    const { runningBalance } = await shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+      bundleBlock,
+      constants.originChainId,
+      EvmAddress.from(l1Token_1.address)
+    );
+    expect(runningBalance.eq(toBNWei(100))).to.be.true;
   });
 
   it("returns proposed and disputed bundles", async function () {
