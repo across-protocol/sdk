@@ -7,10 +7,15 @@
   resolved "https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz#bd9154aec9983f77b3a034ecaa015c2e4201f6cf"
   integrity sha512-1Yjs2SvM8TflER/OD3cOjhWWOZb58A2t7wpE2S9XfBYTiIl+XFhQG2bjy4Pu1I+EAlCNUzRDYDdFwFYUKvXcIA==
 
-"@across-protocol/constants@^3.1.112", "@across-protocol/constants@^3.1.113":
+"@across-protocol/constants@^3.1.112":
   version "3.1.113"
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.113.tgz#af823dd81e25f10aa0c06d573b6237edb33fcd00"
   integrity sha512-4bRz+a97nvdHhiVf9F3eQ2TlhdGWDOnS+Pvf8/rZNNTrEngWRmixWsibmxB35BcfhkhG+xPIHVsXNWiAFqDcXQ==
+
+"@across-protocol/constants@^3.1.114":
+  version "3.1.114"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.114.tgz#80be65b2324bce2135a362ad4e3aa618ca5e3cc5"
+  integrity sha512-E4Bybcev4djHABPWHgI5JMNlrMSeZ9eg4Qw3Wf+idVab9BKbjRb8ZKLr51my9cK7pd8g2/eEZGtLMfzWxQoNbg==
 
 "@across-protocol/contracts@5.0.18":
   version "5.0.18"
