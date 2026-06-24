@@ -13,11 +13,14 @@ import {
   SortableEvent,
 } from "../interfaces";
 import { svm } from "../arch";
+import { averageBlockTime as evmAverageBlockTime } from "../arch/evm";
+import { averageBlockTime as svmAverageBlockTime } from "../arch/svm";
+import { EVMSpokePoolClient, SpokePoolClient } from "../clients";
+import { EVM_SPOKE_POOL_CLIENT_TYPE, SVM_SPOKE_POOL_CLIENT_TYPE } from "../clients/SpokePoolClient/types";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
 import { toAddressType } from "./AddressUtils";
-import { SpokePoolClient } from "../clients";
 
 export function isSlowFill(fill: Fill): boolean {
   return fill.relayExecutionInfo.fillType === FillType.SlowFill;
@@ -175,9 +178,36 @@ export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
 }
 
-export async function findInvalidFills(spokePoolClients: {
-  [chainId: number]: SpokePoolClient;
-}): Promise<InvalidFill[]> {
+/** Grace period before reporting fills with unsafe deposit IDs as invalid. */
+export const DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC = 10 * 60;
+
+/**
+ * Estimates how many seconds have elapsed since a fill was included on-chain by extrapolating
+ * from the gap between the client's latest searched height and the fill's block/slot.
+ */
+export async function estimateFillAgeSec(spokePoolClient: SpokePoolClient, fill: FillWithBlock): Promise<number> {
+  const heightDelta = Math.max(0, spokePoolClient.latestHeightSearched - fill.blockNumber);
+
+  if (spokePoolClient.type === EVM_SPOKE_POOL_CLIENT_TYPE) {
+    const { spokePool } = spokePoolClient as EVMSpokePoolClient;
+    const { average } = await evmAverageBlockTime(spokePool.provider);
+    return heightDelta * average;
+  }
+
+  if (spokePoolClient.type === SVM_SPOKE_POOL_CLIENT_TYPE) {
+    const { average } = svmAverageBlockTime();
+    return heightDelta * average;
+  }
+
+  throw new Error(
+    `Unable to estimate fill age for unsupported SpokePoolClient type (${spokePoolClient.type}) on chain ${spokePoolClient.chainId}`
+  );
+}
+
+export async function findInvalidFills(
+  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  unsafeDepositGracePeriodSec = DEFAULT_UNSAFE_DEPOSIT_GRACE_PERIOD_SEC
+): Promise<InvalidFill[]> {
   const invalidFills: InvalidFill[] = [];
 
   // Iterate through each spoke pool client
@@ -188,16 +218,29 @@ export async function findInvalidFills(spokePoolClients: {
     // Process fills in parallel for this client
     const fillDepositPairs = await Promise.all(
       fills.map(async (fill) => {
-        // Skip fills with unsafe deposit IDs
-        if (isUnsafeDepositId(fill.depositId)) {
-          return null; // Return null for unsafe deposits
+        const originClient = spokePoolClients[fill.originChainId];
+        const unsafeDeposit = isUnsafeDepositId(fill.depositId);
+
+        // Unsafe deposit IDs cannot be located via on-chain historical binary search, so only consult
+        // deposits already indexed in the origin SpokePoolClient's memory.
+        let deposit;
+        if (unsafeDeposit) {
+          deposit = originClient?.getDeposit(fill.depositId);
+        } else {
+          const depositResult = await originClient?.findDeposit(fill.depositId);
+          deposit = depositResult?.found ? depositResult.deposit : undefined;
         }
 
-        // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
-        const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
+        if (!deposit) {
+          // Fills from unsafeDepositV3() use uint256 deposit IDs. Allow time for the origin-chain
+          // deposit to be indexed before treating the fill as invalid.
+          if (unsafeDeposit) {
+            const estimatedFillAgeSec = await estimateFillAgeSec(spokePoolClient, fill);
+            if (estimatedFillAgeSec < unsafeDepositGracePeriodSec) {
+              return null;
+            }
+          }
 
-        // If no deposits found at all
-        if (!depositResult?.found) {
           return {
             fill,
             deposit: null,
@@ -206,11 +249,11 @@ export async function findInvalidFills(spokePoolClients: {
         }
 
         // Check if fill is valid for deposit
-        const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+        const validationResult = validateFillForDeposit(fill, deposit);
         if (!validationResult.valid) {
           return {
             fill,
-            deposit: depositResult.deposit,
+            deposit,
             reason: validationResult.reason,
           };
         }
