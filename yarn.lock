@@ -17,10 +17,10 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.116.tgz#077da9ad06d8eb17c90ed474221cd4673fb7bec7"
   integrity sha512-w7xvQI63r5lpQ9aj36tJdnyoW5Bhg+J6L86uOn14ApHLuE2bxJkwdKZN0c8bM90TCO65q1u0YqeLnUOjg1cH1g==
 
-"@across-protocol/contracts@5.0.18":
-  version "5.0.18"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.18.tgz#03ee00a580b43bc239856a8a7441a482e22de443"
-  integrity sha512-SZfUEct6GRBx7n1cgmcQh7378eHuna4nls2Cb6usodMpA8rUmesN925ahkcQ1QBzAGKho8sqAUi/j998MxA8Zg==
+"@across-protocol/contracts@5.0.19":
+  version "5.0.19"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.19.tgz#cee95b04b17c5804a538d5a3ab44dc1d7087743b"
+  integrity sha512-c5RjbJ0q4a7oKIRSlC5tv6ZC4SVB5QEVh+yD8C5uZOlP+FWPzRUvhz8mLax88HDHVNenKsNDyBaEFCb88cj8GA==
   dependencies:
     "@across-protocol/constants" "^3.1.112"
     "@coral-xyz/anchor" "^0.31.1"
