@@ -53,7 +53,7 @@ export const ARWEAVE_TAG_APP_VERSION = 4;
  */
 export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
 
-export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
+export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7; // 1 Week
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
 
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67";
