@@ -7,22 +7,17 @@
   resolved "https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz#bd9154aec9983f77b3a034ecaa015c2e4201f6cf"
   integrity sha512-1Yjs2SvM8TflER/OD3cOjhWWOZb58A2t7wpE2S9XfBYTiIl+XFhQG2bjy4Pu1I+EAlCNUzRDYDdFwFYUKvXcIA==
 
-"@across-protocol/constants@^3.1.112":
-  version "3.1.113"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.113.tgz#af823dd81e25f10aa0c06d573b6237edb33fcd00"
-  integrity sha512-4bRz+a97nvdHhiVf9F3eQ2TlhdGWDOnS+Pvf8/rZNNTrEngWRmixWsibmxB35BcfhkhG+xPIHVsXNWiAFqDcXQ==
-
-"@across-protocol/constants@^3.1.116":
+"@across-protocol/constants@^3.1.115", "@across-protocol/constants@^3.1.116":
   version "3.1.116"
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.116.tgz#077da9ad06d8eb17c90ed474221cd4673fb7bec7"
   integrity sha512-w7xvQI63r5lpQ9aj36tJdnyoW5Bhg+J6L86uOn14ApHLuE2bxJkwdKZN0c8bM90TCO65q1u0YqeLnUOjg1cH1g==
 
-"@across-protocol/contracts@5.0.18":
-  version "5.0.18"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.18.tgz#03ee00a580b43bc239856a8a7441a482e22de443"
-  integrity sha512-SZfUEct6GRBx7n1cgmcQh7378eHuna4nls2Cb6usodMpA8rUmesN925ahkcQ1QBzAGKho8sqAUi/j998MxA8Zg==
+"@across-protocol/contracts@5.0.20":
+  version "5.0.20"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.20.tgz#5ab39360991bd347a60962a5a6361a1fd741e15b"
+  integrity sha512-V7DxmPqqRS1dSxc0t1heyl57ausitG1ZHAzgIkebQZ+Mmj3q4At73upUFayc5vHHcB1EI+72L+RcQFPgidJ/bw==
   dependencies:
-    "@across-protocol/constants" "^3.1.112"
+    "@across-protocol/constants" "^3.1.115"
     "@coral-xyz/anchor" "^0.31.1"
     "@eth-optimism/contracts" "^0.5.40"
     "@ethersproject/bignumber" "5.7.0"
