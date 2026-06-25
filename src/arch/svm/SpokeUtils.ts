@@ -203,6 +203,45 @@ async function _callGetTimestampForSlotWithRetry(
   return timestamp;
 }
 
+// 32 slots ≈ 13s at 400ms/slot; 32 iterations caps total coverage at 1024 slots.
+const DEFAULT_GET_BLOCKS_WINDOW = 32;
+const DEFAULT_GET_BLOCKS_ITERATIONS = 32;
+
+/**
+ * Find the largest slot ≤ targetSlot that produced a block, iterating backwards in fixed-size
+ * windows via getBlocks(). Returns undefined if no produced slot is found within the bounded
+ * search range.
+ */
+export async function findNearestProducedSlot(
+  provider: SVMProvider,
+  targetSlot: bigint,
+  opts: {
+    commitment?: Exclude<Commitment, "processed">;
+    window?: number;
+    maxIterations?: number;
+  } = {}
+): Promise<bigint | undefined> {
+  const window = BigInt(opts.window ?? DEFAULT_GET_BLOCKS_WINDOW);
+  const maxIterations = opts.maxIterations ?? DEFAULT_GET_BLOCKS_ITERATIONS;
+  assert(window > 0n, `findNearestProducedSlot: window must be > 0 (got ${window})`);
+  assert(maxIterations > 0, `findNearestProducedSlot: maxIterations must be > 0 (got ${maxIterations})`);
+  const commitmentArg = opts.commitment ? { commitment: opts.commitment } : undefined;
+
+  let upper = targetSlot;
+  for (let i = 0; i < maxIterations; ++i) {
+    const lower = upper >= window ? upper - window + 1n : 0n;
+    const blocks = await provider.getBlocks(lower, upper, commitmentArg).send();
+    if (blocks.length > 0) {
+      return BigInt(blocks[blocks.length - 1]);
+    }
+    if (lower === 0n) {
+      break;
+    }
+    upper = lower - 1n;
+  }
+  return undefined;
+}
+
 /**
  * Returns the current fill deadline buffer.
  * @param provider SVM Provider instance

@@ -5,6 +5,7 @@ import {
   unwrapEventData,
   getFillDeadline,
   getTimestampForSlot,
+  findNearestProducedSlot,
   getStatePda,
   SvmCpiEventsClient,
   findDeposit,
@@ -34,6 +35,10 @@ import { SVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
  */
 export class SVMSpokePoolClient extends SpokePoolClient {
   readonly type = SVM_SPOKE_POOL_CLIENT_TYPE;
+  // Memoise per-block timestamp lookups for the lifetime of this client. Bundle data loading
+  // resolves the same boundary slots repeatedly across propose/validate/execute passes; storing
+  // the Promise (rather than the resolved value) also dedupes concurrent lookups.
+  private timestampForBlockCache: Map<number, Promise<number>> = new Map();
   /**
    * Note: Strongly prefer to use the async create() method to instantiate.
    */
@@ -190,19 +195,40 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   }
 
   /**
-   * Retrieves the timestamp for a given SVM slot number.
+   * Retrieves the timestamp for a given SVM slot number, falling back to the nearest preceding
+   * slot that produced a block if the target slot itself was skipped.
    */
-  public override async getTimestampForBlock(slot: number): Promise<number> {
-    let _slot = BigInt(slot);
-    const maxRetries = undefined; // Inherit defaults
-    do {
-      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot, maxRetries, this.logger);
-      if (isDefined(timestamp)) {
-        return timestamp;
-      }
-    } while (--_slot > 0);
+  public override getTimestampForBlock(slot: number): Promise<number> {
+    let cached = this.timestampForBlockCache.get(slot);
+    if (!isDefined(cached)) {
+      cached = this._resolveTimestampForBlock(slot);
+      this.timestampForBlockCache.set(slot, cached);
+      // Evict on failure so a transient RPC error doesn't poison the cache.
+      cached.catch(() => this.timestampForBlockCache.delete(slot));
+    }
+    return cached;
+  }
 
-    throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
+  private async _resolveTimestampForBlock(slot: number): Promise<number> {
+    const rpc = this.svmEventsClient.getRpc();
+    const target = BigInt(slot);
+    // Happy path: the target slot itself has a block. One RPC, no widening.
+    const direct = await getTimestampForSlot(rpc, target, undefined, this.logger);
+    if (isDefined(direct)) {
+      return direct;
+    }
+    // Target slot was skipped — walk backwards via getBlocks() in fixed windows.
+    const producedSlot = await findNearestProducedSlot(rpc, target);
+    if (!isDefined(producedSlot)) {
+      throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
+    }
+    const timestamp = await getTimestampForSlot(rpc, producedSlot, undefined, this.logger);
+    if (isDefined(timestamp)) {
+      return timestamp;
+    }
+    throw new Error(
+      `Missing block time for produced ${getNetworkName(this.chainId)} slot ${producedSlot} (queried for ${slot})`
+    );
   }
 
   /**
