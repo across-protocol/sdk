@@ -91,6 +91,10 @@ export class HubPoolClient extends BaseAbstractClient {
     [l1Token: string]: { [destinationChainId: number]: DestinationTokenWithBlock[] };
   } = {};
   protected pendingRootBundle: PendingRootBundle | undefined;
+  // Tracks which HubPool events have been queried at least once. Lets route-state-dependent logic distinguish a
+  // genuinely-absent pool rebalance route from one that simply wasn't loaded (e.g. a selective
+  // `update(["RootBundleExecuted"])` that never backfills `SetPoolRebalanceRoute`).
+  protected loadedEvents = new Set<HubPoolEvent>();
 
   public currentTime: number | undefined;
   public readonly blockFinder: EVMBlockFinder;
@@ -258,6 +262,22 @@ export class HubPoolClient extends BaseAbstractClient {
       this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId] ?? []
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
     return isDefined(l2Token) && !l2Token.l2Token.isZeroAddress();
+  }
+
+  /**
+   * Returns true if a non-zero pool rebalance route for `(l1Token, destinationChainId)` was ever published at or
+   * before `hubBlockNumber`. Distinct from {@link l2TokenEnabledForL1TokenAtBlock}, which inspects only the most
+   * recent mapping: this stays true after a route is later disabled, because a RootBundleExecuted leaf -- and
+   * therefore a non-zero running balance -- may still exist from the interval when the route was active.
+   */
+  protected poolRebalanceRouteExistedAtBlock(
+    l1Token: EvmAddress,
+    destinationChainId: number,
+    hubBlockNumber: number
+  ): boolean {
+    return (this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId] ?? []).some(
+      (mapping) => mapping.blockNumber <= hubBlockNumber && !mapping.l2Token.isZeroAddress()
+    );
   }
 
   l2TokenHasPoolRebalanceRoute(l2Token: Address, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
@@ -832,8 +852,16 @@ export class HubPoolClient extends BaseAbstractClient {
     // `executedRootBundles` only spans the configured event lookback. If there's no balance update for this
     // (chain, l1Token) within it, query the preceding history on the fly before assuming a zero running
     // balance -- otherwise a balance carried by a token idle longer than the lookback is silently dropped,
-    // under-pulling spoke liquidity.
-    if (!isDefined(executedRootBundle)) {
+    // under-pulling spoke liquidity. Skip that (potentially expensive, full-history) eth_getLogs query only when
+    // we can prove it would find nothing: route events have been loaded AND no pool rebalance route was ever
+    // defined for (l1Token, chain) at or before `block`. Without such a route there can be no RootBundleExecuted
+    // leaf, so the fallback is guaranteed to resolve to a zero running balance. We check the route state as of
+    // `block` (not the latest state) so a route that was active when a leaf was created -- but has since been
+    // disabled -- still triggers the query. And if route state wasn't loaded (e.g. a selective
+    // `update(["RootBundleExecuted"])`), we can't prove anything, so we fall through and query.
+    const mayHaveLeaf =
+      !this.loadedEvents.has("SetPoolRebalanceRoute") || this.poolRebalanceRouteExistedAtBlock(l1Token, chain, block);
+    if (!isDefined(executedRootBundle) && mayHaveLeaf) {
       const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
       if (to >= this.deploymentBlock) {
         const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
@@ -959,6 +987,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return;
     }
     const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;
+    eventsToQuery.forEach((eventName) => this.loadedEvents.add(eventName));
 
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
