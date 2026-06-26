@@ -357,6 +357,83 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(runningBalance.isZero()).to.be.true;
   });
 
+  it("runs the full-history fallback when route state was never loaded (selective update)", async function () {
+    const { tree, leaves } = await constructSimpleTree(toBNWei(100));
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    // Establish a non-zero running balance for (originChainId, l1Token_1) via an executed bundle.
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
+    const bundleBlock = await hubPool.provider.getBlockNumber();
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + 1);
+
+    // Selective update loads RootBundleExecuted but NOT SetPoolRebalanceRoute, so the route map is empty even
+    // though (originChainId, l1Token_1) is in fact routed. The guard must not mistake an unloaded route for a
+    // disabled one and suppress the fallback -- doing so would silently return zero for a real balance.
+    const shortLookbackClient = new HubPoolClient(logger, hubPool, configStoreClient, 0, 1, {
+      from: bundleBlock + 1,
+      maxLookBack: 0,
+    });
+    await shortLookbackClient.update(["RootBundleExecuted"]);
+
+    const queryFilterSpy = sinon.spy(hubPool, "queryFilter");
+    const { runningBalance } = await shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+      bundleBlock,
+      constants.originChainId,
+      EvmAddress.from(l1Token_1.address)
+    );
+    queryFilterSpy.restore();
+
+    // Fallback ran (route state unknown) and recovered the true balance instead of defaulting to zero.
+    expect(queryFilterSpy.called).to.be.true;
+    expect(runningBalance.eq(toBNWei(100))).to.be.true;
+  });
+
+  it("runs the full-history fallback for a pair whose route was disabled after its last execution", async function () {
+    const { tree, leaves } = await constructSimpleTree(toBNWei(100));
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    // Establish a non-zero running balance for (originChainId, l1Token_1) via an executed bundle.
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
+    const bundleBlock = await hubPool.provider.getBlockNumber();
+
+    // Disable the route AFTER the leaf was created by remapping it to the zero address. The latest route state is
+    // now "disabled", but the leaf -- and its running balance -- still exists from when the route was active.
+    await hubPool
+      .connect(owner)
+      .setPoolRebalanceRoute(constants.originChainId, l1Token_1.address, constants.zeroAddress);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + 1);
+
+    // Lookback starts after both the execution and the disable, so neither is held in memory.
+    const shortLookbackClient = new HubPoolClient(logger, hubPool, configStoreClient, 0, 1, {
+      from: (await hubPool.provider.getBlockNumber()) + 1,
+      maxLookBack: 0,
+    });
+    await shortLookbackClient.update();
+
+    // Guarding on the *latest* route state (disabled) would wrongly skip the query and return zero. Checking the
+    // route state as of `bundleBlock` (active) correctly runs the fallback and recovers the balance.
+    const { runningBalance } = await shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+      bundleBlock,
+      constants.originChainId,
+      EvmAddress.from(l1Token_1.address)
+    );
+    expect(runningBalance.eq(toBNWei(100))).to.be.true;
+  });
+
   it("returns proposed and disputed bundles", async function () {
     const { tree: tree1 } = await constructSimpleTree(toBNWei(100));
 
