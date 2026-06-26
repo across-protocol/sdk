@@ -832,8 +832,11 @@ export class HubPoolClient extends BaseAbstractClient {
     // `executedRootBundles` only spans the configured event lookback. If there's no balance update for this
     // (chain, l1Token) within it, query the preceding history on the fly before assuming a zero running
     // balance -- otherwise a balance carried by a token idle longer than the lookback is silently dropped,
-    // under-pulling spoke liquidity.
-    if (!isDefined(executedRootBundle)) {
+    // under-pulling spoke liquidity. Only do this when a pool rebalance route is actively defined for the
+    // (l1Token, chain) pair; without a route there can be no RootBundleExecuted leaf for it, so the fallback
+    // is guaranteed to resolve to a zero running balance and the (potentially expensive, full-history)
+    // eth_getLogs query would be wasted.
+    if (!isDefined(executedRootBundle) && this.l2TokenEnabledForL1Token(l1Token, chain)) {
       const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
       if (to >= this.deploymentBlock) {
         const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {

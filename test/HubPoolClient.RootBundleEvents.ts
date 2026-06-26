@@ -14,6 +14,7 @@ import {
   ethers,
   expect,
   randomAddress,
+  sinon,
   toBN,
   toBNWei,
   winston,
@@ -317,6 +318,43 @@ describe("HubPoolClient: RootBundle Events", function () {
       EvmAddress.from(l1Token_1.address)
     );
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
+  });
+
+  it("skips the full-history fallback when no pool rebalance route is defined for the (l1Token, chain) pair", async function () {
+    const { tree, leaves } = await constructSimpleTree(toBNWei(100));
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    // Propose + execute a root bundle so an executed bundle exists outside the short lookback below.
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
+    const bundleBlock = await hubPool.provider.getBlockNumber();
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + 1);
+
+    // Short lookback that never loads the executed bundle into memory, forcing the fallback path.
+    const shortLookbackClient = new HubPoolClient(logger, hubPool, configStoreClient, 0, 1, {
+      from: bundleBlock + 1,
+      maxLookBack: 0,
+    });
+    await shortLookbackClient.update();
+
+    // (repaymentChainId, l1Token_2) has no pool rebalance route, so there can be no RootBundleExecuted leaf for
+    // it. The expensive full-history eth_getLogs must be skipped entirely and the balance defaults to zero.
+    const queryFilterSpy = sinon.spy(hubPool, "queryFilter");
+    const { runningBalance } = await shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+      bundleBlock,
+      constants.repaymentChainId,
+      EvmAddress.from(l1Token_2.address)
+    );
+    queryFilterSpy.restore();
+
+    expect(queryFilterSpy.called).to.be.false;
+    expect(runningBalance.isZero()).to.be.true;
   });
 
   it("returns proposed and disputed bundles", async function () {
