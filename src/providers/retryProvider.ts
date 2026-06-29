@@ -4,7 +4,13 @@ import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
-import { compareRpcResults, createSendErrorWithMessage, formatProviderError, parseJsonRpcError } from "./utils";
+import {
+  compareRpcResults,
+  createSendErrorWithMessage,
+  formatProviderError,
+  getRevertReason,
+  parseJsonRpcError,
+} from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
 import { Logger } from "winston";
 
@@ -113,10 +119,21 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       const successfulProviderUrls = results
         .filter(isPromiseFulfilled)
         .map((result) => getOriginFromURL(result.value[0].connection.url));
+
+      // If the underlying failure was a deterministic contract revert, surface the decoded reason
+      // (including the ABI-encoded custom error selector) up-front rather than leaving it buried in the
+      // raw response body. This makes reverts like RelayFilled (0x8f260c60) legible to callers and logs.
+      // The original rejection is also preserved on the thrown error's `cause`, so callers can recover
+      // the structured JSON-RPC error via parseJsonRpcError(err.cause).
+      const rejection = results.find(isPromiseRejected)?.reason;
+      const revertReason = getRevertReason(rejection);
+      const revertText = isDefined(revertReason) ? `Revert reason: ${revertReason}\n` : "";
+
       throw createSendErrorWithMessage(
         `Not enough providers succeeded. Errors:\n${errorTexts.join("\n")}\n` +
+          revertText +
           `Successful Providers:\n${successfulProviderUrls.join("\n")}`,
-        results.find(isPromiseRejected)?.reason
+        rejection
       );
     }
 
