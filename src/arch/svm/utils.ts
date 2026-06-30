@@ -1,6 +1,10 @@
 import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
-import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import * as anchorImport from "@coral-xyz/anchor";
+// @coral-xyz/anchor is a CJS module: under Node's native ESM loader its members
+// are reachable via the namespace's `default` (module.exports); under tsc's CJS
+// interop they're on the namespace object itself. Resolve both shapes.
+const { BN, BorshEventCoder } = (anchorImport as { default?: typeof anchorImport }).default ?? anchorImport;
 import {
   Address,
   Instruction,
@@ -154,7 +158,7 @@ export function parseEventData(eventData: any): any {
 /**
  * Decodes a raw event according to a supplied IDL.
  */
-export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
+export function decodeEvent(idl: anchorImport.Idl, rawEvent: string): { data: unknown; name: string } {
   const event = new BorshEventCoder(idl).decode(rawEvent);
   if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
   return {

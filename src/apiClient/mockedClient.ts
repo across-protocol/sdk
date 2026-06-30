@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { deepCopy } from "ethers/lib/utils";
+import { deepCopy } from "ethers/lib/utils.js";
 import { BigNumber, bnOne } from "../utils";
 import AbstractApiClient from "./abstractClient";
 import {

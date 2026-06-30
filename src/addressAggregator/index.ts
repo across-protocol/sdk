@@ -74,7 +74,7 @@ async function run(): Promise<number> {
   return 0;
 }
 
-if (require.main === module) {
+if (typeof require !== "undefined" && require.main === module) {
   run()
     .then((result: number) => {
       process.exitCode = result;
