@@ -73,7 +73,7 @@ async function run() {
 }
 
 // Only run the CLI entry point in Node.js environments
-if (typeof window === "undefined" && require.main === module) {
+if (typeof window === "undefined" && typeof require !== "undefined" && require.main === module) {
   run()
     .then(() => {
       process.exitCode = 0;
