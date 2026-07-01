@@ -170,6 +170,29 @@ export function parseJsonRpcError(response: unknown): { code: number; message: s
 }
 
 /**
+ * Extract a concise, human-readable revert reason from a provider error, if one is present.
+ *
+ * `eth_estimateGas` / `eth_call` / `eth_sendRawTransaction` reverts surface an ABI-encoded error in
+ * the JSON-RPC `data` field (e.g. `0x8f260c60` decodes to the SpokePool custom error `RelayFilled()`).
+ * The generic RetryProvider failure wrapper would otherwise leave this buried inside the raw response
+ * body, so this pulls it back out reliably for logging.
+ * @param error An unknown error object received in response to a JSON-RPC request.
+ * @returns A string such as "execution reverted (0x8f260c60)", or undefined if the error is not a
+ *          parseable JSON-RPC error.
+ */
+export function getRevertReason(error: unknown): string | undefined {
+  const jsonRpcError = parseJsonRpcError(error);
+  if (!isDefined(jsonRpcError)) {
+    return undefined;
+  }
+
+  // `data`, when present, is the ABI-encoded revert payload (custom error selector + any args).
+  const { message, data } = jsonRpcError;
+  const selector = typeof data === "string" && data.length > 0 ? data : undefined;
+  return isDefined(selector) ? `${message} (${selector})` : message;
+}
+
+/**
  * Compares two RPC results, filtering out fields that are known to differ between providers.
  * Note: this function references `IGNORED_ERROR_CODES` which is a record of error codes that correspond to fields
  *       that should be ignored when comparing RPC results.
