@@ -310,13 +310,42 @@ describe("HubPoolClient: RootBundle Events", function () {
       )
     ).to.be.undefined;
 
-    // The full-history fallback recovers the true running balance instead of defaulting to 0.
+    // Count underlying event queries to verify the pre-lookback history is fetched at most once per client.
+    // maxLookBack of 0 means each historical scan issues exactly one queryFilter call.
+    let historicalQueries = 0;
+    const queryFilter = shortLookbackClient.hubPool.queryFilter.bind(shortLookbackClient.hubPool);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (shortLookbackClient.hubPool as any).queryFilter = (...args: any[]) => {
+      historicalQueries++;
+      return queryFilter(...args);
+    };
+
+    // The full-history fallback recovers the true running balance instead of defaulting to 0. Concurrent
+    // lookups for different (chain, l1Token) pairs share a single underlying query.
+    const [first, second] = await Promise.all([
+      shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+        bundleBlock,
+        constants.originChainId,
+        EvmAddress.from(l1Token_1.address)
+      ),
+      shortLookbackClient.getRunningBalanceBeforeBlockForChain(
+        bundleBlock,
+        constants.destinationChainId,
+        EvmAddress.from(l1Token_2.address)
+      ),
+    ]);
+    expect(first.runningBalance.eq(toBNWei(100))).to.be.true;
+    expect(second.runningBalance.eq(toBNWei(300))).to.be.true;
+    expect(historicalQueries).to.equal(1);
+
+    // Subsequent lookups reuse the retained events without re-querying.
     const { runningBalance } = await shortLookbackClient.getRunningBalanceBeforeBlockForChain(
       bundleBlock,
       constants.originChainId,
-      EvmAddress.from(l1Token_1.address)
+      EvmAddress.from(l1Token_2.address)
     );
-    expect(runningBalance.eq(toBNWei(100))).to.be.true;
+    expect(runningBalance.eq(toBNWei(200))).to.be.true;
+    expect(historicalQueries).to.equal(1);
   });
 
   it("returns proposed and disputed bundles", async function () {
