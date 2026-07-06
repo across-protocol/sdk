@@ -85,6 +85,8 @@ export class HubPoolClient extends BaseAbstractClient {
   protected canceledRootBundles: CancelledRootBundle[] = [];
   protected disputedRootBundles: DisputedRootBundle[] = [];
   protected executedRootBundles: ExecutedRootBundle[] = [];
+  // Retained result of the pre-lookback RootBundleExecuted query; see getHistoricalExecutedRootBundles().
+  protected historicalExecutedRootBundles: Promise<ExecutedRootBundle[]> | undefined;
   protected crossChainContracts: { [l2ChainId: number]: CrossChainContractsSet[] } = {};
   protected l1TokensToDestinationTokensWithBlock: {
     // @dev `l1Token` here is a 20-byte hex sting
@@ -830,30 +832,50 @@ export class HubPoolClient extends BaseAbstractClient {
     let executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
 
     // `executedRootBundles` only spans the configured event lookback. If there's no balance update for this
-    // (chain, l1Token) within it, query the preceding history on the fly before assuming a zero running
+    // (chain, l1Token) within it, query the preceding history before assuming a zero running
     // balance -- otherwise a balance carried by a token idle longer than the lookback is silently dropped,
     // under-pulling spoke liquidity.
     if (!isDefined(executedRootBundle)) {
-      const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
-      if (to >= this.deploymentBlock) {
-        const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
-          from: this.deploymentBlock,
-          to,
-          maxLookBack: this.eventSearchConfig.maxLookBack,
-        });
-        const historical = events
-          .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
-          .map((event) => this.decodeExecutedRootBundle(event));
-        executedRootBundle = sortEventsDescending(historical).find(
-          (executedLeaf) =>
-            executedLeaf.blockNumber <= block &&
-            executedLeaf.chainId === chain &&
-            executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
-        );
-      }
+      const historical = await this.getHistoricalExecutedRootBundles();
+      executedRootBundle = historical.find(
+        (executedLeaf) =>
+          executedLeaf.blockNumber <= block &&
+          executedLeaf.chainId === chain &&
+          executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
+      );
     }
 
     return this.getRunningBalanceForToken(l1Token, executedRootBundle);
+  }
+
+  /**
+   * Query RootBundleExecuted events preceding the configured event lookback, back to the HubPool deployment
+   * block. That range never changes for the lifetime of the client and its history is immutable, so the decoded
+   * events are retained on the instance: the expensive paginated query runs at most once per client, and
+   * concurrent callers share the in-flight query. Returned sorted descending by block.
+   */
+  protected getHistoricalExecutedRootBundles(): Promise<ExecutedRootBundle[]> {
+    this.historicalExecutedRootBundles ??= (async () => {
+      const to = this.eventSearchConfig.from - 1; // the range preceding the already-loaded lookback window
+      if (to < this.deploymentBlock) {
+        return [];
+      }
+      const events = await paginatedEventQuery(this.hubPool, this.hubPool.filters.RootBundleExecuted(), {
+        from: this.deploymentBlock,
+        to,
+        maxLookBack: this.eventSearchConfig.maxLookBack,
+      });
+      return sortEventsDescending(
+        events
+          .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
+          .map((event) => this.decodeExecutedRootBundle(event))
+      );
+    })().catch((error) => {
+      // Don't retain a rejected promise; let the next caller retry the query.
+      this.historicalExecutedRootBundles = undefined;
+      throw error;
+    });
+    return this.historicalExecutedRootBundles;
   }
 
   public getRunningBalanceForToken(
