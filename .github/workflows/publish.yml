@@ -42,7 +42,7 @@ jobs:
         run: yarn build
 
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Log Node & npm versions (after update)
         # Make sure we hit 11.5.1 version requirement for Trusted Publishing
