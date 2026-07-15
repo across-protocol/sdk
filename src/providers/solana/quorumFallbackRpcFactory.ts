@@ -57,8 +57,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           .transport<TResponse>(...args)
           .then((result): [SolanaClusterRpcFactory, RpcResponse<TResponse>] => [factory.rpcFactory, result])
           .catch((error) => {
-            // Preserve the underlying JSON-RPC error code in the wrap message. For non-Solana
-            // errors this renders a short, log-safe summary rather than `error.stack`.
+            // Preserve the underlying JSON-RPC error code in the wrap message.
             errors.push([factory.rpcFactory, formatRpcError(error)]);
 
             // If all fallback providers fail, then return the last received error.
