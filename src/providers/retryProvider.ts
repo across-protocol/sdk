@@ -4,7 +4,13 @@ import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
-import { compareRpcResults, createSendErrorWithMessage, formatProviderError, parseJsonRpcError } from "./utils";
+import {
+  compareRpcResults,
+  createSendErrorWithMessage,
+  formatProviderError,
+  parseJsonRpcError,
+  summarizeProviderError,
+} from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
 import { Logger } from "winston";
 
@@ -82,9 +88,11 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return this._trySend(provider, method, params)
         .then((result): [ethers.providers.StaticJsonRpcProvider, unknown] => [provider, result])
         .catch((err: unknown) => {
-          // Append the provider and error to the error array.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          errors.push([provider, (err as any)?.stack || err?.toString()]);
+          // Record a short, log-safe summary of the failure. We intentionally do not retain
+          // `err.stack` / `err.toString()` here: for ethers transport errors those embed the
+          // failed RPC URL (including its API key) and a multi-line stack trace, which then
+          // get concatenated into the aggregate error message and surfaced to logs.
+          errors.push([provider, summarizeProviderError(err)]);
 
           // If there are no new fallback providers to use, terminate the recursion by throwing an error.
           // Otherwise, we can try to call another provider.
@@ -187,7 +195,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         this._trySend(provider, method, params)
           .then((result): [ethers.providers.StaticJsonRpcProvider, unknown] => [provider, result])
           .catch((err) => {
-            errors.push([provider, err?.stack || err?.toString()]);
+            errors.push([provider, summarizeProviderError(err)]);
             throw new Error("No fallbacks during quorum search");
           })
       )

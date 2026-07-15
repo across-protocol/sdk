@@ -6,6 +6,7 @@ import {
   SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
   SVM_TRANSACTION_PREFLIGHT_FAILURE,
 } from "../../arch/svm";
+import { summarizeProviderError } from "../utils";
 
 /**
  * This is the type we pass to define a Solana RPC request "task".
@@ -65,7 +66,8 @@ export interface JitoInterface extends SolanaRpcApi {
 
 /**
  * Render an RPC error for log/wrap messages. For SolanaErrors, includes the numeric JSON-RPC
- * code alongside the server message; otherwise falls back to stack/toString.
+ * code alongside the server message; otherwise falls back to a short, log-safe summary
+ * (`error.stack` / `error.toString()` can embed the failed RPC URL, including its API key).
  */
 export function formatRpcError(error: unknown): string {
   if (isSolanaError(error)) {
@@ -73,8 +75,7 @@ export function formatRpcError(error: unknown): string {
     const message = serverMessage ?? (error as { message?: string }).message ?? "";
     return `SolanaError [${code}]: ${message}`;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (error as any)?.stack || (error as any)?.toString?.() || String(error);
+  return summarizeProviderError(error);
 }
 
 /**
