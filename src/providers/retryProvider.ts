@@ -128,7 +128,10 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return values[0][1];
     }
 
-    const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
+    const getMismatchedProviders = (
+      quorumResult: unknown,
+      values: [ethers.providers.StaticJsonRpcProvider, unknown][]
+    ) => {
       return values
         .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
         .map(([provider]) => getOriginFromURL(provider.connection.url));
@@ -153,10 +156,16 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       });
     };
 
-    const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
+    const throwQuorumError = (quorum?: {
+      quorumResult: unknown;
+      fallbackValues: [ethers.providers.StaticJsonRpcProvider, unknown][];
+    }) => {
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
       const successfulProviderUrls = values.map(([provider]) => getOriginFromURL(provider.connection.url));
-      const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
+      // On the early-exit path (no fallback providers left) no quorum result exists to compare mismatches against.
+      const mismatchedProviders = quorum
+        ? getMismatchedProviders(quorum.quorumResult, [...values, ...quorum.fallbackValues])
+        : [];
       logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
       throw new Error(
         "Not enough providers agreed to meet quorum.\n" +
@@ -216,11 +225,11 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     // If this count is less than we need for quorum, throw the quorum error.
     if (count < quorumThreshold) {
-      throwQuorumError(fallbackValues);
+      throwQuorumError({ quorumResult, fallbackValues });
     }
 
     // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
-    const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
+    const mismatchedProviders = getMismatchedProviders(quorumResult, [...values, ...fallbackValues]);
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
       .map(([provider]) => getOriginFromURL(provider.connection.url));
