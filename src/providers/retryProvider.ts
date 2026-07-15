@@ -156,16 +156,42 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       });
     };
 
-    const throwQuorumError = (quorum?: {
-      quorumResult: unknown;
-      fallbackValues: [ethers.providers.StaticJsonRpcProvider, unknown][];
-    }) => {
+    // Group the results by the count of that result and return the most frequent result and its count. This is the
+    // closest thing to a quorum result that exists when quorum was not reached, so mismatches are measured against it.
+    const findQuorumCandidate = (vals: [ethers.providers.StaticJsonRpcProvider, unknown][]): [unknown, number] => {
+      const counts = vals.reduce(
+        (acc, curr) => {
+          const [, result] = curr;
+
+          // Find the first result that matches the return value.
+          const existingMatch = acc.find(([existingResult]) => compareRpcResults(method, existingResult, result));
+
+          // Increment the count if a match is found, else add a new element to the match array with a count of 1.
+          if (existingMatch) {
+            existingMatch[1]++;
+          } else {
+            acc.push([result, 1]);
+          }
+
+          // Return the same acc object because it was modified in place.
+          return acc;
+        },
+        [[undefined, 0]] as [unknown, number][] // Initialize with [undefined, 0] as the first element so something is always returned.
+      );
+
+      // Sort so the result with the highest count is first.
+      counts.sort(([, a], [, b]) => b - a);
+
+      return counts[0];
+    };
+
+    const throwQuorumError = (
+      quorumResult: unknown,
+      fallbackValues: [ethers.providers.StaticJsonRpcProvider, unknown][]
+    ) => {
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
       const successfulProviderUrls = values.map(([provider]) => getOriginFromURL(provider.connection.url));
-      // On the early-exit path (no fallback providers left) no quorum result exists to compare mismatches against.
-      const mismatchedProviders = quorum
-        ? getMismatchedProviders(quorum.quorumResult, [...values, ...quorum.fallbackValues])
-        : [];
+      const mismatchedProviders = getMismatchedProviders(quorumResult, [...values, ...fallbackValues]);
       logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
       throw new Error(
         "Not enough providers agreed to meet quorum.\n" +
@@ -176,9 +202,11 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       );
     };
 
-    // Exit early if there are no fallback providers left.
+    // Exit early if there are no fallback providers left. The most frequent result stands in for the quorum result so
+    // the diagnostic log can identify which providers disagreed.
     if (fallbackProviders.length === 0) {
-      throwQuorumError();
+      const [quorumCandidate] = findQuorumCandidate(values);
+      throwQuorumError(quorumCandidate, []);
     }
 
     // Try each fallback provider in parallel.
@@ -196,36 +224,12 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     // This filters only the fallbacks that succeeded.
     const fallbackValues = fallbackResults.filter(isPromiseFulfilled).map((promise) => promise.value);
 
-    // Group the results by the count of that result.
-    const counts = [...values, ...fallbackValues].reduce(
-      (acc, curr) => {
-        const [, result] = curr;
-
-        // Find the first result that matches the return value.
-        const existingMatch = acc.find(([existingResult]) => compareRpcResults(method, existingResult, result));
-
-        // Increment the count if a match is found, else add a new element to the match array with a count of 1.
-        if (existingMatch) {
-          existingMatch[1]++;
-        } else {
-          acc.push([result, 1]);
-        }
-
-        // Return the same acc object because it was modified in place.
-        return acc;
-      },
-      [[undefined, 0]] as [unknown, number][] // Initialize with [undefined, 0] as the first element so something is always returned.
-    );
-
-    // Sort so the result with the highest count is first.
-    counts.sort(([, a], [, b]) => b - a);
-
-    // Extract the result by grabbing the first element.
-    const [quorumResult, count] = counts[0];
+    // Extract the most frequent result and its count.
+    const [quorumResult, count] = findQuorumCandidate([...values, ...fallbackValues]);
 
     // If this count is less than we need for quorum, throw the quorum error.
     if (count < quorumThreshold) {
-      throwQuorumError({ quorumResult, fallbackValues });
+      throwQuorumError(quorumResult, fallbackValues);
     }
 
     // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
