@@ -49,6 +49,7 @@ import {
 } from "../../utils";
 import winston from "winston";
 import {
+  BLOCKED_ADDRESSES,
   BundleDataSS,
   BundleData as PersistedArweaveBundleData,
   getRefundInformationFromFill,
@@ -68,6 +69,11 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
   if (!deposit.depositor.isValidOn(deposit.originChainId)) {
+    return;
+  }
+
+  // Protocol rule: never refund deposits from blocked depositors.
+  if (BLOCKED_ADDRESSES.some((blockedAddress) => blockedAddress.eq(deposit.depositor))) {
     return;
   }
 
@@ -146,6 +152,12 @@ function updateBundleExcessSlowFills(
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
   if (!deposit.recipient.isValidOn(deposit.destinationChainId)) {
+    return;
+  }
+
+  // Protocol rule: never slow fill deposits with blocked recipients; the deposit instead expires and is
+  // refunded to the depositor.
+  if (BLOCKED_ADDRESSES.some((blockedAddress) => blockedAddress.eq(deposit.recipient))) {
     return;
   }
 

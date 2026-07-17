@@ -12,7 +12,7 @@ import {
   ethers,
   createRandomBytes32,
 } from "./utils";
-import { verifyFillRepayment } from "../src/clients/BundleDataClient";
+import { BLOCKED_ADDRESSES, verifyFillRepayment } from "../src/clients/BundleDataClient";
 import { MockedProvider } from "../src/providers/mocks";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
 import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
@@ -145,6 +145,28 @@ describe("FillUtils", function () {
         expect(result).to.not.be.undefined;
         expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
         expect(result!.relayer.eq(fill.relayer)).to.be.true;
+      });
+      it("Repayment address is blocked; fill is unrepayable", async function () {
+        for (const blockedAddress of BLOCKED_ADDRESSES) {
+          const blockedFill = {
+            ...fill,
+            relayer: toAddressType(blockedAddress.toNative(), repaymentChainId),
+          };
+          const result = await verifyFillRepayment(blockedFill, spokeProvider, deposit, hubPoolClient, 0);
+          expect(result).to.be.undefined;
+        }
+      });
+      it("Relayer is not valid EVM address and msg.sender is blocked; fill is unrepayable", async function () {
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken.toNative());
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: toAddressType(INVALID_EVM_ADDRESS, destinationChainId),
+        };
+        spokeProvider._setTransaction(fill.txnRef, {
+          from: BLOCKED_ADDRESSES[0].toNative(),
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
+        expect(result).to.be.undefined;
       });
       it("SlowFill always valid", async function () {
         // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
