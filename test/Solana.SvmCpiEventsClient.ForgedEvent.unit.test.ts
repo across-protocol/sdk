@@ -1,4 +1,6 @@
 import { SvmSpokeIdl } from "@across-protocol/contracts";
+import { CHAIN_IDs } from "@across-protocol/constants";
+import { signature } from "@solana/kit";
 import { expect } from "chai";
 import bs58 from "bs58";
 import { SvmCpiEventsClient } from "../src/arch/svm";
@@ -43,7 +45,7 @@ describe("SvmCpiEventsClient (forged event rejection)", () => {
   // Access the private members exercised by this test without widening to `any`.
   let internal: {
     programEventAuthority: string;
-    processEventFromTx(txResult: unknown): { name: string }[];
+    processEventFromTx(txResult: unknown): { name: string; logIndex: number }[];
   };
 
   before(async () => {
@@ -78,6 +80,48 @@ describe("SvmCpiEventsClient (forged event rejection)", () => {
   it("decodes a genuine emitted event (Anchor event discriminator prefix)", () => {
     const events = internal.processEventFromTx(makeTx(ANCHOR_EVENT_DISCRIMINATOR));
     expect(events.map((e) => e.name)).to.deep.equal(["FundsDeposited"]);
+  });
+
+  it("assigns distinct stable indices to multiple events in one transaction", () => {
+    const tx = makeTx(ANCHOR_EVENT_DISCRIMINATOR);
+    const eventInstruction = tx.meta.innerInstructions[0].instructions[0];
+    tx.meta.innerInstructions[0].instructions.push(
+      {
+        ...eventInstruction,
+        data: bs58.encode(Buffer.concat([GET_UNSAFE_DEPOSIT_ID_DISCRIMINATOR, eventDiscriminatorAndBody])),
+      },
+      { ...eventInstruction }
+    );
+
+    const events = internal.processEventFromTx(tx);
+
+    expect(events.map(({ name, logIndex }) => ({ name, logIndex }))).to.deep.equal([
+      { name: "FundsDeposited", logIndex: 0 },
+      { name: "FundsDeposited", logIndex: 2 },
+    ]);
+  });
+
+  it("preserves event indices in the deposit helper for a transaction signature", async () => {
+    const tx = {
+      ...makeTx(ANCHOR_EVENT_DISCRIMINATOR),
+      blockTime: 1n,
+      slot: 1n,
+    };
+    tx.meta.innerInstructions[0].instructions.push({ ...tx.meta.innerInstructions[0].instructions[0] });
+    const rpc = {
+      getTransaction: () => ({ send: () => Promise.resolve(tx) }),
+    } as unknown as Parameters<typeof SvmCpiEventsClient.createFor>[0];
+    const helperClient = await SvmCpiEventsClient.createFor(rpc, PROGRAM, SvmSpokeIdl);
+    const txSignature = signature(
+      "3rLkGVvyYL2LTuDzbo8MBYNwjhYaKo1pEoqd24HCPQJEhNgyVnKZeNFsFrStKYY6cVizBfLpa2RMiB8dxHPzGHMV"
+    );
+
+    const events = await helperClient.getDepositEventsFromSignature(CHAIN_IDs.SOLANA, txSignature);
+
+    expect(events?.map(({ txnIndex, logIndex }) => ({ txnIndex, logIndex }))).to.deep.equal([
+      { txnIndex: 0, logIndex: 0 },
+      { txnIndex: 0, logIndex: 1 },
+    ]);
   });
 
   it("ignores a forged event emitted via an arbitrary CPI into the program", () => {

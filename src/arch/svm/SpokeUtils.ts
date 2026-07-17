@@ -288,7 +288,7 @@ export async function findDeposit(
   }
 
   const txnIndex = 0;
-  const logIndex = 0;
+  const logIndex = depositEvent.logIndex ?? 0;
   const blockNumber = Number(depositEvent.slot);
   const txnRef = depositEvent.signature.toString();
 
@@ -483,7 +483,13 @@ export async function findFillEvent(
     return;
   }
 
-  const rawFill = unwrapEventData<SortableEvent>(rawEvent.data, ["depositId", "inputAmount"]);
+  const rawFill = {
+    ...unwrapEventData(rawEvent.data, ["depositId", "inputAmount"]),
+    blockNumber: Number(rawEvent.slot),
+    txnRef: rawEvent.signature,
+    txnIndex: 0,
+    logIndex: rawEvent.logIndex ?? 0,
+  } satisfies SortableEvent;
   const fill = unpackFillEvent(rawFill, destinationChainId);
   return fill satisfies FillWithBlock;
 }
