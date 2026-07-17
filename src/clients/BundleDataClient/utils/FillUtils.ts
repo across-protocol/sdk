@@ -2,9 +2,26 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, Address, toAddressType } from "../../../utils";
+import {
+  isSlowFill,
+  isValidEvmAddress,
+  isDefined,
+  chainIsEvm,
+  Address,
+  EvmAddress,
+  toAddressType,
+} from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
+
+/**
+ * @notice Addresses that must never be paid out of a root bundle (as repayment, deposit refund, or slow fill).
+ * Protocol rule: all proposers and validators must apply this list identically.
+ */
+export const BLOCKED_ADDRESSES: EvmAddress[] = [
+  "0xA6fb971F3B7a9b9F76EdA76bc89268fe26560189",
+  "0xa0c0e9f307b5a26ca3fb5891c19154fc7a02bef7",
+].map((address) => EvmAddress.from(address));
 
 /**
  * @notice FillRepaymentInformation is a fill with additional properties required to determine where it can
@@ -62,7 +79,7 @@ export function getRefundInformationFromFill(
  * @notice Verifies that the fill can be repaid. If the repayment address is not
  * valid for the requested repayment chain, then this function will attempt to change the fill's repayment chain
  * to the destination chain and its repayment address to the  msg.sender and if this is possible,
- * return the fill. Otherwise, return undefined.
+ * return the fill. Otherwise, return undefined. Fills repaying a BLOCKED_ADDRESSES entry are always unrepayable.
  * @param _fill Fill with a requested repayment chain and address
  * @return Fill with the applied repayment chain (depends on the validity of the requested repayment address)
  * and applied repayment address, or undefined if the applied repayment address is not valid for the
@@ -137,6 +154,11 @@ export async function verifyFillRepayment(
     } else {
       return undefined;
     }
+  }
+
+  // Protocol rule: never repay blocked addresses (checked after any msg.sender overwrite above).
+  if (BLOCKED_ADDRESSES.some((blockedAddress) => blockedAddress.eq(fill.relayer))) {
+    return undefined;
   }
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination
