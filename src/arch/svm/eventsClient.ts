@@ -17,6 +17,18 @@ import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
 import assert from "assert";
 
+/**
+ * Anchor emits CPI events (`emit_cpi!`) as a *self*-invocation of the program that targets its
+ * `__event_authority` PDA and prefixes the instruction data with this fixed 8-byte discriminator
+ * (`sha256("anchor:event")[..8]`), followed by the 8-byte event discriminator and the Borsh event
+ * payload. Checking this prefix is what proves an inner instruction is a genuine emitted event and
+ * not just some other instruction that happens to touch the program. Without it, any program can
+ * forge an event by CPI-ing into the SpokePool with the event authority passed as the sole account
+ * and attacker-controlled trailing data (e.g. via the read-only `GetUnsafeDepositId` instruction),
+ * which the client would otherwise decode as a real FundsDeposited/FilledRelay event.
+ */
+const ANCHOR_CPI_EVENT_DISCRIMINATOR = Buffer.from([0xe4, 0x45, 0xa5, 0x2e, 0x51, 0xcb, 0x9a, 0x1d]);
+
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
 type ExtractJsonOverload<T> = T extends (signature: infer _S, config: infer C) => infer R
@@ -213,7 +225,17 @@ export class SvmCpiEventsClient {
           this.programEventAuthority === singleIxAccount
         ) {
           const ixData = bs58.decode(ix.data);
-          // Skip the first 8 bytes (assumed header) and encode the rest.
+          // Only decode genuine Anchor CPI events. The instruction data of an emitted event is
+          // prefixed with the Anchor event discriminator; requiring it prevents an arbitrary CPI
+          // into the program (with the event authority as its sole account and crafted trailing
+          // bytes) from being decoded as a forged event.
+          if (
+            ixData.length < ANCHOR_CPI_EVENT_DISCRIMINATOR.length ||
+            !ANCHOR_CPI_EVENT_DISCRIMINATOR.equals(Buffer.from(ixData.slice(0, ANCHOR_CPI_EVENT_DISCRIMINATOR.length)))
+          ) {
+            continue;
+          }
+          // Skip the 8-byte Anchor event discriminator and decode the remaining event payload.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
           const { name, data } = decodeEvent(this.idl, eventData);
           events.push({ program: this.programAddress, name, data });
