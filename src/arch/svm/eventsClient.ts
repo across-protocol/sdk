@@ -19,9 +19,11 @@ import assert from "assert";
 
 /**
  * Anchor emits CPI events (`emit_cpi!`) as a *self*-invocation of the program that targets its
- * `__event_authority` PDA and prefixes the instruction data with this fixed 8-byte discriminator
- * (`sha256("anchor:event")[..8]`), followed by the 8-byte event discriminator and the Borsh event
- * payload. Checking this prefix is what proves an inner instruction is a genuine emitted event and
+ * `__event_authority` PDA and prefixes the instruction data with this fixed 8-byte discriminator,
+ * followed by the 8-byte event discriminator and the Borsh event payload. The wire bytes are the
+ * little-endian encoding of Anchor's `EVENT_IX_TAG: u64 = 0x1d9acb512ea545e4` (the first 8 bytes of
+ * `sha256("anchor:event")` read as a big-endian u64) — i.e. the digest prefix in *reversed* byte
+ * order. Checking this prefix is what proves an inner instruction is a genuine emitted event and
  * not just some other instruction that happens to touch the program. Without it, any program can
  * forge an event by CPI-ing into the SpokePool with the event authority passed as the sole account
  * and attacker-controlled trailing data (e.g. via the read-only `GetUnsafeDepositId` instruction),
