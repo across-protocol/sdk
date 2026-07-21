@@ -1153,6 +1153,7 @@ export class HubPoolClient extends BaseAbstractClient {
           relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
           slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
           proposer: pendingRootBundleProposal.proposer,
+          poolRebalanceLeafCount: mostRecentProposedRootBundle.poolRebalanceLeafCount,
           unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
           challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
           bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(
