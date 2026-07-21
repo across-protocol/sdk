@@ -12,6 +12,7 @@ const emptyRootBundle: PendingRootBundle = {
   relayerRefundRoot: "",
   slowRelayRoot: "",
   proposer: EvmAddress.from(ZERO_ADDRESS),
+  poolRebalanceLeafCount: 0,
   unclaimedPoolRebalanceLeafCount: 0,
   challengePeriodEndTimestamp: 0,
   bundleEvaluationBlockNumbers: [],

@@ -114,6 +114,8 @@ export interface PendingRootBundle {
   relayerRefundRoot: string;
   slowRelayRoot: string;
   proposer: EvmAddress;
+  // Leaf count committed at proposal time. Unlike unclaimedPoolRebalanceLeafCount, this does not decrement as leaves execute.
+  poolRebalanceLeafCount: number;
   unclaimedPoolRebalanceLeafCount: number;
   challengePeriodEndTimestamp: number;
   bundleEvaluationBlockNumbers: number[];

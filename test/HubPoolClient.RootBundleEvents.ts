@@ -92,6 +92,7 @@ describe("HubPoolClient: RootBundle Events", function () {
         poolRebalanceRoot: tree.getHexRoot(),
         relayerRefundRoot: constants.mockTreeRoot,
         slowRelayRoot: constants.mockTreeRoot,
+        poolRebalanceLeafCount: 2,
         unclaimedPoolRebalanceLeafCount: 2,
         challengePeriodEndTimestamp: proposeTime + liveness,
         bundleEvaluationBlockNumbers: [11, 22],
