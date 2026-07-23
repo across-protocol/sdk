@@ -10,8 +10,9 @@ The PriceClient aggregates user-defined preferential list of price feeds. This p
  - Currently supported price feeds:
      - CoinGecko (Free & Pro)
      - Across API
- - Candidates for future addition:
      - DefiLlama
+     - Binance (mapped pairs only — e.g. USDT/USDC via the `USDCUSDT` listing, with USDC anchored at 1 USD; unmapped tokens fall through to the next configured feed)
+ - Candidates for future addition:
      - On-chain lookups (i.e. Uniswap)
 
 This code can be independently used by bots, the frontend, and the backend Across API:
