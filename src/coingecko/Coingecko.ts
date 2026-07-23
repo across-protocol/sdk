@@ -303,7 +303,8 @@ export class Coingecko {
       const result = await this.call<Record<string, CGTokenPrice>>(
         `simple/price?symbols=${encodeURIComponent(symbol)}&vs_currencies=${encodeURIComponent(
           currency
-        )}&include_last_updated_at=true`
+        )}&include_last_updated_at=true`,
+        { proOnly: true }
       );
       const cgPrice = result?.[symbol.toLowerCase()] || result?.[symbol.toUpperCase()];
       if (cgPrice === undefined || !cgPrice?.[currency]) {
@@ -391,13 +392,20 @@ export class Coingecko {
     return this.call("asset_platforms");
   }
 
-  call<T>(path: string): Promise<T> {
+  call<T>(path: string, opts: { proOnly?: boolean } = {}): Promise<T> {
     const sendRequest = async () => {
       const { proHost } = this;
 
       // If no pro api key, only send basic request:
       if (this.apiKey === undefined) {
         return await this._callBasic<T>(path);
+      }
+
+      // The basic host answers symbol lookups with an empty 200 (only the Pro
+      // host resolves them), so the catch-based fallback never fires. When a
+      // key is set, go to Pro directly for these paths.
+      if (opts.proOnly) {
+        return await this._callPro<T>(path);
       }
 
       // If pro api key, try basic and use pro as fallback.
