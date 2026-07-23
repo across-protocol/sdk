@@ -6,8 +6,8 @@ import { expect, sinon } from "./utils";
 
 // Bypass the singleton + protected constructor so each test gets isolated state.
 class TestGecko extends Coingecko {
-  public constructor(host: string, logger: winston.Logger) {
-    super(host, host, logger);
+  public constructor(host: string, logger: winston.Logger, proHost = host, apiKey?: string) {
+    super(host, proHost, logger, apiKey);
   }
 }
 
@@ -112,6 +112,36 @@ describe("Coingecko", () => {
       fetchStub.resolves(jsonResponse({}));
       await cg.getCurrentPriceBySymbol("BTC/USD", "usd").catch(() => undefined);
       expect(fetchStub.firstCall.args[0] as string).to.include("symbols=BTC%2FUSD");
+    });
+  });
+
+  describe("Pro host routing (getCurrentPriceBySymbol)", () => {
+    // Regression: the basic host answers symbol lookups with an empty 200, so
+    // the catch-based fallback never fired and symbol prices always 404'd even
+    // with a Pro key configured. Symbol lookups must go straight to Pro.
+    const BASIC_HOST = "https://basic.example";
+    const PRO_HOST = "https://pro.example";
+
+    it("routes to the Pro host when an API key is set", async () => {
+      const gecko = new TestGecko(BASIC_HOST, silentLogger, PRO_HOST, "test-pro-key");
+      fetchStub.resolves(jsonResponse({ usdc: { usd: 0.9999, last_updated_at: msToS(Date.now()) } }));
+
+      const [, price] = await gecko.getCurrentPriceBySymbol("USDC", "usd");
+
+      expect(price).to.equal(0.9999);
+      expect(fetchStub.calledOnce).to.equal(true);
+      const calledUrl = fetchStub.firstCall.args[0] as string;
+      expect(calledUrl.startsWith(PRO_HOST)).to.equal(true);
+    });
+
+    it("uses the basic host when no API key is set", async () => {
+      const gecko = new TestGecko(BASIC_HOST, silentLogger, PRO_HOST);
+      fetchStub.resolves(jsonResponse({ usdc: { usd: 0.9999, last_updated_at: msToS(Date.now()) } }));
+
+      await gecko.getCurrentPriceBySymbol("USDC", "usd");
+
+      const calledUrl = fetchStub.firstCall.args[0] as string;
+      expect(calledUrl.startsWith(BASIC_HOST)).to.equal(true);
     });
   });
 
