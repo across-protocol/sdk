@@ -1,6 +1,7 @@
 import assert from "assert";
 import { Provider, Block as EthersBlock } from "@ethersproject/abstract-provider";
-import { clamp, sortedIndexBy } from "lodash";
+import lodash from "lodash";
+const { clamp, sortedIndexBy } = lodash;
 import { chainIsOPStack, getNetworkName } from "../../utils/NetworkUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import {
