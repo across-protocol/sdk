@@ -159,7 +159,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
             txnRef: event.signature,
             blockNumber: Number(event.slot),
             txnIndex: 0,
-            logIndex: 0,
+            logIndex: event.logIndex ?? 0,
           })
         );
       }),

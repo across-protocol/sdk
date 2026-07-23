@@ -65,4 +65,20 @@ describe("SvmSpokePoolClient: Event fetching", function () {
       expect(fillEvent.recipient.eq(toAddressType(expectedFill.data.recipient, CHAIN_IDs.SOLANA))).to.be.true;
     });
   });
+
+  it("preserves distinct log indices for multiple events in one transaction", async function () {
+    const spokePoolClient = new MockSvmSpokePoolClient(logger, CHAIN_IDs.SOLANA_DEVNET);
+    const fillOverrides = { originChainId: BigInt(CHAIN_IDs.MAINNET) } as SvmSpokeClient.FilledRelay;
+    const firstFill = spokePoolClient.fillRelay(fillOverrides);
+    const secondFill = spokePoolClient.fillRelay(fillOverrides);
+
+    secondFill.signature = firstFill.signature;
+    secondFill.slot = firstFill.slot;
+    firstFill.logIndex = 0;
+    secondFill.logIndex = 1;
+
+    await spokePoolClient.update([SVMEventNames.FilledRelay]);
+
+    expect(spokePoolClient.getFills().map(({ logIndex }) => logIndex)).to.deep.equal([0, 1]);
+  });
 });

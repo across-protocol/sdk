@@ -62,6 +62,7 @@ export type EventWithData = {
   blockTime: UnixTimestamp | null;
   signature: Signature;
   slot: bigint;
+  logIndex?: number;
   name: string;
   data: unknown;
   program: Address;

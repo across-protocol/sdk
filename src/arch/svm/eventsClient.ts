@@ -205,9 +205,11 @@ export class SvmCpiEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(txResult?: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
+  private processEventFromTx(
+    txResult?: GetTransactionReturnType
+  ): { program: Address; data: unknown; name: string; logIndex: number }[] {
     if (!isDefined(txResult) || isDefined(txResult.meta?.err)) return [];
-    const events: { program: Address; data: unknown; name: string }[] = [];
+    const events: { program: Address; data: unknown; name: string; logIndex: number }[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
@@ -216,8 +218,10 @@ export class SvmCpiEventsClient {
     messageAccountKeys.push(...(txResult?.meta?.loadedAddresses?.writable ?? []));
     messageAccountKeys.push(...(txResult?.meta?.loadedAddresses?.readonly ?? []));
 
+    let innerInstructionIndex = 0;
     for (const ixBlock of txResult.meta?.innerInstructions ?? []) {
       for (const ix of ixBlock.instructions) {
+        const logIndex = innerInstructionIndex++;
         const ixProgramId = messageAccountKeys[ix.programIdIndex];
         const singleIxAccount = ix.accounts.length === 1 ? messageAccountKeys[ix.accounts[0]] : undefined;
         if (
@@ -240,7 +244,7 @@ export class SvmCpiEventsClient {
           // Skip the 8-byte Anchor event discriminator and decode the remaining event payload.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
           const { name, data } = decodeEvent(this.idl, eventData);
-          events.push({ program: this.programAddress, name, data });
+          events.push({ program: this.programAddress, name, data, logIndex });
         }
       }
     }
@@ -303,7 +307,7 @@ export class SvmCpiEventsClient {
         blockNumber: Number(txDetails.slot),
         txnIndex: 0,
         txnRef: txSignature,
-        logIndex: 0,
+        logIndex: event.logIndex,
       } satisfies DepositEventFromSignature;
     });
   }
@@ -362,7 +366,7 @@ export class SvmCpiEventsClient {
         blockNumber: Number(txDetails.slot),
         txnRef: txSignature,
         txnIndex: 0,
-        logIndex: 0,
+        logIndex: event.logIndex,
         destinationChainId,
       } satisfies FillEventFromSignature;
     });
