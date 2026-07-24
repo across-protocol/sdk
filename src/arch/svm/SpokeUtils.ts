@@ -43,6 +43,7 @@ import winston from "winston";
 import { arrayify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import {
+  ConvertedRelayData,
   DepositWithBlock,
   FillStatus,
   FillWithBlock,
@@ -64,6 +65,7 @@ import {
   isUnsafeDepositId,
   keccak256,
   mapAsync,
+  toAddressType,
   unpackDepositEvent,
   unpackFillEvent,
 } from "../../utils";
@@ -87,7 +89,14 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
+import {
+  AttestedCCTPMessage,
+  EventWithData,
+  SVMEventNames,
+  SVMProvider,
+  LatestBlockhash,
+  SolanaTransaction,
+} from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -352,7 +361,7 @@ export async function relayFillStatus(
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
-  return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
+  return resolveFillStatusFromPdaEvents(fillStatusPda, destinationChainId, toSlot, svmEventsClient);
 }
 
 /**
@@ -427,7 +436,12 @@ export async function fillStatusArray(
       chunk.map(async (missingIndex) => {
         return {
           index: missingIndex,
-          fillStatus: await resolveFillStatusFromPdaEvents(fillStatusPdas[missingIndex], toSlot, svmEventsClient),
+          fillStatus: await resolveFillStatusFromPdaEvents(
+            fillStatusPdas[missingIndex],
+            destinationChainId,
+            toSlot,
+            svmEventsClient
+          ),
         };
       })
     );
@@ -469,12 +483,13 @@ export async function findFillEvent(
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
 
   // Get fill events from fillStatus PDA
-  const fillEvents = await svmEventsClient.queryDerivedAddressEvents(
+  const fillEvents = await queryFillStatusEvents(
     SVMEventNames.FilledRelay,
     fillStatusPda,
+    destinationChainId,
+    svmEventsClient,
     BigInt(fromSlot),
-    BigInt(toSlot),
-    { limit: 10 }
+    BigInt(toSlot)
   );
   assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
 
@@ -1002,16 +1017,17 @@ export function getRelayDataHash(relayData: RelayData & { messageHash: string },
 
 async function resolveFillStatusFromPdaEvents(
   fillStatusPda: Address,
+  destinationChainId: number,
   toSlot: bigint,
   svmEventsClient: SvmCpiEventsClient
 ): Promise<FillStatus> {
   // Get fill and requested slow fill events from fillStatus PDA
-  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill];
+  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill] as const;
   const relevantEvents = (
     await Promise.all(
       eventsToQuery.map((eventName) =>
         // PDAs should have only a few events, requesting up to 10 should be enough.
-        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, undefined, toSlot, { limit: 10 })
+        queryFillStatusEvents(eventName, fillStatusPda, destinationChainId, svmEventsClient, undefined, toSlot)
       )
     )
   ).flat();
@@ -1036,6 +1052,43 @@ async function resolveFillStatusFromPdaEvents(
     default:
       throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
   }
+}
+
+type FillStatusEventRelayData = Omit<ConvertedRelayData, "message"> & { messageHash: string };
+
+/**
+ * A signature lookup only proves that a transaction mentioned the fill-status PDA. Recompute the
+ * PDA from each decoded event so an unrelated fill event in that transaction cannot be attributed
+ * to the queried relay.
+ */
+async function queryFillStatusEvents(
+  eventName: SVMEventNames.FilledRelay | SVMEventNames.RequestedSlowFill,
+  fillStatusPda: Address,
+  destinationChainId: number,
+  svmEventsClient: SvmCpiEventsClient,
+  fromSlot?: bigint,
+  toSlot?: bigint
+): Promise<EventWithData[]> {
+  const events = await svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, fromSlot, toSlot, {
+    limit: 10,
+  });
+  const programId = svmEventsClient.getProgramAddress();
+  const matches = await Promise.all(
+    events.map(async (event) => {
+      const rawRelayData = unwrapEventData<FillStatusEventRelayData>(event.data, ["depositId", "inputAmount"]);
+      const relayData = {
+        ...rawRelayData,
+        depositor: toAddressType(rawRelayData.depositor, rawRelayData.originChainId),
+        recipient: toAddressType(rawRelayData.recipient, destinationChainId),
+        inputToken: toAddressType(rawRelayData.inputToken, rawRelayData.originChainId),
+        outputToken: toAddressType(rawRelayData.outputToken, destinationChainId),
+        exclusiveRelayer: toAddressType(rawRelayData.exclusiveRelayer, destinationChainId),
+        message: "0x",
+      } satisfies RelayDataWithMessageHash;
+      return (await getFillStatusPda(programId, relayData, destinationChainId)) === fillStatusPda;
+    })
+  );
+  return events.filter((_, index) => matches[index]);
 }
 
 /**
