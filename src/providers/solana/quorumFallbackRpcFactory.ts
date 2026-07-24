@@ -40,6 +40,17 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
   public createTransport(): RpcTransport {
     return async <TResponse>(...args: Parameters<RpcTransport>): Promise<RpcResponse<TResponse>> => {
       const { method, params } = args[0].payload as { method: string; params?: unknown[] };
+
+      // Methods whose results converge across providers but never agree exactly at the chain head
+      // (e.g. `getSlot`) cannot use strict-equality quorum. Use a lower-bound quorum instead:
+      // query all providers and return the K-th highest value, i.e. the highest value that at least
+      // K providers report the chain has reached. This rejects a single lagging provider when N>K
+      // and forces a single outlier-high provider to have at least one ally to influence the result.
+      // Guarded on `nodeQuorumThreshold > 1` so quorum=1 bots keep the single-provider fast path.
+      if (LOWER_BOUND_QUORUM_METHODS.includes(method) && this.nodeQuorumThreshold > 1) {
+        return this._lowerBoundQuorumCall<TResponse>(method, params ?? [], ...args);
+      }
+
       const quorumThreshold = this._getQuorum(method, params ?? []);
       const requiredFactories = this.rpcFactories.slice(0, quorumThreshold);
       const fallbackFactories = [...this.rpcFactories.slice(quorumThreshold)];
@@ -261,8 +272,86 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
     // All other calls should use quorum 1 to avoid errors due to sync differences.
     return 1;
   }
+
+  // Aggregate a chain-tip query under a "lower-bound quorum": query every configured provider in
+  // parallel, sort the successful bigint responses descending, and return the value at index
+  // (nodeQuorumThreshold - 1). Semantically: "at least nodeQuorumThreshold providers report the
+  // chain has reached at least this slot." The K-th highest is rejected only if all providers
+  // above it are colluding (or simply wrong in the same direction).
+  private async _lowerBoundQuorumCall<TResponse>(
+    method: string,
+    params: unknown[],
+    ...args: Parameters<RpcTransport>
+  ): Promise<RpcResponse<TResponse>> {
+    const errors: [SolanaClusterRpcFactory, string][] = [];
+
+    const settled = await Promise.allSettled(
+      this.rpcFactories.map((factory) =>
+        factory
+          .transport<TResponse>(...args)
+          .then((value): [SolanaClusterRpcFactory, RpcResponse<TResponse>] => [factory.rpcFactory, value])
+          .catch((error) => {
+            errors.push([factory.rpcFactory, formatRpcError(error)]);
+            throw error;
+          })
+      )
+    );
+
+    const successful = settled.filter(isPromiseFulfilled).map((r) => r.value);
+
+    if (successful.length < this.nodeQuorumThreshold) {
+      const errorTexts = errors.map(
+        ([factory, errorText]) => `Provider ${factory.clusterUrl} failed to call ${method} with error ${errorText}`
+      );
+      const successfulProviderUrls = successful.map(([factory]) => factory.clusterUrl);
+      throw createSendErrorWithMessage(
+        `Not enough providers succeeded on ${method} call to reach lower-bound quorum ` +
+          `(${successful.length}/${this.nodeQuorumThreshold}). Errors:\n${errorTexts.join("\n")}\n` +
+          `Successful Providers:\n${successfulProviderUrls.join("\n")}`,
+        settled.find(isPromiseRejected)?.reason
+      );
+    }
+
+    // Sort successful responses by their underlying bigint value, highest first.
+    const ranked = successful
+      .map(([factory, value]) => ({ factory, value: value as unknown as bigint }))
+      .sort((a, b) => (a.value === b.value ? 0 : a.value < b.value ? 1 : -1));
+    const quorumValue = ranked[this.nodeQuorumThreshold - 1].value;
+    const quorumResult = quorumValue as unknown as RpcResponse<TResponse>;
+
+    const divergentProviders = ranked
+      .filter(({ value }) => value !== quorumValue)
+      .map(({ factory }) => factory.clusterUrl);
+    if (divergentProviders.length > 0 || errors.length > 0) {
+      this.logger.warn({
+        at: "FallbackSolanaRpcFactory#createTransport",
+        message: `[${method}] Lower-bound quorum: some providers diverged from the quorum value or failed 🚸`,
+        notificationPath: "across-warn",
+        method,
+        params: JSON.stringify(params),
+        quorumValue: Number(quorumValue),
+        providerValues: ranked.map(({ factory, value }) => ({
+          provider: factory.clusterUrl,
+          value: Number(value),
+        })),
+        divergentProviders,
+        successfulProviders: ranked.map(({ factory }) => factory.clusterUrl),
+        erroringProviders: errors.map(
+          ([factory, errorText]) => `Provider ${factory.clusterUrl} failed with error ${errorText}`
+        ),
+      });
+    }
+
+    return quorumResult;
+  }
 }
 
 // These methods return a bigint and their results are loggable because they are succinct and can further assist
 // quorum debugging.
 const METHODS_RETURNING_BIGINT = ["getBlockTime", "getSlot"];
+
+// Methods whose results converge but never agree exactly across providers when queried at the head
+// of the chain. These cannot use strict-equality quorum and instead use lower-bound quorum
+// (Kth-highest aggregation) inside `_lowerBoundQuorumCall`. The underlying response must be a
+// bigint so the values are linearly orderable.
+const LOWER_BOUND_QUORUM_METHODS = ["getSlot"];
