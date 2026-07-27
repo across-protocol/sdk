@@ -355,6 +355,16 @@ describe("Address Utils: Address Type", function () {
         // 4-byte Base58Check checksum that TronWeb verifies.
         expect(TvmAddress.validate(bs58.encode(ethers.utils.randomBytes(25)))).to.be.false;
       });
+
+      it("Rejects garbage strings without throwing", function () {
+        // TronWeb's internal decode58 throws on non-Base58 characters, but TronWeb.isAddress() wraps all
+        // decoding in try/catch and returns false (verified against tronweb@6.2.2), so validate() never throws.
+        const garbage = ["T!!!not-base58-0OIl", "", " ", "Tshort", "0x", "🚀".repeat(17)];
+        for (const input of garbage) {
+          expect(() => TvmAddress.validate(input)).to.not.throw();
+          expect(TvmAddress.validate(input)).to.be.false;
+        }
+      });
     });
 
     describe("toAddressType integration", function () {
