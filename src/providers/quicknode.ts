@@ -12,6 +12,11 @@ const SNOWFLAKES = {
 const SNOWFLAKE_CHAIN_IDs = Object.keys(SNOWFLAKES).map(Number);
 const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
+/* Some chains nest their EVM RPC beneath a chain-specific path (i.e. the avalanchego API structure). */
+const PATHS: { [chainId: number]: { [transport in RPCTransport]: string } } = {
+  [CHAIN_IDs.AVALANCHE]: { https: "/ext/bc/C/rpc", wss: "/ext/bc/C/ws" },
+};
+
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
   const envVar = "RPC_PROVIDER_KEY_QUICKNODE_PREFIX";
   const prefix = process.env[`${envVar}_${chainId}`] ?? process.env[envVar];
@@ -36,5 +41,7 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
   }
   chain = chain.toLowerCase().replace(" ", "-");
 
-  return `${transport}://${prefix}.${chain}.${domain}/${apiKey}`;
+  const path = PATHS[chainId]?.[transport] ?? "";
+
+  return `${transport}://${prefix}.${chain}.${domain}/${apiKey}${path}`;
 }
