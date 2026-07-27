@@ -1,4 +1,5 @@
 import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
+import { isDefined } from "../utils/TypeGuards";
 import { RPCTransport } from "./types";
 
 const SNOWFLAKES = {
@@ -14,7 +15,7 @@ const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
 /* Some chains nest their EVM RPC beneath a chain-specific path (i.e. the avalanchego API structure). */
 const PATHS: { [chainId: number]: { [transport in RPCTransport]: string } } = {
-  [CHAIN_IDs.AVALANCHE]: { https: "/ext/bc/C/rpc", wss: "/ext/bc/C/ws" },
+  [CHAIN_IDs.AVALANCHE]: { https: "ext/bc/C/rpc", wss: "ext/bc/C/ws" },
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
@@ -41,7 +42,9 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
   }
   chain = chain.toLowerCase().replace(" ", "-");
 
-  const path = PATHS[chainId]?.[transport] ?? "";
+  const path = PATHS[chainId]?.[transport];
 
-  return `${transport}://${prefix}.${chain}.${domain}/${apiKey}${path}`;
+  return isDefined(path)
+    ? `${transport}://${prefix}.${chain}.${domain}/${apiKey}/${path}`
+    : `${transport}://${prefix}.${chain}.${domain}/${apiKey}`;
 }
