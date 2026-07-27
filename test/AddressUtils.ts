@@ -337,6 +337,24 @@ describe("Address Utils: Address Type", function () {
         expect(TvmAddress.validate(new Uint8Array(15))).to.be.false;
         expect(TvmAddress.validate(new Uint8Array(21))).to.be.false;
       });
+
+      it("Accepts a valid TRON Base58Check string", function () {
+        expect(TvmAddress.validate(tronBase58)).to.be.true;
+      });
+
+      it("Accepts a valid 0x-hex address string", function () {
+        expect(TvmAddress.validate(hex20)).to.be.true;
+      });
+
+      it("Rejects a malformed 0x-hex string (non-zero upper bytes)", function () {
+        expect(TvmAddress.validate("0xff" + "00".repeat(31))).to.be.false;
+      });
+
+      it("Rejects a string that fails the Base58Check checksum", function () {
+        // A random 25-byte payload encoded as plain Base58 will, with overwhelming probability, fail the
+        // 4-byte Base58Check checksum that TronWeb verifies.
+        expect(TvmAddress.validate(bs58.encode(ethers.utils.randomBytes(25)))).to.be.false;
+      });
     });
 
     describe("toAddressType integration", function () {

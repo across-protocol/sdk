@@ -129,17 +129,11 @@ export function isValidEvmAddress(address: string): boolean {
 export function toAddressType(address: string, chainId: number): Address {
   const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
 
-  // Address inputs may originate from unverified on-chain event data, so a malformed value must never abort
-  // decoding by throwing here. Mirror the EVM/SVM branches: attempt the typed parse and fall through to a
-  // non-throwing RawAddress on failure. The TVM branch uses TvmAddress.from() (rather than validating rawAddress
-  // above) to preserve TRON base58check parsing, guarded so it cannot throw.
-  if (chainIsTvm(chainId)) {
-    try {
-      return TvmAddress.from(address);
-    } catch {
-      // Malformed TVM address; fall through to RawAddress.
-    }
-  } else if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
+  // Validate before constructing so a malformed value (which may originate from unverified on-chain event data)
+  // falls through to a non-throwing RawAddress, matching the EVM/SVM branches. The TVM branch validates the input
+  // string rather than rawAddress: TRON uses Base58Check, which the plain bs58.decode above cannot verify.
+  if (chainIsTvm(chainId) && TvmAddress.validate(address)) return TvmAddress.from(address);
+  else if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   else if (chainIsSvm(chainId) && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
 
   return new RawAddress(rawAddress);
@@ -355,10 +349,22 @@ export class TvmAddress extends Address {
     super(rawAddress);
   }
 
-  static validate(rawAddress: Uint8Array): boolean {
-    return (
-      rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field === 0))
-    );
+  // Validates either a raw address (the 20-byte internal form, or a 32-byte value with the upper 12 bytes zeroed)
+  // or an address string. String validation is checksum-aware: TRON Base58Check addresses are verified via
+  // TronWeb (prefix + checksum), and 0x-hex addresses are checked against the raw-byte rule. Never throws.
+  static validate(address: string | Uint8Array): boolean {
+    if (typeof address === "string") {
+      if (!address.startsWith("0x")) {
+        // TRON Base58Check (or 41-prefixed hex): TronWeb verifies the prefix and 4-byte checksum.
+        return TronWeb.isAddress(address);
+      }
+      try {
+        return TvmAddress.validate(utils.arrayify(address));
+      } catch {
+        return false;
+      }
+    }
+    return address.length == 20 || (address.length === 32 && address.slice(0, 12).every((field) => field === 0));
   }
 
   override isTVM(): this is TvmAddress {
