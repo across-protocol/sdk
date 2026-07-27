@@ -41,6 +41,20 @@ describe("Address Utils: Address Type", function () {
       expect(EvmAddress.validate(arrayify(invalidEvmAddress))).to.be.false;
       expect(() => toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
     });
+    it("Falls through instead of throwing for malformed TVM addresses", function () {
+      // A 32-byte value with non-zero upper bytes is not a valid TVM (or EVM) address. Because address inputs can
+      // come from unverified on-chain event data, the TVM branch must fall through to a non-throwing type rather
+      // than throw, exactly like the EVM/SVM branches.
+      const malformed = "0xff" + randomBytes(31).slice(2);
+      expect(TvmAddress.validate(arrayify(malformed))).to.be.false;
+      expect(() => toAddressType(malformed, CHAIN_IDs.TRON)).to.not.throw();
+      expect(toAddressType(malformed, CHAIN_IDs.TRON).isTVM()).to.be.false;
+    });
+    it("Coerces valid TVM addresses to TvmAddress", function () {
+      // 20-byte and zero-padded 32-byte inputs are valid and should still resolve to a TvmAddress.
+      expect(toAddressType(randomBytes(20), CHAIN_IDs.TRON).isTVM()).to.be.true;
+      expect(toAddressType(EVM_ZERO_PAD + randomBytes(20).slice(2), CHAIN_IDs.TRON).isTVM()).to.be.true;
+    });
     it("Rejects padded SVM (suspect EVM) addresses", function () {
       const rawAddress = arrayify(EVM_ZERO_PAD + randomBytes(20).slice(2));
       expect(rawAddress.slice(0, 12).every((field: number) => field === 0)).to.be.true;
