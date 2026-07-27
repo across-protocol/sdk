@@ -13,9 +13,11 @@ const SNOWFLAKES = {
 const SNOWFLAKE_CHAIN_IDs = Object.keys(SNOWFLAKES).map(Number);
 const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
-/* Some chains nest their EVM RPC beneath a chain-specific path (i.e. the avalanchego API structure). */
-const PATHS: { [chainId: number]: { [transport in RPCTransport]: string } } = {
+/* Some chains nest their EVM RPC beneath a chain-specific path (avalanchego API structure, node flavors, ...). */
+const PATHS: { [chainId: number]: { [transport in RPCTransport]?: string } } = {
   [CHAIN_IDs.AVALANCHE]: { https: "ext/bc/C/rpc", wss: "ext/bc/C/ws" },
+  [CHAIN_IDs.HYPEREVM]: { https: "nanoreth", wss: "nanoreth" }, // Archive (nanoreth) flavor.
+  [CHAIN_IDs.TRON]: { https: "jsonrpc" }, // QuickNode TRON has no WebSocket support.
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {

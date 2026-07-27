@@ -31,6 +31,23 @@ describe("Provider URL generation", () => {
       );
     });
 
+    it("appends the HyperEVM nanoreth (archive) path", () => {
+      expect(getURL(CHAIN_IDs.HYPEREVM, apiKey, "https")).to.equal(
+        `https://${prefix}.hype-mainnet.quiknode.pro/${apiKey}/nanoreth`
+      );
+      expect(getURL(CHAIN_IDs.HYPEREVM, apiKey, "wss")).to.equal(
+        `wss://${prefix}.hype-mainnet.quiknode.pro/${apiKey}/nanoreth`
+      );
+    });
+
+    it("appends the TRON jsonrpc path (https only)", () => {
+      expect(getURL(CHAIN_IDs.TRON, apiKey, "https")).to.equal(
+        `https://${prefix}.tron-mainnet.quiknode.pro/${apiKey}/jsonrpc`
+      );
+      // QuickNode TRON has no WebSocket support; no path is defined for wss.
+      expect(getURL(CHAIN_IDs.TRON, apiKey, "wss")).to.equal(`wss://${prefix}.tron-mainnet.quiknode.pro/${apiKey}`);
+    });
+
     it("does not append a path for chains without one", () => {
       expect(getURL(CHAIN_IDs.MAINNET, apiKey, "https")).to.equal(`https://${prefix}.quiknode.pro/${apiKey}`);
       expect(getURL(CHAIN_IDs.OPTIMISM, apiKey, "https")).to.equal(`https://${prefix}.optimism.quiknode.pro/${apiKey}`);
