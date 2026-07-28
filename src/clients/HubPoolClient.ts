@@ -1027,9 +1027,10 @@ export class HubPoolClient extends BaseAbstractClient {
 
         // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
         // This is because the HubPool contract only holds a truncated address for the USDC token and currently
-        // only supports USDC as a destination token for Solana.
+        // only supports USDC as a destination token for Solana. The zero address is exempt from this conversion:
+        // it disables the route and is stored as-is so that route lookups correctly resolve to undefined.
         let destinationToken: Address = EvmAddress.from(args.destinationToken);
-        if (chainIsSvm(args.destinationChainId)) {
+        if (chainIsSvm(args.destinationChainId) && !destinationToken.isZeroAddress()) {
           const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
           const svmUsdc = SvmAddress.from(usdcTokenSol);
           if (destinationToken.truncateToBytes20() !== svmUsdc.truncateToBytes20()) {
