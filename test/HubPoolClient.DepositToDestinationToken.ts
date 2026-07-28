@@ -354,6 +354,36 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await assertPromiseError(hubPoolClient.update(), "SVM USDC address mismatch for chain");
   });
 
+  it("correctly disables an SVM rebalancing route", async function () {
+    const svmChain = CHAIN_IDs.SOLANA;
+    const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[svmChain];
+    const randomL1TokenAddr = EvmAddress.from(randomL1Token);
+
+    // Set up initial route with truncated SVM address.
+    const truncatedAddress = SvmAddress.from(usdcTokenSol).truncateToBytes20();
+    const e0 = hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, truncatedAddress);
+    await hubPoolClient.update();
+
+    expect(
+      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, svmChain, e0.blockNumber)?.toBytes32()
+    ).to.equal(SvmAddress.from(usdcTokenSol).toBytes32());
+
+    // Disabling the route (zero destination token) must not throw on update.
+    const e1 = hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, zeroAddress);
+    await hubPoolClient.update();
+
+    // Route still resolves at the pre-disable block.
+    expect(
+      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, svmChain, e0.blockNumber)?.toBytes32()
+    ).to.equal(SvmAddress.from(usdcTokenSol).toBytes32());
+
+    // Route is removed from the disable block onwards.
+    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, svmChain, e1.blockNumber)).to.be.undefined;
+    expect(hubPoolClient.getL1TokenForL2TokenAtBlock(SvmAddress.from(usdcTokenSol), svmChain, e1.blockNumber)).to.be
+      .undefined;
+    expect(hubPoolClient.l2TokenEnabledForL1TokenAtBlock(randomL1TokenAddr, svmChain, e1.blockNumber)).to.be.false;
+  });
+
   it("correctly disables a rebalancing route", async function () {
     const randomL1TokenAddr = EvmAddress.from(randomL1Token);
 
