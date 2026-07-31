@@ -64,6 +64,7 @@ import {
   isUnsafeDepositId,
   keccak256,
   mapAsync,
+  toAddressType,
   unpackDepositEvent,
   unpackFillEvent,
 } from "../../utils";
@@ -87,7 +88,14 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
+import {
+  AttestedCCTPMessage,
+  EventWithData,
+  SVMEventNames,
+  SVMProvider,
+  LatestBlockhash,
+  SolanaTransaction,
+} from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -352,7 +360,7 @@ export async function relayFillStatus(
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
-  return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
+  return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, destinationChainId, svmEventsClient);
 }
 
 /**
@@ -427,7 +435,12 @@ export async function fillStatusArray(
       chunk.map(async (missingIndex) => {
         return {
           index: missingIndex,
-          fillStatus: await resolveFillStatusFromPdaEvents(fillStatusPdas[missingIndex], toSlot, svmEventsClient),
+          fillStatus: await resolveFillStatusFromPdaEvents(
+            fillStatusPdas[missingIndex],
+            toSlot,
+            destinationChainId,
+            svmEventsClient
+          ),
         };
       })
     );
@@ -468,13 +481,23 @@ export async function findFillEvent(
   const programId = svmEventsClient.getProgramAddress();
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
 
-  // Get fill events from fillStatus PDA
-  const fillEvents = await svmEventsClient.queryDerivedAddressEvents(
-    SVMEventNames.FilledRelay,
+  // Get fill events from fillStatus PDA. `queryDerivedAddressEvents` returns every FilledRelay event from
+  // any transaction that references the PDA, including fills for *other* relays that merely name this PDA
+  // account. Filter down to events whose relay data actually derives this PDA before asserting, otherwise
+  // an attacker can attach unrelated fills to the PDA and trip the `<= 1` invariant below.
+  const fillEvents = await filterEventsForFillStatusPda(
+    await svmEventsClient.queryDerivedAddressEvents(
+      SVMEventNames.FilledRelay,
+      fillStatusPda,
+      BigInt(fromSlot),
+      BigInt(toSlot),
+      {
+        limit: 10,
+      }
+    ),
     fillStatusPda,
-    BigInt(fromSlot),
-    BigInt(toSlot),
-    { limit: 10 }
+    programId,
+    destinationChainId
   );
   assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
 
@@ -1000,9 +1023,97 @@ export function getRelayDataHash(relayData: RelayData & { messageHash: string },
   return keccak256(contentToHash);
 }
 
+/**
+ * Reconstructs the `RelayData` carried by a raw `FilledRelay` or `RequestedSlowFill` event so that its
+ * fillStatus PDA can be re-derived. Both events emit the full relay data plus a `messageHash` (never the
+ * raw message), so an empty message is passed to `getFillStatusPda`, which hashes the `messageHash`
+ * directly. Returns `undefined` for any event that doesn't carry relay data (and therefore can't be tied
+ * to a fillStatus PDA).
+ */
+function relayDataFromRawFillEvent(data: unknown, destinationChainId: number): RelayDataWithMessageHash | undefined {
+  const raw = unwrapEventData<{
+    depositor?: string;
+    recipient?: string;
+    exclusiveRelayer?: string;
+    inputToken?: string;
+    outputToken?: string;
+    inputAmount?: BigNumber;
+    outputAmount?: BigNumber;
+    originChainId?: number;
+    depositId?: BigNumber;
+    fillDeadline?: number;
+    exclusivityDeadline?: number;
+    messageHash?: string;
+  }>(data, ["depositId", "inputAmount", "outputAmount"]);
+
+  if (
+    !isDefined(raw.messageHash) ||
+    !isDefined(raw.depositor) ||
+    !isDefined(raw.recipient) ||
+    !isDefined(raw.exclusiveRelayer) ||
+    !isDefined(raw.inputToken) ||
+    !isDefined(raw.outputToken) ||
+    !isDefined(raw.inputAmount) ||
+    !isDefined(raw.outputAmount) ||
+    !isDefined(raw.originChainId) ||
+    !isDefined(raw.depositId) ||
+    !isDefined(raw.fillDeadline) ||
+    !isDefined(raw.exclusivityDeadline)
+  ) {
+    return undefined;
+  }
+
+  return {
+    originChainId: raw.originChainId,
+    depositId: raw.depositId,
+    depositor: toAddressType(raw.depositor, raw.originChainId),
+    recipient: toAddressType(raw.recipient, destinationChainId),
+    inputToken: toAddressType(raw.inputToken, raw.originChainId),
+    outputToken: toAddressType(raw.outputToken, destinationChainId),
+    inputAmount: raw.inputAmount,
+    outputAmount: raw.outputAmount,
+    fillDeadline: raw.fillDeadline,
+    exclusivityDeadline: raw.exclusivityDeadline,
+    exclusiveRelayer: toAddressType(raw.exclusiveRelayer, destinationChainId),
+    message: "0x",
+    messageHash: raw.messageHash,
+  };
+}
+
+/**
+ * Filters events returned by `SvmCpiEventsClient.queryDerivedAddressEvents` down to those genuinely
+ * associated with `fillStatusPda`.
+ *
+ * `queryDerivedAddressEvents` returns *every* SpokePool event emitted by a transaction that merely
+ * references the supplied PDA account; it does not verify that each event's relay data actually derives
+ * that PDA. Because anyone can cheaply reference an unrelated fillStatus PDA from a transaction that fills
+ * a *different* relay (or emits several fills in one transaction), the unfiltered result can contain
+ * foreign events. Downstream code assumes the opposite — e.g. `assert(fillEvents.length <= 1)` and
+ * `assert(getRelayEventKey(prefill) === relayDataHash)` in the bundle data client — so an attacker could
+ * trigger those asserts and stall bundle proposal for every chain. Re-deriving each event's own fillStatus
+ * PDA and keeping only exact matches restores the association the callers rely on.
+ */
+async function filterEventsForFillStatusPda(
+  events: EventWithData[],
+  fillStatusPda: Address,
+  programId: Address,
+  destinationChainId: number
+): Promise<EventWithData[]> {
+  const isMatch = await mapAsync(events, async (event) => {
+    const relayData = relayDataFromRawFillEvent(event.data, destinationChainId);
+    if (!isDefined(relayData)) {
+      return false;
+    }
+    const derivedPda = await getFillStatusPda(programId, relayData, destinationChainId);
+    return derivedPda === fillStatusPda;
+  });
+  return events.filter((_, idx) => isMatch[idx]);
+}
+
 async function resolveFillStatusFromPdaEvents(
   fillStatusPda: Address,
   toSlot: bigint,
+  destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient
 ): Promise<FillStatus> {
   // Get fill and requested slow fill events from fillStatus PDA
@@ -1016,18 +1127,28 @@ async function resolveFillStatusFromPdaEvents(
     )
   ).flat();
 
-  if (relevantEvents.length === 0) {
+  // `queryDerivedAddressEvents` returns every matching-name event from any transaction that references
+  // the PDA, not only events actually tied to it. Drop any event whose relay data doesn't derive this
+  // PDA so a foreign fill/slow-fill request can't spoof the status.
+  const filteredEvents = await filterEventsForFillStatusPda(
+    relevantEvents,
+    fillStatusPda,
+    svmEventsClient.getProgramAddress(),
+    destinationChainId
+  );
+
+  if (filteredEvents.length === 0) {
     // No fill or requested slow fill events found for this PDA
     return FillStatus.Unfilled;
   }
 
   // Sort events in ascending order of slot number
-  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
+  filteredEvents.sort((a, b) => Number(a.slot - b.slot));
 
   // At this point we have an ordered array of only fill and requested slow fill events and
   // since it's not possible to submit a slow fill request once a fill has been submitted,
   // we can use the last event in the list to determine the fill status at the requested slot.
-  const fillStatusEvent = relevantEvents.pop();
+  const fillStatusEvent = filteredEvents.pop();
   switch (fillStatusEvent!.name) {
     case SVMEventNames.FilledRelay:
       return FillStatus.Filled;
