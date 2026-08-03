@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.4.16",
+  "version": "4.4.17",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -85,7 +85,7 @@
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
-    "@nktkas/hyperliquid": "^0.25.9",
+    "@nktkas/hyperliquid": "^0.33.2",
     "@solana-program/compute-budget": "^0.11.0",
     "@solana-program/system": "^0.10.0",
     "@solana-program/token": "^0.9.0",
