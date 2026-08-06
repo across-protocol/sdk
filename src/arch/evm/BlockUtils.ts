@@ -61,12 +61,20 @@ export async function averageBlockTime(
   // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
   // to account for various RPC provider sync issues that might occur when querting the latest block.
   if (!isDefined(highBlock)) {
-    highBlock = await provider.getBlockNumber();
-    highBlock -= highBlockOffset ?? defaultHighBlockOffset;
+    const latestBlock = await provider.getBlockNumber();
+    highBlock = latestBlock - (highBlockOffset ?? defaultHighBlockOffset);
+
+    // The offset presumes a chain with more blocks than the offset itself. Below that it puts the entire
+    // sample window at or before genesis, leaving nothing to measure, so fall back to the head.
+    if (highBlock <= 0) {
+      highBlock = latestBlock;
+    }
   }
   blockRange ??= defaultBlockRange;
 
-  const earliestBlockNumber = highBlock - blockRange;
+  // Clamp the window to blocks that exist. A negative block number is not an error to ethers: it resolves
+  // relative to the head, which slides the window instead of starting it at genesis.
+  const earliestBlockNumber = Math.max(highBlock - blockRange, 0);
   const [firstBlock, lastBlock] = await Promise.all([
     provider.getBlock(earliestBlockNumber),
     provider.getBlock(highBlock),
@@ -79,10 +87,16 @@ export async function averageBlockTime(
     }
   });
 
-  const average = (lastBlock.timestamp - firstBlock.timestamp) / blockRange;
-  blockTimes[chainId] = { timestamp: now, average, blockRange };
+  // Divide by the range actually sampled, which is narrower than blockRange on a chain holding less
+  // history than that. Dividing by the requested range instead under-reports the block time in proportion
+  // to how much of the window does not exist, and reports 0 when none of it does.
+  const sampledRange = lastBlock.number - firstBlock.number;
+  assert(sampledRange > 0, `averageBlockTime: no block range to sample on ${getNetworkName(chainId)}`);
 
-  return { average, blockRange };
+  const average = (lastBlock.timestamp - firstBlock.timestamp) / sampledRange;
+  blockTimes[chainId] = { timestamp: now, average, blockRange: sampledRange };
+
+  return { average, blockRange: sampledRange };
 }
 
 async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: Provider): Promise<number> {
