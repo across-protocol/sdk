@@ -72,14 +72,32 @@ describe("TVM TransactionUtils", function () {
       expect(result).to.deep.equal({ txid: TXID, result: true });
     });
 
-    it("Treats empty calldata as a transfer", async function () {
+    // "0x" is TronWeb's encoding for a `receive`/`fallback` selector, so empty-but-present calldata
+    // is a contract call, not a transfer: a TransferContract would move the TRX without running the
+    // recipient's code. Only an absent `data` field selects the transfer path.
+    it("Treats explicit empty calldata as a fallback contract call", async function () {
       const { tronWeb, transfers, contractCalls } = fakeTronWeb();
 
       const populatedTx = { to: RECIPIENT, data: "0x" } as PopulatedTransaction;
       await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 1);
 
-      expect(transfers).to.deep.equal([{ to: RECIPIENT_BASE58, amount: 1 }]);
-      expect(contractCalls).to.deep.equal([]);
+      expect(transfers).to.deep.equal([]);
+      expect(contractCalls.length).to.equal(1);
+      const [contractCall] = contractCalls;
+      expect(contractCall.to).to.equal(RECIPIENT_BASE58);
+      expect(contractCall.options).to.deep.equal({ feeLimit: FEE_LIMIT, input: "", callValue: 1 });
+    });
+
+    it("Submits a zero-value fallback call rather than rejecting it", async function () {
+      const { tronWeb, transfers, contractCalls } = fakeTronWeb();
+
+      const populatedTx = { to: RECIPIENT, data: "0x" } as PopulatedTransaction;
+      const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
+
+      expect(transfers).to.deep.equal([]);
+      expect(contractCalls.length).to.equal(1);
+      expect(contractCalls[0].options).to.deep.equal({ feeLimit: FEE_LIMIT, input: "", callValue: 0 });
+      expect(result).to.deep.equal({ txid: TXID, result: true });
     });
 
     it("Submits calldata as a contract call", async function () {

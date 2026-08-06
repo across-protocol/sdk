@@ -26,8 +26,10 @@ export interface TronSimulationResult {
  * `triggerSmartContract` → `sign` → `sendRawTransaction` pipeline.
  *
  * TRON models a native TRX transfer as its own transaction type (`TransferContract`), distinct from
- * the `TriggerSmartContract` used for calls. A populated transaction carrying no calldata is
- * therefore dispatched to TronWeb's `sendTransaction` instead; see {@link transferNative}.
+ * the `TriggerSmartContract` used for calls. A populated transaction with no `data` field is
+ * therefore dispatched to TronWeb's `sendTransaction` instead; see {@link transferNative}. Note that
+ * this turns on `data` being absent, not empty: an explicit `"0x"` remains a contract call, since
+ * that is how TronWeb encodes a `receive`/`fallback` invocation.
  *
  * @param tronWeb An authenticated TronWeb instance (with private key set).
  * @param populatedTx The populated transaction containing `to`, and `data` for a contract call.
@@ -51,9 +53,13 @@ export async function submitTransaction(
     throw new Error("submitTransaction: TronWeb instance must have a default address configured");
   }
 
-  // No calldata means this is a value transfer, which triggerSmartContract cannot express: it
+  // No calldata at all means this is a value transfer, which triggerSmartContract cannot express: it
   // requires a deployed contract at the target address, so it can never fund an EOA.
-  if (!isDefined(data) || data === "0x") {
+  //
+  // Empty-but-present calldata ("0x") is deliberately *not* treated as a transfer. That is TronWeb's
+  // own encoding for a `receive`/`fallback` selector, which it submits as a TriggerSmartContract; a
+  // TransferContract would move the TRX without running the recipient's code.
+  if (!isDefined(data)) {
     return transferNative(tronWeb, tronAddress, callValue);
   }
 
