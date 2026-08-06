@@ -1,6 +1,6 @@
 import { TronWeb } from "tronweb";
 import { PopulatedTransaction } from "ethers";
-import { TvmAddress } from "../../utils";
+import { isDefined, TvmAddress } from "../../utils";
 
 export interface TronTransactionResult {
   txid: string;
@@ -25,8 +25,14 @@ export interface TronSimulationResult {
  * converts the target address to TRON Base58 format, and uses TronWeb's
  * `triggerSmartContract` → `sign` → `sendRawTransaction` pipeline.
  *
+ * TRON models a native TRX transfer as its own transaction type (`TransferContract`), distinct from
+ * the `TriggerSmartContract` used for calls. A populated transaction with no `data` field is
+ * therefore dispatched to TronWeb's `sendTransaction` instead; see {@link transferNative}. Note that
+ * this turns on `data` being absent, not empty: an explicit `"0x"` remains a contract call, since
+ * that is how TronWeb encodes a `receive`/`fallback` invocation.
+ *
  * @param tronWeb An authenticated TronWeb instance (with private key set).
- * @param populatedTx The populated transaction containing `to` and `data`.
+ * @param populatedTx The populated transaction containing `to`, and `data` for a contract call.
  * @param feeLimit The maximum TRX to burn for energy consumption, in SUN (1 TRX = 1,000,000 SUN).
  * @returns The transaction ID and result status.
  */
@@ -37,14 +43,24 @@ export async function submitTransaction(
   callValue: number = 0
 ): Promise<TronTransactionResult> {
   const { to, data } = populatedTx;
-  if (!to || !data) {
-    throw new Error("submitTransaction: populatedTx must have both 'to' and 'data' fields");
+  if (!to) {
+    throw new Error("submitTransaction: populatedTx must have a 'to' field");
   }
 
   const tronAddress = TvmAddress.from(to).toNative();
   const ownerAddress = tronWeb.defaultAddress?.base58;
   if (!ownerAddress) {
     throw new Error("submitTransaction: TronWeb instance must have a default address configured");
+  }
+
+  // No calldata at all means this is a value transfer, which triggerSmartContract cannot express: it
+  // requires a deployed contract at the target address, so it can never fund an EOA.
+  //
+  // Empty-but-present calldata ("0x") is deliberately *not* treated as a transfer. That is TronWeb's
+  // own encoding for a `receive`/`fallback` selector, which it submits as a TriggerSmartContract; a
+  // TransferContract would move the TRX without running the recipient's code.
+  if (!isDefined(data)) {
+    return transferNative(tronWeb, tronAddress, callValue);
   }
 
   // Use triggerSmartContract with the `input` option to pass pre-encoded calldata.
@@ -69,6 +85,30 @@ export async function submitTransaction(
 
   return {
     txid: broadcast.txid ?? signedTx.txID,
+    result: broadcast.result ?? false,
+  };
+}
+
+/**
+ * Transfer native TRX to an account via a `TransferContract` transaction.
+ *
+ * TronWeb's `sendTransaction` builds, signs and broadcasts in one call, using the instance's default
+ * private key. No fee limit applies, since transfers consume bandwidth rather than energy.
+ *
+ * @param tronWeb An authenticated TronWeb instance (with private key set).
+ * @param recipient Base58 recipient address.
+ * @param amount Transfer amount in SUN (1 TRX = 1,000,000 SUN).
+ * @returns The transaction ID and result status.
+ */
+async function transferNative(tronWeb: TronWeb, recipient: string, amount: number): Promise<TronTransactionResult> {
+  if (amount <= 0) {
+    throw new Error("submitTransaction: a transaction with no calldata must transfer a non-zero value");
+  }
+
+  const broadcast = await tronWeb.trx.sendTransaction(recipient, amount);
+
+  return {
+    txid: broadcast.txid ?? broadcast.transaction.txID,
     result: broadcast.result ?? false,
   };
 }
