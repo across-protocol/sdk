@@ -116,11 +116,29 @@ describe("Address Utils: Address Type", function () {
       const b = generateSvmAddress();
       expect(a.eq(b)).to.be.false;
     });
-    // Cross-type equality is not expected in practice, but verify it behaves correctly.
-    it("Returns false when comparing EVM and SVM addresses", function () {
+    // Equality is defined on the raw bytes, so it is independent of the family an address was typed for.
+    it("Returns false when comparing EVM and SVM addresses with different bytes", function () {
       const evmAddr = EvmAddress.from(randomBytes(20));
       const svmAddr = generateSvmAddress();
       expect(evmAddr.eq(svmAddr)).to.be.false;
+    });
+    it("Returns true when comparing EVM and TVM types of the same address", function () {
+      const raw = randomBytes(20);
+      const evmAddr = toAddressType(raw, CHAIN_IDs.MAINNET);
+      const tvmAddr = toAddressType(raw, CHAIN_IDs.TRON);
+      expect(evmAddr.isEVM()).to.be.true;
+      expect(tvmAddr.isTVM()).to.be.true;
+
+      // The native encodings differ (checksummed hex vs. TRON base58) but the underlying bytes do not.
+      expect(evmAddr.toNative()).to.not.equal(tvmAddr.toNative());
+      expect(evmAddr.eq(tvmAddr)).to.be.true;
+      expect(tvmAddr.eq(evmAddr)).to.be.true;
+    });
+    it("Returns true when comparing 20-byte and zero-padded 32-byte forms of the same address", function () {
+      const raw = randomBytes(20);
+      const a = EvmAddress.from(raw);
+      const b = EvmAddress.from(EVM_ZERO_PAD + raw.slice(2));
+      expect(a.eq(b)).to.be.true;
     });
     it("Returns false for undefined", function () {
       const a = EvmAddress.from(randomBytes(20));

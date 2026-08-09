@@ -2,7 +2,7 @@ import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
 import { TronWeb } from "tronweb";
-import { BigNumber, chainIsEvm, chainIsSvm, chainIsTvm } from "./";
+import { BigNumber, chainIsEvm, chainIsSvm, chainIsTvm, isDefined } from "./";
 
 /**
  * Verify whether an address' bytecode resembles an EIP-7702 delegation.
@@ -232,8 +232,11 @@ export abstract class Address {
   }
 
   // Checks if the other address is equivalent to this address.
+  // note: Equality is defined on the raw bytes, not on the native (family-specific) encoding, so the same account
+  // compares equal regardless of which chain family it was typed for (e.g. EvmAddress vs TvmAddress of the same
+  // 20 bytes). Use `isEVM()`/`isSVM()`/`isTVM()` or compare `toNative()` directly if family matters.
   eq(other?: Address): boolean {
-    return this.toString() === other?.toString();
+    return isDefined(other) && this.compare(other) === 0;
   }
 
   // Compares Addresses by their raw byte representation (big-endian).

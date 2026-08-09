@@ -1,6 +1,6 @@
 import { DepositWithBlock, FillType, FillWithBlock } from "../src/interfaces";
 import { bnOne, bnZero, toBN, toAddressType } from "../src/utils";
-import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
+import { CHAIN_IDs, ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
 import { originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   createSpyLogger,
@@ -152,6 +152,19 @@ describe("FillUtils", function () {
             ...fill,
             relayer: toAddressType(blockedAddress.toNative(), repaymentChainId),
           };
+          const result = await verifyFillRepayment(blockedFill, spokeProvider, deposit, hubPoolClient, 0);
+          expect(result).to.be.undefined;
+        }
+      });
+      it("Repayment address is blocked when typed for a TVM chain; fill is unrepayable", async function () {
+        // The blocklist holds EvmAddress entries, but a relayer typed for a TVM chain renders as TRON base58. The
+        // check must match on the underlying bytes rather than the native encoding.
+        for (const blockedAddress of BLOCKED_ADDRESSES) {
+          const tvmRelayer = toAddressType(blockedAddress.toNative(), CHAIN_IDs.TRON);
+          expect(tvmRelayer.isTVM()).to.be.true;
+          expect(tvmRelayer.toNative()).to.not.equal(blockedAddress.toNative());
+
+          const blockedFill = { ...fill, relayer: tvmRelayer };
           const result = await verifyFillRepayment(blockedFill, spokeProvider, deposit, hubPoolClient, 0);
           expect(result).to.be.undefined;
         }
