@@ -1,6 +1,6 @@
 import { MessageTransmitterClient, SvmSpokeClient, SvmSpokeIdl } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
-import { BN, Idl } from "@coral-xyz/anchor";
+import { Idl } from "@coral-xyz/anchor";
 import {
   Address,
   Instruction,
@@ -25,8 +25,8 @@ import {
 import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getMessageHash, isByteArray, isDefined } from "../../utils";
+import { RelayData, RelayDataWithMessageHash } from "../../interfaces";
+import { BigNumber, Address as SdkAddress, getMessageHash, isDefined } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -88,39 +88,6 @@ export async function getNearestSlotTime(
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
   return { slot, timestamp };
-}
-
-/**
- * Parses event data from a transaction.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseEventData(eventData: any): any {
-  if (!eventData) return eventData;
-
-  if (Array.isArray(eventData)) {
-    return eventData.map(parseEventData);
-  }
-
-  if (Buffer.isBuffer(eventData)) {
-    return new Uint8Array(eventData);
-  }
-
-  if (typeof eventData === "object") {
-    const stringTag = Object.prototype.toString.call(eventData);
-    if (stringTag.includes("PublicKey")) {
-      return address(eventData.toString());
-    }
-    if (BN.isBN(eventData)) {
-      return BigInt(eventData.toString());
-    }
-
-    // Convert each key from snake_case to camelCase and process the value recursively.
-    return Object.fromEntries(
-      Object.entries(eventData).map(([key, value]) => [snakeToCamel(key), parseEventData(value)])
-    );
-  }
-
-  return eventData;
 }
 
 // Codama decoders generated from the SvmSpoke program, keyed by event name. Decoding with these (rather than the
@@ -209,13 +176,6 @@ export function decodeEvent(idl: Idl, rawEvent: string): DecodedEvent {
 }
 
 /**
- * Converts a snake_case string to camelCase.
- */
-function snakeToCamel(s: string): string {
-  return s.replace(/(_\w)/g, (match) => match[1].toUpperCase());
-}
-
-/**
  * Gets the event name from a raw name.
  */
 function isEventName(name: string): name is EventName {
@@ -270,10 +230,9 @@ function unwrapEventDataInner(
     }
     return BigNumber.from(data);
   }
-  // Handle Uint8Array and byte arrays
-  if (isByteArray(data)) {
-    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    const hex = ethers.utils.hexlify(bytes);
+  // Handle byte arrays
+  if (data instanceof Uint8Array) {
+    const hex = ethers.utils.hexlify(data);
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
     }
@@ -289,22 +248,6 @@ function unwrapEventDataInner(
   }
   // Handle objects
   if (isUnwrappedRecord(data)) {
-    // Special case: if an object is in the context of the fillType key, then
-    // parse out the fillType from the object
-    if (currentKey === "fillType") {
-      const fillType = Object.keys(data)[0];
-      switch (fillType) {
-        case "FastFill":
-          return FillType.FastFill;
-        case "ReplacedSlowFill":
-          return FillType.ReplacedSlowFill;
-        case "SlowFill":
-          return FillType.SlowFill;
-        default:
-          throw new Error(`Unknown fill type: ${fillType}`);
-      }
-    }
-
     // Special case: if an object is empty, return 0x
     if (Object.keys(data).length === 0) {
       return "0x";

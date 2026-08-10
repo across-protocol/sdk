@@ -40,7 +40,7 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
-import { arrayify } from "ethers/lib/utils";
+import { arrayify, hexlify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import {
@@ -57,8 +57,7 @@ import {
   isUnsafeDepositId,
   keccak256,
   mapAsync,
-  unpackDepositEvent,
-  unpackFillEvent,
+  toAddressType,
 } from "../../utils";
 import {
   createDefaultTransaction,
@@ -70,7 +69,6 @@ import {
   isDepositForBurnEvent,
   simulateAndDecode,
   toAddress,
-  unwrapEventData,
   getRootBundlePda,
   getAcrossPlusMessageDecoder,
   getAccountMeta,
@@ -80,7 +78,15 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
+import {
+  AttestedCCTPMessage,
+  EventNameToData,
+  EventWithData,
+  SVMEventNames,
+  SVMProvider,
+  LatestBlockhash,
+  SolanaTransaction,
+} from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -281,20 +287,16 @@ export async function findDeposit(
     return undefined;
   }
 
-  const txnIndex = 0;
-  const logIndex = 0;
-  const blockNumber = Number(depositEvent.slot);
-  const txnRef = depositEvent.signature.toString();
-
-  const rawData = unwrapEventData(depositEvent.data, ["depositId", "outputAmount"]);
-  const { originChainId, ...deposit } = unpackDepositEvent(
-    { ...rawData, blockNumber, txnRef, txnIndex, logIndex },
-    CHAIN_IDs.SOLANA
+  const { originChainId: _originChainId, ...deposit } = depositFromEvent(
+    depositEvent.data,
+    CHAIN_IDs.SOLANA,
+    depositEvent
   );
 
-  return {
-    ...deposit,
-  } satisfies Omit<DepositWithBlock, "originChainId" | "quoteBlockNumber" | "fromLiteChain" | "toLiteChain">;
+  return deposit satisfies Omit<
+    DepositWithBlock,
+    "originChainId" | "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"
+  >;
 }
 
 /**
@@ -478,16 +480,11 @@ export async function findFillEvent(
   );
 
   const [rawEvent] = fillEvents;
-  if (!isDefined(rawEvent)) {
+  if (!isDefined(rawEvent) || rawEvent.name !== "FilledRelay") {
     return;
   }
 
-  // SortableEvent fields are sourced from the transaction envelope; only the fill fields come from event data.
-  const blockNumber = Number(rawEvent.slot);
-  const txnRef = rawEvent.signature.toString();
-  const rawFill = unwrapEventData(rawEvent.data, ["depositId", "inputAmount"]);
-  const fill = unpackFillEvent({ ...rawFill, blockNumber, txnRef, txnIndex: 0, logIndex: 0 }, destinationChainId);
-  return fill satisfies FillWithBlock;
+  return fillFromEvent(rawEvent.data, destinationChainId, rawEvent);
 }
 
 /**
@@ -1019,6 +1016,83 @@ export type SvmRelayEventData = Omit<SvmSpokeClient.RelayData, "message"> & { me
  */
 export function getRelayDataHashFromEvent(event: SvmRelayEventData, destinationChainId: number): string {
   return hashRelayData(event, Uint8Array.from(event.messageHash), destinationChainId);
+}
+
+// The transaction envelope fields that locate an event on chain (SortableEvent provenance).
+type EventEnvelope = Pick<EventWithData, "slot" | "signature">;
+
+/**
+ * Converts typed FundsDeposited event data into an SDK Deposit. The deposit's origin chain is not part of the
+ * event and must be supplied by the caller (it is implied by the SpokePool the event was read from).
+ */
+export function depositFromEvent(
+  data: EventNameToData["FundsDeposited"],
+  originChainId: number,
+  { slot, signature }: EventEnvelope
+): Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> {
+  const destinationChainId = Number(data.destinationChainId);
+  const message = hexlify(data.message);
+  return {
+    originChainId,
+    destinationChainId,
+    depositId: BigNumber.from(data.depositId),
+    depositor: toAddressType(data.depositor, originChainId),
+    recipient: toAddressType(data.recipient, destinationChainId),
+    inputToken: toAddressType(data.inputToken, originChainId),
+    outputToken: toAddressType(data.outputToken, destinationChainId),
+    inputAmount: BigNumber.from(data.inputAmount),
+    outputAmount: BigNumber.from(data.outputAmount),
+    quoteTimestamp: data.quoteTimestamp,
+    fillDeadline: data.fillDeadline,
+    exclusivityDeadline: data.exclusivityDeadline,
+    exclusiveRelayer: toAddressType(data.exclusiveRelayer, destinationChainId),
+    message,
+    messageHash: getMessageHash(message),
+    blockNumber: Number(slot),
+    txnRef: signature,
+    txnIndex: 0,
+    logIndex: 0,
+  };
+}
+
+/**
+ * Converts typed FilledRelay event data into an SDK Fill. The fill's destination chain is not part of the
+ * event and must be supplied by the caller (it is implied by the SpokePool the event was read from).
+ */
+export function fillFromEvent(
+  data: EventNameToData["FilledRelay"],
+  destinationChainId: number,
+  { slot, signature }: EventEnvelope
+): FillWithBlock {
+  const originChainId = Number(data.originChainId);
+  const repaymentChainId = Number(data.repaymentChainId);
+  return {
+    originChainId,
+    destinationChainId,
+    depositId: BigNumber.from(data.depositId),
+    depositor: toAddressType(data.depositor, originChainId),
+    recipient: toAddressType(data.recipient, destinationChainId),
+    inputToken: toAddressType(data.inputToken, originChainId),
+    outputToken: toAddressType(data.outputToken, destinationChainId),
+    inputAmount: BigNumber.from(data.inputAmount),
+    outputAmount: BigNumber.from(data.outputAmount),
+    fillDeadline: data.fillDeadline,
+    exclusivityDeadline: data.exclusivityDeadline,
+    exclusiveRelayer: toAddressType(data.exclusiveRelayer, destinationChainId),
+    relayer: toAddressType(data.relayer, repaymentChainId),
+    repaymentChainId,
+    messageHash: hexlify(data.messageHash),
+    relayExecutionInfo: {
+      updatedRecipient: toAddressType(data.relayExecutionInfo.updatedRecipient, destinationChainId),
+      updatedMessageHash: hexlify(data.relayExecutionInfo.updatedMessageHash),
+      updatedOutputAmount: BigNumber.from(data.relayExecutionInfo.updatedOutputAmount),
+      fillType: data.relayExecutionInfo.fillType,
+    },
+    blockNumber: Number(slot),
+    txnRef: signature,
+    txnIndex: 0,
+    logIndex: 0,
+  };
 }
 
 async function resolveFillStatusFromPdaEvents(
