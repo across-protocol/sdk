@@ -7,6 +7,7 @@ import {
   TvmAddress,
   toAddressType,
   isValidEvmAddress,
+  isValidTvmAddress,
 } from "../src/utils";
 import { CHAIN_IDs } from "../src/constants";
 import { expect, ethers } from "./utils";
@@ -337,32 +338,44 @@ describe("Address Utils: Address Type", function () {
         expect(TvmAddress.validate(new Uint8Array(15))).to.be.false;
         expect(TvmAddress.validate(new Uint8Array(21))).to.be.false;
       });
+    });
 
+    describe("isValidTvmAddress", function () {
       it("Accepts a valid TRON Base58Check string", function () {
-        expect(TvmAddress.validate(tronBase58)).to.be.true;
+        expect(isValidTvmAddress(tronBase58)).to.be.true;
       });
 
       it("Accepts a valid 0x-hex address string", function () {
-        expect(TvmAddress.validate(hex20)).to.be.true;
+        expect(isValidTvmAddress(hex20)).to.be.true;
       });
 
       it("Rejects a malformed 0x-hex string (non-zero upper bytes)", function () {
-        expect(TvmAddress.validate("0xff" + "00".repeat(31))).to.be.false;
+        expect(isValidTvmAddress("0xff" + "00".repeat(31))).to.be.false;
+      });
+
+      it("Rejects hex that cannot be decoded at all", function () {
+        // arrayify throws on odd-length and non-hex input; the string is not an address, so this is a `false`
+        // rather than a propagated throw.
+        for (const input of ["0xabc", "0xnothex", "0x"]) {
+          expect(() => isValidTvmAddress(input)).to.not.throw();
+          expect(isValidTvmAddress(input)).to.be.false;
+        }
       });
 
       it("Rejects a string that fails the Base58Check checksum", function () {
         // A random 25-byte payload encoded as plain Base58 will, with overwhelming probability, fail the
-        // 4-byte Base58Check checksum that TronWeb verifies.
-        expect(TvmAddress.validate(bs58.encode(ethers.utils.randomBytes(25)))).to.be.false;
+        // 4-byte Base58Check checksum that TronWeb verifies. This is the check `TvmAddress.validate()` does not
+        // perform: the checksum is absent from the canonical representation that validate() is defined over.
+        expect(isValidTvmAddress(bs58.encode(ethers.utils.randomBytes(25)))).to.be.false;
       });
 
       it("Rejects garbage strings without throwing", function () {
         // TronWeb's internal decode58 throws on non-Base58 characters, but TronWeb.isAddress() wraps all
-        // decoding in try/catch and returns false (verified against tronweb@6.2.2), so validate() never throws.
-        const garbage = ["T!!!not-base58-0OIl", "", " ", "Tshort", "0x", "🚀".repeat(17)];
+        // decoding in try/catch and returns false (verified against tronweb@6.2.2), so this never throws.
+        const garbage = ["T!!!not-base58-0OIl", "", " ", "Tshort", "🚀".repeat(17)];
         for (const input of garbage) {
-          expect(() => TvmAddress.validate(input)).to.not.throw();
-          expect(TvmAddress.validate(input)).to.be.false;
+          expect(() => isValidTvmAddress(input)).to.not.throw();
+          expect(isValidTvmAddress(input)).to.be.false;
         }
       });
     });
