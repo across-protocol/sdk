@@ -363,6 +363,10 @@ export class TvmAddress extends Address {
       return TronWeb.isAddress(address);
     }
 
+    // 0x-hex: hold it to the same rule as the decoded representation. The try/catch is strictly for arrayify(),
+    // which throws on odd-length ("0xabc") and non-hex ("0xnothex") input; the recursive validate() call operates
+    // on bytes and cannot throw. utils.isHexString() would not be a sufficient guard on its own, since it accepts
+    // odd-length hex that arrayify still rejects. This mirrors isValidEvmAddress() above.
     try {
       return TvmAddress.validate(utils.arrayify(address));
     } catch {
