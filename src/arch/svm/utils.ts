@@ -10,6 +10,7 @@ import {
   createTransactionMessage,
   getAddressEncoder,
   getBase64EncodedWireTransaction,
+  getBase64Encoder,
   getProgramDerivedAddress,
   getU32Encoder,
   getU64Encoder,
@@ -153,7 +154,10 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
   // The generated decoders only apply to SvmSpoke events; any other program's events would be mis-decoded.
   assert(idl.address === SvmSpokeIdl.address, `decodeEvent: unsupported IDL address ${idl.address}`);
 
-  const rawEventData = Buffer.from(rawEvent, "base64");
+  // Decode to a plain Uint8Array, not a Buffer: the generated decoders slice their input to populate byte-array
+  // fields, and slicing a Buffer yields a Buffer, whose toString() and JSON serialisation differ from the
+  // Uint8Array that the generated types promise.
+  const rawEventData = getBase64Encoder().encode(rawEvent);
   const discriminator = rawEventData.subarray(0, 8);
   const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
   assert(
@@ -161,7 +165,8 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
     `decodeEvent: unknown SvmSpoke event ${name ?? ethers.utils.hexlify(discriminator)}`
   );
 
-  return { name, data: svmSpokeEventDecoders[name]().decode(rawEventData.subarray(8)) };
+  // Skip the discriminator; the event data follows it.
+  return { name, data: svmSpokeEventDecoders[name]().decode(rawEventData, discriminator.length) };
 }
 
 /**
