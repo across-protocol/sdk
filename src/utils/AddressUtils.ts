@@ -353,18 +353,20 @@ export class TvmAddress extends Address {
   // or an address string. String validation is checksum-aware: TRON Base58Check addresses are verified via
   // TronWeb (prefix + checksum), and 0x-hex addresses are checked against the raw-byte rule. Never throws.
   static validate(address: string | Uint8Array): boolean {
-    if (typeof address === "string") {
-      if (!address.startsWith("0x")) {
-        // TRON Base58Check (or 41-prefixed hex): TronWeb verifies the prefix and 4-byte checksum.
-        return TronWeb.isAddress(address);
-      }
-      try {
-        return TvmAddress.validate(utils.arrayify(address));
-      } catch {
-        return false;
-      }
+    if (typeof address !== "string") {
+      return address.length === 20 || (address.length === 32 && address.slice(0, 12).every((field) => field === 0));
     }
-    return address.length == 20 || (address.length === 32 && address.slice(0, 12).every((field) => field === 0));
+
+    if (!address.startsWith("0x")) {
+      // TRON Base58Check (or 41-prefixed hex): TronWeb verifies the prefix and 4-byte checksum.
+      return TronWeb.isAddress(address);
+    }
+
+    try {
+      return TvmAddress.validate(utils.arrayify(address));
+    } catch {
+      return false;
+    }
   }
 
   override isTVM(): this is TvmAddress {
