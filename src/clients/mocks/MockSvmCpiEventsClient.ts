@@ -16,6 +16,7 @@ import {
   SvmCpiEventsClient,
   SVMEventNames,
   SVMProvider,
+  getEventName,
   getRandomSvmAddress,
   bigToU8a32,
 } from "../../arch/svm";
@@ -25,7 +26,7 @@ import { FillType } from "../../interfaces";
 const randomBytes = (n: number) => ethersUtils.hexlify(ethersUtils.randomBytes(n));
 
 export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
-  private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
+  private events: Partial<Record<EventName, EventWithData[]>> = {};
   private slotHeight: bigint = BigInt(0);
   public chainId: number;
   public minBlockRange = 10;
@@ -42,8 +43,8 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
 
   public setEvents(events: EventWithData[]) {
     for (const event of events) {
-      this.events[event.name as EventName] ??= [];
-      this.events[event.name as EventName].push(event);
+      const eventName = getEventName(event.name);
+      (this.events[eventName] ??= []).push(event);
     }
     const maxSlot = Math.max(...events.map((event) => Number(event.slot)));
     this.setSlotHeight(BigInt(maxSlot) + BigInt(1));
@@ -53,7 +54,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     if (name) {
       this.events[name] = [];
     } else {
-      this.events = {} as Record<EventName, EventWithData[]>;
+      this.events = {};
     }
   }
 

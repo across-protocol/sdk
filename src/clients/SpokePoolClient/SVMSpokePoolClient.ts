@@ -3,6 +3,7 @@ import winston from "winston";
 import {
   SVMEventNames,
   unwrapEventData,
+  getEventName,
   getFillDeadline,
   getTimestampForSlot,
   getStatePda,
@@ -128,7 +129,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
 
       const _searchConfig = { ...searchConfig }; // shallow copy
 
-      return _searchConfig as EventSearchConfig;
+      return _searchConfig;
     });
 
     const spokePoolAddress = this.svmEventsClient.getProgramAddress();
@@ -146,7 +147,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
-          eventName as SVMEventNames,
+          getEventName(eventName),
           BigInt(config.from),
           BigInt(config.to),
           {

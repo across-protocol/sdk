@@ -25,7 +25,7 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { BigNumber, Address as SdkAddress, getMessageHash, isByteArray, isDefined } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -61,8 +61,8 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
 /**
  * Small utility to convert an Address to a Solana Kit branded type.
  */
-export function toAddress(address: SdkAddress): Address<string> {
-  return address.toBase58() as Address<string>;
+export function toAddress(sdkAddress: SdkAddress): Address<string> {
+  return address(sdkAddress.toBase58());
 }
 
 /**
@@ -143,8 +143,12 @@ function snakeToCamel(s: string): string {
 /**
  * Gets the event name from a raw name.
  */
+function isEventName(name: string): name is EventName {
+  return name in SVMEventNames;
+}
+
 export function getEventName(rawName: string): EventName {
-  if (Object.values(SVMEventNames).some((name) => rawName.includes(name))) return rawName as EventName;
+  if (isEventName(rawName)) return rawName;
   throw new Error(`Unknown event name: ${rawName}`);
 }
 
@@ -192,8 +196,8 @@ function unwrapEventDataInner(
     return BigNumber.from(data);
   }
   // Handle Uint8Array and byte arrays
-  if (data instanceof Uint8Array || isUint8Array(data)) {
-    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
+  if (isByteArray(data)) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
     const hex = ethers.utils.hexlify(bytes);
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
@@ -209,7 +213,7 @@ function unwrapEventDataInner(
     return ethers.utils.hexlify(bs58.decode(data));
   }
   // Handle objects
-  if (typeof data === "object") {
+  if (isUnwrappedRecord(data)) {
     // Special case: if an object is in the context of the fillType key, then
     // parse out the fillType from the object
     if (currentKey === "fillType") {
@@ -231,10 +235,7 @@ function unwrapEventDataInner(
       return "0x";
     }
     return Object.fromEntries(
-      Object.entries(data as Record<string, unknown>).map(([key, value]) => [
-        key,
-        unwrapEventDataInner(value, uint8ArrayKeysAsBigInt, key),
-      ])
+      Object.entries(data).map(([key, value]) => [key, unwrapEventDataInner(value, uint8ArrayKeysAsBigInt, key)])
     );
   }
   // Return primitives as is
@@ -412,11 +413,11 @@ export const createDefaultTransaction = async (
   signer: TransactionSigner,
   latestBlockhash?: LatestBlockhash
 ): Promise<SolanaTransaction> => {
-  latestBlockhash = isDefined(latestBlockhash) ? latestBlockhash : (await rpcClient.getLatestBlockhash().send()).value;
+  const blockhash = latestBlockhash ?? (await rpcClient.getLatestBlockhash().send()).value;
   return pipe(
     createTransactionMessage({ version: 0 }),
     (tx) => setTransactionMessageFeePayerSigner(signer, tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash!, tx)
+    (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx)
   );
 };
 
@@ -428,13 +429,13 @@ export const createDefaultTransaction = async (
  * @param parser - The parser function to decode the result.
  * @returns The decoded result.
  */
-export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
+export const simulateAndDecode = async <T>(
   solanaClient: SVMProvider,
   ix: Instruction,
   signer: KeyPairSigner,
-  parser: P,
+  parser: (buf: Buffer) => T,
   latestBlockhash?: LatestBlockhash
-): Promise<ReturnType<P>> => {
+): Promise<T> => {
   const simulationTx = appendTransactionMessageInstruction(
     ix,
     await createDefaultTransaction(solanaClient, signer, latestBlockhash)
@@ -450,7 +451,7 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
     throw new Error("svm::simulateAndDecode: simulateTransaction failed. No return data.");
   }
 
-  return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64")) as ReturnType<P>;
+  return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64"));
 };
 
 /**

@@ -98,7 +98,7 @@ export class SvmCpiEventsClient {
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options);
-    return events.filter((event) => event.name === eventName) as EventWithData[];
+    return events.filter((event) => event.name === eventName);
   }
 
   /**
@@ -118,7 +118,7 @@ export class SvmCpiEventsClient {
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
-    return events.filter((event) => event.name === eventName) as EventWithData[];
+    return events.filter((event) => event.name === eventName);
   }
 
   /**
@@ -143,7 +143,7 @@ export class SvmCpiEventsClient {
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
-        .getSignaturesForAddress(addressToQuery!, currentOptions)
+        .getSignaturesForAddress(addressToQuery, currentOptions)
         .send();
       // Signatures are sorted by slot in descending order.
       allSignatures.push(...signatures);

@@ -40,16 +40,10 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
+import { define, is, type } from "superstruct";
 import { arrayify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
-import {
-  DepositWithBlock,
-  FillStatus,
-  FillWithBlock,
-  RelayData,
-  RelayDataWithMessageHash,
-  SortableEvent,
-} from "../../interfaces";
+import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -60,6 +54,7 @@ import {
   chainIsSvm,
   chunk,
   getMessageHash,
+  isByteArray,
   isDefined,
   isUnsafeDepositId,
   keccak256,
@@ -223,6 +218,12 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
+// A 32-byte array event field, decoded as either Uint8Array or number[] depending on the decoder.
+const Bytes32 = define<Uint8Array | number[]>("Bytes32", (value) => isByteArray(value) && value.length === 32);
+// The subset of decoded FundsDeposited event data needed to identify a deposit. type() (rather than
+// object()) tolerates the remaining event fields.
+const DepositIdEventData = type({ depositId: Bytes32 });
+
 /**
  * Finds deposit events within a 2-day window ending at the specified slot.
  *
@@ -277,9 +278,10 @@ export async function findDeposit(
   const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
   const startSlot = endSlot - slotsInElapsed;
 
-  // Query for the deposit events with this limited slot range. Filter by deposit id.
-  const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find((event) =>
-    depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
+  // Query for the deposit events with this limited slot range. Filter by deposit id, which is decoded from the
+  // event as a 32-byte array (BigNumber.eq() accepts the big-endian byte representation directly).
+  const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find(
+    ({ data }) => is(data, DepositIdEventData) && depositId.eq(data.depositId)
   );
 
   // If no deposit event is found, return undefined
@@ -483,8 +485,11 @@ export async function findFillEvent(
     return;
   }
 
-  const rawFill = unwrapEventData<SortableEvent>(rawEvent.data, ["depositId", "inputAmount"]);
-  const fill = unpackFillEvent(rawFill, destinationChainId);
+  // SortableEvent fields are sourced from the transaction envelope; only the fill fields come from event data.
+  const blockNumber = Number(rawEvent.slot);
+  const txnRef = rawEvent.signature.toString();
+  const rawFill = unwrapEventData(rawEvent.data, ["depositId", "inputAmount"]);
+  const fill = unpackFillEvent({ ...rawFill, blockNumber, txnRef, txnIndex: 0, logIndex: 0 }, destinationChainId);
   return fill satisfies FillWithBlock;
 }
 
@@ -1016,11 +1021,6 @@ async function resolveFillStatusFromPdaEvents(
     )
   ).flat();
 
-  if (relevantEvents.length === 0) {
-    // No fill or requested slow fill events found for this PDA
-    return FillStatus.Unfilled;
-  }
-
   // Sort events in ascending order of slot number
   relevantEvents.sort((a, b) => Number(a.slot - b.slot));
 
@@ -1028,13 +1028,18 @@ async function resolveFillStatusFromPdaEvents(
   // since it's not possible to submit a slow fill request once a fill has been submitted,
   // we can use the last event in the list to determine the fill status at the requested slot.
   const fillStatusEvent = relevantEvents.pop();
-  switch (fillStatusEvent!.name) {
+  if (!isDefined(fillStatusEvent)) {
+    // No fill or requested slow fill events found for this PDA
+    return FillStatus.Unfilled;
+  }
+
+  switch (fillStatusEvent.name) {
     case SVMEventNames.FilledRelay:
       return FillStatus.Filled;
     case SVMEventNames.RequestedSlowFill:
       return FillStatus.RequestedSlowFill;
     default:
-      throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
+      throw new Error(`Unexpected event name: ${fillStatusEvent.name}`);
   }
 }
 

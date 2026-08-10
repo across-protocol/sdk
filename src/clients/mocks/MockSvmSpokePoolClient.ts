@@ -16,7 +16,7 @@ import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { MockSvmCpiEventsClient } from "./MockSvmCpiEventsClient";
-import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } from "../../arch/svm";
+import { EventWithData, getEventName, SvmCpiEventsClient, unwrapEventData } from "../../arch/svm";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject events directly.
@@ -69,7 +69,7 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
 
     // Get events from the mock event client.
     const events: EventWithData[][] = await Promise.all(
-      eventsToQuery.map((eventName) => this.mockEventsClient.queryEvents(eventName as SVMEventNames, BigInt(from), to))
+      eventsToQuery.map((eventName) => this.mockEventsClient.queryEvents(getEventName(eventName), BigInt(from), to))
     );
 
     const eventsWithBlockNumber = events.map((eventList) =>
