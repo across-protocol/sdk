@@ -12,9 +12,9 @@ import {
 } from "@solana/kit";
 import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
 import { DecodedEvent, EventName, EventWithData, SVMEventNames, SVMProvider } from "./types";
-import { decodeEvent, isDevnet } from "./utils";
-import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
-import { unwrapEventData } from "./";
+import { decodeEvent, getFillStatusPda, isDevnet } from "./utils";
+import { Deposit, DepositWithTime, Fill, FillWithTime, RelayDataWithMessageHash } from "../../interfaces";
+import { getRelayDataHash, getRelayDataHashFromEvent, unwrapEventData } from "./";
 import assert from "assert";
 
 /**
@@ -46,6 +46,9 @@ type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransa
 
 export type DepositEventFromSignature = Omit<DepositWithTime, "fromLiteChain" | "toLiteChain">;
 export type FillEventFromSignature = FillWithTime;
+
+// The events that embed the relay data of the relay they pertain to (see queryEventsForRelay()).
+export type RelayEventName = Extract<EventName, "FilledRelay" | "RequestedSlowFill">;
 
 export class SvmCpiEventsClient {
   private rpc: SVMProvider;
@@ -102,7 +105,47 @@ export class SvmCpiEventsClient {
   }
 
   /**
+   * Queries FilledRelay and/or RequestedSlowFill events pertaining to a specific relay.
+   *
+   * Events are located via the relay's fillStatus PDA, but Solana only indexes transactions by account, so the
+   * underlying query yields all program events from any transaction touching that PDA - including events for
+   * other relays (e.g. from batched fills). Each event is therefore associated back to the relay by its relay
+   * data hash, the same hash the fillStatus PDA is derived from; events belonging to other relays are dropped.
+   * Signatures are paginated to exhaustion within the slot bounds, so transactions spamming the PDA can add
+   * latency but cannot displace the relay's own events.
+   *
+   * @param relayData - Relay data identifying the relay to query events for.
+   * @param destinationChainId - Destination chain ID of the relay (must be an SVM chain).
+   * @param eventNames - The names of the events to filter by (FilledRelay and/or RequestedSlowFill).
+   * @param opts - Optional slot bounds and a precomputed fillStatus PDA.
+   * @returns A promise that resolves to an array of events pertaining to the relay.
+   */
+  public async queryEventsForRelay(
+    relayData: RelayDataWithMessageHash,
+    destinationChainId: number,
+    eventNames: RelayEventName[],
+    opts: { fromSlot?: bigint; toSlot?: bigint; fillStatusPda?: Address } = {}
+  ): Promise<EventWithData<RelayEventName>[]> {
+    assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
+    const fillStatusPda =
+      opts.fillStatusPda ?? (await getFillStatusPda(this.programAddress, relayData, destinationChainId));
+    const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+    const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
+
+    const events = await this.queryAllEvents(opts.fromSlot, opts.toSlot, undefined, fillStatusPda);
+    return events
+      .filter((event): event is EventWithData<RelayEventName> => eventNames.some((name) => name === event.name))
+      .filter((event) => getRelayDataHashFromEvent(event.data, destinationChainId) === relayDataHash);
+  }
+
+  /**
    * Queries events for the provided derived address at instantiation filtered by event name.
+   *
+   * @deprecated The returned events are scoped to *transactions* referencing the derived address; any event
+   * emitted by such a transaction is returned, whether or not the event pertains to the derived address (e.g.
+   * a batched fill emits events for many relays, all of which are returned for each relay's fillStatus PDA).
+   * Callers must associate events with the derived address themselves. Prefer queryEventsForRelay(), which
+   * does this association by relay data hash.
    *
    * @param eventName - The name of the event to filter by.
    * @param fromSlot - Optional starting slot.
