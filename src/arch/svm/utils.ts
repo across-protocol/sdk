@@ -144,7 +144,8 @@ function snakeToCamel(s: string): string {
  * Gets the event name from a raw name.
  */
 function isEventName(name: string): name is EventName {
-  return name in SVMEventNames;
+  // Own-property check only; `in` would also match inherited keys like "toString" or "constructor".
+  return Object.hasOwn(SVMEventNames, name);
 }
 
 export function getEventName(rawName: string): EventName {
