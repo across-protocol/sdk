@@ -11,12 +11,12 @@ import { CHAIN_IDs } from "@across-protocol/constants";
 import { MockSolanaRpcFactory } from "../../providers/mocks";
 import {
   SVM_DEFAULT_ADDRESS,
+  DecodedEvent,
   EventName,
   EventWithData,
   SvmCpiEventsClient,
   SVMEventNames,
   SVMProvider,
-  getEventName,
   getRandomSvmAddress,
   bigToU8a32,
 } from "../../arch/svm";
@@ -43,8 +43,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
 
   public setEvents(events: EventWithData[]) {
     for (const event of events) {
-      const eventName = getEventName(event.name);
-      (this.events[eventName] ??= []).push(event);
+      (this.events[event.name] ??= []).push(event);
     }
     const maxSlot = Math.max(...events.map((event) => Number(event.slot)));
     this.setSlotHeight(BigInt(maxSlot) + BigInt(1));
@@ -58,11 +57,16 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     }
   }
 
-  public override queryEvents(eventName: EventName, fromSlot?: bigint, toSlot?: bigint): Promise<EventWithData[]> {
+  public override queryEvents<T extends EventName>(
+    eventName: T,
+    fromSlot?: bigint,
+    toSlot?: bigint
+  ): Promise<EventWithData<T>[]> {
+    const events: EventWithData[] = this.events[eventName] ?? [];
     return Promise.resolve(
-      this.events[eventName]?.filter(
-        (event) => (!fromSlot || event.slot >= fromSlot) && (!toSlot || event.slot <= toSlot)
-      ) ?? []
+      events
+        .filter((event): event is EventWithData<T> => event.name === eventName)
+        .filter((event) => (!fromSlot || event.slot >= fromSlot) && (!toSlot || event.slot <= toSlot))
     );
   }
 
@@ -105,9 +109,8 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     };
 
     return this.generateEvent({
-      event: SVMEventNames.FundsDeposited,
+      decoded: { name: SVMEventNames.FundsDeposited, data: args },
       address: this.getProgramAddress(),
-      args,
       slot,
     });
   }
@@ -147,14 +150,14 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
       exclusiveRelayer: fill.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
       exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
       relayer: fill.relayer ?? getRandomSvmAddress(),
+      repaymentChainId: fill.repaymentChainId ?? BigInt(this.chainId),
       messageHash,
       relayExecutionInfo,
     };
 
     return this.generateEvent({
-      event: SVMEventNames.FilledRelay,
+      decoded: { name: SVMEventNames.FilledRelay, data: args },
       address: this.getProgramAddress(),
-      args,
       slot,
     });
   }
@@ -183,20 +186,14 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     };
 
     return this.generateEvent({
-      event: SVMEventNames.RequestedSlowFill,
+      decoded: { name: SVMEventNames.RequestedSlowFill, data: args },
       address: this.getProgramAddress(),
-      args,
       slot,
     });
   }
 
-  protected generateEvent(inputs: {
-    address: Address;
-    event: EventName;
-    args: Record<string, unknown>;
-    slot?: bigint;
-  }) {
-    const { address, event, args } = inputs;
+  protected generateEvent(inputs: { address: Address; decoded: DecodedEvent; slot?: bigint }): EventWithData {
+    const { address, decoded } = inputs;
     let { slot } = inputs;
 
     const randomSlotWithinRange = () =>
@@ -208,20 +205,19 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     assert(slot >= this.slotHeight, `${slot} < ${this.slotHeight}`);
     this.slotHeight = slot;
 
-    const generatedEvent = {
-      name: event,
+    const generatedEvent: EventWithData = {
+      ...decoded,
       slot,
       signature: signature(
         bs58.encode(
           Uint8Array.from(
             createHash("sha512")
-              .update(`Across-${event}-${slot}-${random(1, 100_000)}`)
+              .update(`Across-${decoded.name}-${slot}-${random(1, 100_000)}`)
               .digest()
           )
         )
       ),
       program: address,
-      data: args,
       confirmationStatus: "finalized",
       blockTime: BigInt(new Date().getTime()) as UnixTimestamp,
     };

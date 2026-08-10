@@ -11,7 +11,7 @@ import {
   Signature,
 } from "@solana/kit";
 import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
-import { EventName, EventWithData, SVMProvider } from "./types";
+import { DecodedEvent, EventName, EventWithData, SVMEventNames, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
@@ -91,14 +91,14 @@ export class SvmCpiEventsClient {
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
-  public async queryEvents(
-    eventName: EventName,
+  public async queryEvents<T extends EventName>(
+    eventName: T,
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData[]> {
+  ): Promise<EventWithData<T>[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options);
-    return events.filter((event) => event.name === eventName);
+    return events.filter((event): event is EventWithData<T> => event.name === eventName);
   }
 
   /**
@@ -110,15 +110,15 @@ export class SvmCpiEventsClient {
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
-  public async queryDerivedAddressEvents(
-    eventName: string,
+  public async queryDerivedAddressEvents<T extends EventName>(
+    eventName: T,
     derivedAddress: Address,
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData[]> {
+  ): Promise<EventWithData<T>[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
-    return events.filter((event) => event.name === eventName);
+    return events.filter((event): event is EventWithData<T> => event.name === eventName);
   }
 
   /**
@@ -205,9 +205,9 @@ export class SvmCpiEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(txResult?: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
+  private processEventFromTx(txResult?: GetTransactionReturnType): ({ program: Address } & DecodedEvent)[] {
     if (!isDefined(txResult) || isDefined(txResult.meta?.err)) return [];
-    const events: { program: Address; data: unknown; name: string }[] = [];
+    const events: ({ program: Address } & DecodedEvent)[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
@@ -239,8 +239,7 @@ export class SvmCpiEventsClient {
           }
           // Skip the 8-byte Anchor event discriminator and decode the remaining event payload.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
-          const { name, data } = decodeEvent(this.idl, eventData);
-          events.push({ program: this.programAddress, name, data });
+          events.push({ program: this.programAddress, ...decodeEvent(this.idl, eventData) });
         }
       }
     }
@@ -275,7 +274,7 @@ export class SvmCpiEventsClient {
     ]);
 
     // Filter for FundsDeposited events only
-    const depositEvents = events?.filter((event) => event?.name === "FundsDeposited");
+    const depositEvents = events?.filter((event) => event?.name === SVMEventNames.FundsDeposited);
     if (!txDetails || !depositEvents?.length) {
       return;
     }
@@ -335,7 +334,7 @@ export class SvmCpiEventsClient {
     ]);
 
     // Filter for FilledRelay events only
-    const fillEvents = events?.filter((event) => event?.name === "FilledRelay");
+    const fillEvents = events?.filter((event) => event?.name === SVMEventNames.FilledRelay);
 
     if (!txDetails || !fillEvents?.length) {
       return;

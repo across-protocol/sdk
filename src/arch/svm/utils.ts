@@ -20,7 +20,6 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Commitment,
-  type Decoder,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
@@ -31,7 +30,7 @@ import { BigNumber, Address as SdkAddress, getMessageHash, isByteArray, isDefine
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
-  EventData,
+  DecodedEvent,
   EventName,
   SVMEventNames,
   SVMProvider,
@@ -126,21 +125,61 @@ export function parseEventData(eventData: any): any {
 
 // Codama decoders generated from the SvmSpoke program, keyed by event name. Decoding with these (rather than the
 // generic Anchor BorshEventCoder) yields data that actually satisfies the generated event types: base58 Address
-// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names.
-const svmSpokeEventDecoders: Record<EventName, () => Decoder<EventData>> = {
-  BridgedToHubPool: SvmSpokeClient.getBridgedToHubPoolDecoder,
-  TokensBridged: SvmSpokeClient.getTokensBridgedDecoder,
-  ExecutedRelayerRefundRoot: SvmSpokeClient.getExecutedRelayerRefundRootDecoder,
-  RelayedRootBundle: SvmSpokeClient.getRelayedRootBundleDecoder,
-  PausedDeposits: SvmSpokeClient.getPausedDepositsDecoder,
-  PausedFills: SvmSpokeClient.getPausedFillsDecoder,
-  SetXDomainAdmin: SvmSpokeClient.getSetXDomainAdminDecoder,
-  FilledRelay: SvmSpokeClient.getFilledRelayDecoder,
-  FundsDeposited: SvmSpokeClient.getFundsDepositedDecoder,
-  EmergencyDeletedRootBundle: SvmSpokeClient.getEmergencyDeletedRootBundleDecoder,
-  RequestedSlowFill: SvmSpokeClient.getRequestedSlowFillDecoder,
-  ClaimedRelayerRefund: SvmSpokeClient.getClaimedRelayerRefundDecoder,
-  TransferredOwnership: SvmSpokeClient.getTransferredOwnershipDecoder,
+// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names. Each entry
+// constructs a name/data pair so that the correlation between the two is proven per event type.
+const svmSpokeEventDecoders: { [N in EventName]: (payload: Uint8Array) => DecodedEvent<N> } = {
+  BridgedToHubPool: (payload) => ({
+    name: SVMEventNames.BridgedToHubPool,
+    data: SvmSpokeClient.getBridgedToHubPoolDecoder().decode(payload),
+  }),
+  TokensBridged: (payload) => ({
+    name: SVMEventNames.TokensBridged,
+    data: SvmSpokeClient.getTokensBridgedDecoder().decode(payload),
+  }),
+  ExecutedRelayerRefundRoot: (payload) => ({
+    name: SVMEventNames.ExecutedRelayerRefundRoot,
+    data: SvmSpokeClient.getExecutedRelayerRefundRootDecoder().decode(payload),
+  }),
+  RelayedRootBundle: (payload) => ({
+    name: SVMEventNames.RelayedRootBundle,
+    data: SvmSpokeClient.getRelayedRootBundleDecoder().decode(payload),
+  }),
+  PausedDeposits: (payload) => ({
+    name: SVMEventNames.PausedDeposits,
+    data: SvmSpokeClient.getPausedDepositsDecoder().decode(payload),
+  }),
+  PausedFills: (payload) => ({
+    name: SVMEventNames.PausedFills,
+    data: SvmSpokeClient.getPausedFillsDecoder().decode(payload),
+  }),
+  SetXDomainAdmin: (payload) => ({
+    name: SVMEventNames.SetXDomainAdmin,
+    data: SvmSpokeClient.getSetXDomainAdminDecoder().decode(payload),
+  }),
+  FilledRelay: (payload) => ({
+    name: SVMEventNames.FilledRelay,
+    data: SvmSpokeClient.getFilledRelayDecoder().decode(payload),
+  }),
+  FundsDeposited: (payload) => ({
+    name: SVMEventNames.FundsDeposited,
+    data: SvmSpokeClient.getFundsDepositedDecoder().decode(payload),
+  }),
+  EmergencyDeletedRootBundle: (payload) => ({
+    name: SVMEventNames.EmergencyDeletedRootBundle,
+    data: SvmSpokeClient.getEmergencyDeletedRootBundleDecoder().decode(payload),
+  }),
+  RequestedSlowFill: (payload) => ({
+    name: SVMEventNames.RequestedSlowFill,
+    data: SvmSpokeClient.getRequestedSlowFillDecoder().decode(payload),
+  }),
+  ClaimedRelayerRefund: (payload) => ({
+    name: SVMEventNames.ClaimedRelayerRefund,
+    data: SvmSpokeClient.getClaimedRelayerRefundDecoder().decode(payload),
+  }),
+  TransferredOwnership: (payload) => ({
+    name: SVMEventNames.TransferredOwnership,
+    data: SvmSpokeClient.getTransferredOwnershipDecoder().decode(payload),
+  }),
 };
 
 /**
@@ -150,7 +189,7 @@ const svmSpokeEventDecoders: Record<EventName, () => Decoder<EventData>> = {
  * corresponding decoder generated from the program, so the decoded data matches the generated event types.
  * Events that cannot be identified are rejected.
  */
-export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
+export function decodeEvent(idl: Idl, rawEvent: string): DecodedEvent {
   // The generated decoders only apply to SvmSpoke events; any other program's events would be mis-decoded.
   assert(idl.address === SvmSpokeIdl.address, `decodeEvent: unsupported IDL address ${idl.address}`);
 
@@ -165,8 +204,8 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
     `decodeEvent: unknown SvmSpoke event ${name ?? ethers.utils.hexlify(discriminator)}`
   );
 
-  // Skip the discriminator; the event data follows it.
-  return { name, data: svmSpokeEventDecoders[name]().decode(rawEventData, discriminator.length) };
+  // Skip the discriminator; the event data follows it. subarray() of a Uint8Array remains a Uint8Array.
+  return svmSpokeEventDecoders[name](rawEventData.subarray(discriminator.length));
 }
 
 /**
