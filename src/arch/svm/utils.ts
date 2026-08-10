@@ -1,6 +1,6 @@
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SvmSpokeClient, SvmSpokeIdl } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
-import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import { BN, Idl } from "@coral-xyz/anchor";
 import {
   Address,
   Instruction,
@@ -19,6 +19,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Commitment,
+  type Decoder,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
@@ -29,6 +30,7 @@ import { BigNumber, Address as SdkAddress, getMessageHash, isByteArray, isDefine
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
+  EventData,
   EventName,
   SVMEventNames,
   SVMProvider,
@@ -121,16 +123,45 @@ export function parseEventData(eventData: any): any {
   return eventData;
 }
 
+// Codama decoders generated from the SvmSpoke program, keyed by event name. Decoding with these (rather than the
+// generic Anchor BorshEventCoder) yields data that actually satisfies the generated event types: base58 Address
+// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names.
+const svmSpokeEventDecoders: Record<EventName, () => Decoder<EventData>> = {
+  BridgedToHubPool: SvmSpokeClient.getBridgedToHubPoolDecoder,
+  TokensBridged: SvmSpokeClient.getTokensBridgedDecoder,
+  ExecutedRelayerRefundRoot: SvmSpokeClient.getExecutedRelayerRefundRootDecoder,
+  RelayedRootBundle: SvmSpokeClient.getRelayedRootBundleDecoder,
+  PausedDeposits: SvmSpokeClient.getPausedDepositsDecoder,
+  PausedFills: SvmSpokeClient.getPausedFillsDecoder,
+  SetXDomainAdmin: SvmSpokeClient.getSetXDomainAdminDecoder,
+  FilledRelay: SvmSpokeClient.getFilledRelayDecoder,
+  FundsDeposited: SvmSpokeClient.getFundsDepositedDecoder,
+  EmergencyDeletedRootBundle: SvmSpokeClient.getEmergencyDeletedRootBundleDecoder,
+  RequestedSlowFill: SvmSpokeClient.getRequestedSlowFillDecoder,
+  ClaimedRelayerRefund: SvmSpokeClient.getClaimedRelayerRefundDecoder,
+  TransferredOwnership: SvmSpokeClient.getTransferredOwnershipDecoder,
+};
+
 /**
- * Decodes a raw event according to a supplied IDL.
+ * Decodes a raw SvmSpoke event.
+ *
+ * The event name is resolved from the IDL's event discriminator table and the payload is decoded with the
+ * corresponding decoder generated from the program, so the decoded data matches the generated event types.
+ * Events that cannot be identified are rejected.
  */
-export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
-  const event = new BorshEventCoder(idl).decode(rawEvent);
-  if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
-  return {
-    name: event.name,
-    data: parseEventData(event.data),
-  };
+export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
+  // The generated decoders only apply to SvmSpoke events; any other program's events would be mis-decoded.
+  assert(idl.address === SvmSpokeIdl.address, `decodeEvent: unsupported IDL address ${idl.address}`);
+
+  const rawEventData = Buffer.from(rawEvent, "base64");
+  const discriminator = rawEventData.subarray(0, 8);
+  const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
+  assert(
+    isDefined(name) && isEventName(name),
+    `decodeEvent: unknown SvmSpoke event ${name ?? ethers.utils.hexlify(discriminator)}`
+  );
+
+  return { name, data: svmSpokeEventDecoders[name]().decode(rawEventData.subarray(8)) };
 }
 
 /**
