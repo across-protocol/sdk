@@ -8,7 +8,8 @@ import {
   toAddressType,
   isValidEvmAddress,
 } from "../src/utils";
-import { CHAIN_IDs } from "../src/constants";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../src/constants";
+import { SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
 import { expect, ethers } from "./utils";
 
 describe("Address Utils: Address Type", function () {
@@ -139,6 +140,18 @@ describe("Address Utils: Address Type", function () {
       const a = EvmAddress.from(raw);
       const b = EvmAddress.from(EVM_ZERO_PAD + raw.slice(2));
       expect(a.eq(b)).to.be.true;
+    });
+    // The zero address is the only same-bytes pair that can span the 20-byte and 32-byte address spaces:
+    // SvmAddress.validate() rejects addresses with the upper 12 bytes zeroed, except the zero address itself.
+    // Across uses both encodings as the "unset" sentinel (SVM re-exports the System Program address as
+    // SVM_DEFAULT_ADDRESS for exactly that purpose), so comparing equal is the intended result here.
+    it("Treats the EVM and SVM zero addresses as equal", function () {
+      const evmZero = EvmAddress.from(ZERO_ADDRESS);
+      const svmZero = SvmAddress.from(bs58.encode(new Uint8Array(32)));
+      expect(svmZero.toNative()).to.equal(SVM_DEFAULT_ADDRESS);
+      expect(evmZero.isZeroAddress() && svmZero.isZeroAddress()).to.be.true;
+      expect(evmZero.eq(svmZero)).to.be.true;
+      expect(svmZero.eq(evmZero)).to.be.true;
     });
     it("Returns false for undefined", function () {
       const a = EvmAddress.from(randomBytes(20));
