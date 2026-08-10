@@ -216,7 +216,9 @@ export abstract class Address {
     return false;
   }
 
-  // Converts the input address to a 32-byte hex data string.
+  // Converts the address to its native (family-specific) representation, for display and serialisation.
+  // note: This is not an identity: the same account renders differently depending on the family it was typed
+  // for (checksummed hex on EVM, Base58Check on TVM). Use eq()/compare() to test identity.
   toString(): string {
     return this.toNative();
   }
