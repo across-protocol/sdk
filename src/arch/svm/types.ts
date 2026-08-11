@@ -69,13 +69,21 @@ export type EventData = EventNameToData[EventName];
 type AnyDecodedEvent = { [N in EventName]: { name: N; data: EventNameToData[N] } }[EventName];
 export type DecodedEvent<T extends EventName = EventName> = Extract<AnyDecodedEvent, { name: `${T}` }>;
 
-export type EventWithData<T extends EventName = EventName> = DecodedEvent<T> & {
+// A decoded event from a program without typed decoders (i.e. decoded via the generic Anchor coder, or a
+// bundled CCTP decoder). Every DecodedEvent is also a RawDecodedEvent; the reverse narrowing is by name.
+export type RawDecodedEvent = { name: string; data: unknown };
+
+// The transaction envelope common to all queried events.
+type EventEnvelope = {
   confirmationStatus: string | null;
   blockTime: UnixTimestamp | null;
   signature: Signature;
   slot: bigint;
   program: Address;
 };
+
+export type RawEventWithData = RawDecodedEvent & EventEnvelope;
+export type EventWithData<T extends EventName = EventName> = DecodedEvent<T> & EventEnvelope;
 
 export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
 

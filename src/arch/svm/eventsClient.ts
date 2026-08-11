@@ -11,7 +11,7 @@ import {
   Signature,
 } from "@solana/kit";
 import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
-import { DecodedEvent, EventName, EventWithData, SVMEventNames, SVMProvider } from "./types";
+import { EventName, EventWithData, RawDecodedEvent, RawEventWithData, SVMEventNames, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
@@ -135,7 +135,7 @@ export class SvmCpiEventsClient {
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
     derivedAddress?: Address
-  ): Promise<EventWithData[]> {
+  ): Promise<RawEventWithData[]> {
     const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
@@ -205,9 +205,9 @@ export class SvmCpiEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(txResult?: GetTransactionReturnType): ({ program: Address } & DecodedEvent)[] {
+  private processEventFromTx(txResult?: GetTransactionReturnType): ({ program: Address } & RawDecodedEvent)[] {
     if (!isDefined(txResult) || isDefined(txResult.meta?.err)) return [];
-    const events: ({ program: Address } & DecodedEvent)[] = [];
+    const events: ({ program: Address } & RawDecodedEvent)[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
