@@ -61,11 +61,12 @@ export async function averageBlockTime(
   // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
   // to account for various RPC provider sync issues that might occur when querting the latest block.
   if (!isDefined(highBlock)) {
-    // Take the head from a block rather than from a block number. A number is just a counter and is not
-    // a promise that the provider can serve it: ethers memoises the block number as a monotonic
-    // high-water mark, so it keeps reporting a height the chain has since rolled back past, and a
-    // load-balanced pool can answer eth_blockNumber from a synced node and eth_getBlockByNumber from a
-    // lagging one. The number on a block the provider actually returned is a height it can serve.
+    // Take the head from a block rather than from a block number. A number is just a counter and is not a
+    // promise that the provider can serve it: getBlockNumber() is clamped to a monotonic high-water mark
+    // (BaseProvider._maxInternalBlockNumber, never lowered for the life of the provider), so it keeps
+    // reporting a height the chain has since rolled back past, and a load-balanced pool can answer
+    // eth_blockNumber from a synced node and eth_getBlockByNumber from a lagging one. getBlock("latest") is
+    // not clamped, so the number on the block it returns is a height the provider actually served.
     const latest = await provider.getBlock("latest");
     if (!isDefined(latest?.number)) {
       throw new Error(`BlockFinder: Failed to fetch the latest block on ${getNetworkName(chainId)}`);
