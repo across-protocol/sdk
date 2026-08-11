@@ -132,6 +132,27 @@ describe("SVM fill event association", () => {
     expect(filled).to.equal(FillStatus.Filled);
   });
 
+  it("applies the requested commitment to event reconstruction", async () => {
+    const expected = relayData(4);
+    let observed: string | undefined;
+    const stub: SvmCpiEventsClient = Object.create(SvmCpiEventsClient.prototype);
+    Object.assign(stub, {
+      programAddress: program,
+      queryAllEvents: (_from?: bigint, _to?: bigint, options?: { commitment?: string }): Promise<EventWithData[]> => {
+        observed = options?.commitment;
+        return Promise.resolve([]);
+      },
+    });
+
+    const status = await relayFillStatus(program, expected, destinationChainId, stub, spyLogger, 100, "finalized");
+    expect(status).to.equal(FillStatus.Unfilled);
+    expect(observed).to.equal("finalized");
+
+    // Defaults to confirmed when unspecified.
+    await relayFillStatus(program, expected, destinationChainId, stub, spyLogger, 100);
+    expect(observed).to.equal("confirmed");
+  });
+
   // UMIP-179: a fill takes precedence over a slow fill request irrespective of event ordering. The stub
   // assigns slots by array index, so the request lands in a later slot than the fill here; slot ordering
   // must not resolve the status to RequestedSlowFill.

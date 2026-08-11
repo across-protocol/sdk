@@ -9,6 +9,7 @@ import {
   getStatePda,
   SvmCpiEventsClient,
   findDeposit,
+  FillStatusCommitment,
   relayFillStatus,
   fillStatusArray,
 } from "../../arch/svm";
@@ -250,24 +251,52 @@ export class SVMSpokePoolClient extends SpokePoolClient {
 
   /**
    * Retrieves the fill status for a given relay data from the SVM chain.
+   * @param relayData The relay data to retrieve the fill status for.
+   * @param atHeight The slot at which to query the fill status.
+   * @param commitment Commitment level applied to every read backing the resolution (default: confirmed).
+   * Consumers that must not act on rollback-able state (e.g. the dataworker) should pass finalized.
    */
-  public override relayFillStatus(relayData: RelayDataWithMessageHash, atHeight?: number): Promise<FillStatus> {
-    return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, this.logger, atHeight);
+  public override relayFillStatus(
+    relayData: RelayDataWithMessageHash,
+    atHeight?: number,
+    commitment?: FillStatusCommitment
+  ): Promise<FillStatus> {
+    return relayFillStatus(
+      this.programId,
+      relayData,
+      this.chainId,
+      this.svmEventsClient,
+      this.logger,
+      atHeight,
+      commitment
+    );
   }
 
   /**
    * Retrieves the fill status for an array of given relay data.
    * @param relayData The array relay data to retrieve the fill status for.
    * @param atHeight The slot at which to query the fill status.
+   * @param destinationChainId The destination chain ID (defaults to this client's chain).
+   * @param commitment Commitment level applied to every read backing the resolution (default: confirmed).
+   * Consumers that must not act on rollback-able state (e.g. the dataworker) should pass finalized.
    * @returns The fill status for each of the given relay data.
    */
   public fillStatusArray(
     relayData: RelayDataWithMessageHash[],
     atHeight?: number,
-    destinationChainId?: number
+    destinationChainId?: number,
+    commitment?: FillStatusCommitment
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, this.logger, atHeight);
+    return fillStatusArray(
+      this.programId,
+      relayData,
+      destinationChainId,
+      this.svmEventsClient,
+      this.logger,
+      atHeight,
+      commitment
+    );
   }
 }
