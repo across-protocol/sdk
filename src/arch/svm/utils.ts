@@ -38,8 +38,9 @@ import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Arr
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
-  EventData,
+  DecodedEvent,
   EventName,
+  RawDecodedEvent,
   SVMEventNames,
   SVMProvider,
   LatestBlockhash,
@@ -133,8 +134,9 @@ export function parseEventData(eventData: any): any {
 
 // Codama decoders generated from the SvmSpoke program, keyed by event name. Decoding with these (rather than the
 // generic Anchor BorshEventCoder) yields data that actually satisfies the generated event types: base58 Address
-// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names.
-const svmSpokeEventDecoders: Record<EventName, (payload: Uint8Array) => { name: string; data: EventData }> = {
+// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names. Each entry
+// constructs a name/data pair so that the correlation between the two is proven per event type.
+const svmSpokeEventDecoders: { [N in EventName]: (payload: Uint8Array) => DecodedEvent<N> } = {
   BridgedToHubPool: (payload) => ({
     name: SVMEventNames.BridgedToHubPool,
     data: SvmSpokeClient.getBridgedToHubPoolDecoder().decode(payload),
@@ -189,13 +191,6 @@ const svmSpokeEventDecoders: Record<EventName, (payload: Uint8Array) => { name: 
   }),
 };
 
-/**
- * Decodes a raw SvmSpoke event.
- *
- * The event name is resolved from the IDL's event discriminator table and the payload is decoded with the
- * corresponding decoder generated from the program, so the decoded data matches the generated event types.
- * Events that cannot be identified are rejected.
- */
 // Per-program maps of CCTP event name to the event data type generated from the program. The decoder tables
 // below are typed against these maps, so a decoder registered under the wrong name is a compile error (up to
 // structural identity), and the completeness of each table against its IDL is pinned by a unit test.
@@ -279,9 +274,14 @@ export const cctpPrograms: Record<
   [MessageTransmitterIdl.address]: { idl: MessageTransmitterIdl, eventDecoders: messageTransmitterEventDecoders },
 };
 
-export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
-  // The generated decoders only apply to SvmSpoke events; any other program's events (e.g. the CCTP
-  // TokenMessengerMinter and MessageTransmitter programs) are decoded generically below.
+/**
+ * Decodes a raw Anchor CPI event according to the supplied IDL.
+ *
+ * SvmSpoke and (bundled) CCTP events are decoded with the decoders generated from their programs, so the
+ * decoded data matches the generated event types; unknown SvmSpoke events are rejected. Events from any other
+ * IDL are decoded with the generic Anchor event coder.
+ */
+export function decodeEvent(idl: Idl, rawEvent: string): DecodedEvent | RawDecodedEvent {
   if (idl.address === SvmSpokeIdl.address) {
     // Decode to a plain Uint8Array, not a Buffer: the generated decoders slice their input to populate byte-array
     // fields, and slicing a Buffer yields a Buffer, whose toString() and JSON serialisation differ from the

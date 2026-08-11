@@ -270,9 +270,10 @@ export async function findDeposit(
   const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
   const startSlot = endSlot - slotsInElapsed;
 
-  // Query for the deposit events with this limited slot range. Filter by deposit id.
-  const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find((event) =>
-    depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
+  // Query for the deposit events with this limited slot range. Filter by deposit id, which is decoded from the
+  // event as a 32-byte array (BigNumber.eq() accepts the big-endian byte representation directly).
+  const depositEvent = (await eventClient.queryEvents(SVMEventNames.FundsDeposited, startSlot, endSlot))?.find(
+    ({ data }) => depositId.eq(data.depositId)
   );
 
   // If no deposit event is found, return undefined
@@ -1002,7 +1003,7 @@ async function resolveFillStatusFromPdaEvents(
   svmEventsClient: SvmCpiEventsClient
 ): Promise<FillStatus> {
   // Get fill and requested slow fill events from fillStatus PDA
-  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill];
+  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill] as const;
   const relevantEvents = (
     await Promise.all(
       eventsToQuery.map((eventName) =>
@@ -1024,14 +1025,7 @@ async function resolveFillStatusFromPdaEvents(
     return FillStatus.Unfilled;
   }
 
-  switch (fillStatusEvent.name) {
-    case SVMEventNames.FilledRelay:
-      return FillStatus.Filled;
-    case SVMEventNames.RequestedSlowFill:
-      return FillStatus.RequestedSlowFill;
-    default:
-      throw new Error(`Unexpected event name: ${fillStatusEvent.name}`);
-  }
+  return fillStatusEvent.name === SVMEventNames.FilledRelay ? FillStatus.Filled : FillStatus.RequestedSlowFill;
 }
 
 /**
