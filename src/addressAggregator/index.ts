@@ -4,6 +4,11 @@ import * as adapters from "./adapters";
 
 export * as adapters from "./adapters";
 
+// Exported from here rather than the adapters barrel: AddressAggregator.sources() enumerates that
+// barrel's keys, so re-exporting the base class there would advertise it as a selectable source.
+export { AbstractAdapter } from "./adapters/abstract";
+export type { AdapterOptions, AddressListAdapter } from "./types";
+
 export class AddressAggregator {
   constructor(
     readonly adapters: AddressListAdapter[],
