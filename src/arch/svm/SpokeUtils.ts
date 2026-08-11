@@ -299,8 +299,12 @@ export async function findDeposit(
   >;
 }
 
+// Commitment levels at which fill status may be resolved. "processed" is excluded: the signature listing
+// that backs event reconstruction does not support it.
+export type FillStatusCommitment = Exclude<Commitment, "processed">;
+
 /**
- * Resolves the fill status of a deposit at a specific slot or at the current confirmed one.
+ * Resolves the fill status of a deposit at a specific slot or at the current slot.
  *
  * If no slot is provided, attempts to solve the fill status using the PDA. Otherwise, it is reconstructed from PDA events.
  *
@@ -309,7 +313,10 @@ export async function findDeposit(
  * @param destinationChainId - Destination chain ID (must be an SVM chain).
  * @param provider - SVM provider instance.
  * @param svmEventsClient - SVM events client for querying events.
- * @param atHeight - (Optional) Specific slot number to query. Defaults to the latest confirmed slot.
+ * @param atHeight - (Optional) Specific slot number to query. Defaults to the latest slot at `commitment`.
+ * @param commitment - (Optional) Commitment level applied to every read backing the resolution: the PDA
+ * account read, the slot-time lookup and the event reconstruction. Defaults to confirmed; consumers that must
+ * not act on rollback-able state (e.g. the dataworker) should pass finalized.
  * @returns The fill status for the deposit at the specified or current slot.
  */
 export async function relayFillStatus(
@@ -318,7 +325,8 @@ export async function relayFillStatus(
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   logger: winston.Logger,
-  atHeight?: number
+  atHeight?: number,
+  commitment: FillStatusCommitment = "confirmed"
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const provider = svmEventsClient.getRpc();
@@ -328,7 +336,6 @@ export async function relayFillStatus(
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
-    const commitment = "confirmed";
     const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment }),
       getNearestSlotTime(provider, { commitment }, logger),
@@ -348,7 +355,14 @@ export async function relayFillStatus(
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
-  return resolveFillStatusFromPdaEvents(fillStatusPda, relayData, destinationChainId, toSlot, svmEventsClient);
+  return resolveFillStatusFromPdaEvents(
+    fillStatusPda,
+    relayData,
+    destinationChainId,
+    toSlot,
+    svmEventsClient,
+    commitment
+  );
 }
 
 /**
@@ -360,8 +374,10 @@ export async function relayFillStatus(
  * @param destinationChainId The destination chain ID (must be an SVM chain).
  * @param provider SVM Provider instance.
  * @param svmEventsClient SVM events client instance for querying events.
- * @param atHeight (Optional) The slot number to query at. If omitted, queries the latest confirmed slot.
- * @returns An array of fill statuses for the specified deposits at the requested slot (or at the current confirmed slot).
+ * @param atHeight (Optional) The slot number to query at. If omitted, queries the latest slot at `commitment`.
+ * @param commitment (Optional) Commitment level applied to every read backing the resolution. Defaults to
+ * confirmed; consumers that must not act on rollback-able state (e.g. the dataworker) should pass finalized.
+ * @returns An array of fill statuses for the specified deposits at the requested slot.
  */
 export async function fillStatusArray(
   programId: Address,
@@ -369,7 +385,8 @@ export async function fillStatusArray(
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   logger: winston.Logger,
-  atHeight?: number
+  atHeight?: number,
+  commitment: FillStatusCommitment = "confirmed"
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const provider = svmEventsClient.getRpc();
@@ -397,7 +414,7 @@ export async function fillStatusArray(
   // Otherwise, initialize all statuses as undefined
   const fillStatuses: (FillStatus | undefined)[] =
     atHeight === undefined
-      ? await fetchBatchFillStatusFromPdaAccounts(provider, fillStatusPdas, relayData, logger)
+      ? await fetchBatchFillStatusFromPdaAccounts(provider, fillStatusPdas, relayData, logger, commitment)
       : new Array(relayData.length).fill(undefined);
 
   // Collect indices of deposits that still need their status resolved
@@ -413,8 +430,7 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const opts = undefined;
-  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, opts, logger)).slot;
+  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, { commitment }, logger)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
@@ -428,7 +444,8 @@ export async function fillStatusArray(
             relayData[missingIndex],
             destinationChainId,
             toSlot,
-            svmEventsClient
+            svmEventsClient,
+            commitment
           ),
         };
       })
@@ -460,18 +477,18 @@ export async function findFillEvent(
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
   toSlot?: number,
-  logger?: winston.Logger
+  logger?: winston.Logger,
+  commitment: FillStatusCommitment = "confirmed"
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  const opts = undefined;
-  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), opts, logger)).slot);
+  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), { commitment }, logger)).slot);
 
   // Get the fill events pertaining to this relay.
   const fillEvents = await svmEventsClient.queryEventsForRelay(
     relayData,
     destinationChainId,
     [SVMEventNames.FilledRelay],
-    { fromSlot: BigInt(fromSlot), toSlot: BigInt(toSlot) }
+    { fromSlot: BigInt(fromSlot), toSlot: BigInt(toSlot), commitment }
   );
   assert(
     fillEvents.length <= 1,
@@ -1100,14 +1117,15 @@ async function resolveFillStatusFromPdaEvents(
   relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   toSlot: bigint,
-  svmEventsClient: SvmCpiEventsClient
+  svmEventsClient: SvmCpiEventsClient,
+  commitment: FillStatusCommitment
 ): Promise<FillStatus> {
   // Get the fill and requested slow fill events pertaining to this relay.
   const relevantEvents = await svmEventsClient.queryEventsForRelay(
     relayData,
     destinationChainId,
     [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill],
-    { toSlot, fillStatusPda }
+    { toSlot, fillStatusPda, commitment }
   );
 
   // A fill takes precedence over a slow fill request irrespective of event ordering (UMIP-179): a relay
@@ -1137,10 +1155,10 @@ async function fetchBatchFillStatusFromPdaAccounts(
   provider: SVMProvider,
   fillStatusPdas: Address[],
   relayDataArray: RelayData[],
-  logger: winston.Logger
+  logger: winston.Logger,
+  commitment: FillStatusCommitment
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
-  const commitment = "confirmed";
 
   const [pdaAccounts, { timestamp }] = await Promise.all([
     Promise.all(chunk(fillStatusPdas, chunkSize).map((chunk) => fetchEncodedAccounts(provider, chunk, { commitment }))),
