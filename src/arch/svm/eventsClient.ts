@@ -112,27 +112,36 @@ export class SvmCpiEventsClient {
    * other relays (e.g. from batched fills). Each event is therefore associated back to the relay by its relay
    * data hash, the same hash the fillStatus PDA is derived from; events belonging to other relays are dropped.
    * Signatures are paginated to exhaustion within the slot bounds, so transactions spamming the PDA can add
-   * latency but cannot displace the relay's own events.
+   * latency but cannot displace the relay's own events. A caller-supplied fillStatus PDA is likewise only a
+   * transaction locator: association is by relay data hash, so a stale or incorrect PDA can only yield missing
+   * events, never another relay's.
    *
    * @param relayData - Relay data identifying the relay to query events for.
    * @param destinationChainId - Destination chain ID of the relay (must be an SVM chain).
    * @param eventNames - The names of the events to filter by (FilledRelay and/or RequestedSlowFill).
-   * @param opts - Optional slot bounds and a precomputed fillStatus PDA.
+   * @param opts - Optional slot bounds, a precomputed fillStatus PDA and the commitment level (default:
+   * confirmed), which applies to both the signature listing and the transaction reads.
    * @returns A promise that resolves to an array of events pertaining to the relay.
    */
   public async queryEventsForRelay(
     relayData: RelayDataWithMessageHash,
     destinationChainId: number,
     eventNames: RelayEventName[],
-    opts: { fromSlot?: bigint; toSlot?: bigint; fillStatusPda?: Address } = {}
+    opts: {
+      fromSlot?: bigint;
+      toSlot?: bigint;
+      fillStatusPda?: Address;
+      commitment?: Exclude<Commitment, "processed">;
+    } = {}
   ): Promise<EventWithData<RelayEventName>[]> {
     assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
+    const { commitment = "confirmed" } = opts;
     const fillStatusPda =
       opts.fillStatusPda ?? (await getFillStatusPda(this.programAddress, relayData, destinationChainId));
     const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
     const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
 
-    const events = await this.queryAllEvents(opts.fromSlot, opts.toSlot, undefined, fillStatusPda);
+    const events = await this.queryAllEvents(opts.fromSlot, opts.toSlot, { limit: 1000, commitment }, fillStatusPda);
     return events
       .filter((event): event is EventWithData<RelayEventName> => eventNames.some((name) => name === event.name))
       .filter((event) => getRelayDataHashFromEvent(event.data, destinationChainId) === relayDataHash);
@@ -213,7 +222,8 @@ export class SvmCpiEventsClient {
       return true;
     });
 
-    // Fetch events for all signatures in parallel.
+    // Fetch events for all signatures in parallel. Dispatch is unbounded, but request concurrency is bounded
+    // by the provider's rate-limiting queue (RateLimitedSolanaRpcFactory), mirroring the EVM provider layer.
     const eventsWithSlots = await Promise.all(
       filteredSignatures.map(async (signatureTransaction) => {
         const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);

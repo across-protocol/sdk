@@ -134,4 +134,24 @@ describe("SvmCpiEventsClient (relay event association)", () => {
 
     expect(events.length).to.equal(0);
   });
+
+  it("applies the requested commitment to the underlying query", async () => {
+    const expected = relayData(5);
+    let observed: string | undefined;
+    const stub: SvmCpiEventsClient = Object.create(SvmCpiEventsClient.prototype);
+    Object.assign(stub, {
+      programAddress: program,
+      queryAllEvents: (_from?: bigint, _to?: bigint, options?: { commitment?: string }): Promise<EventWithData[]> => {
+        observed = options?.commitment;
+        return Promise.resolve([]);
+      },
+    });
+
+    await stub.queryEventsForRelay(expected, destinationChainId, ["FilledRelay"], { commitment: "finalized" });
+    expect(observed).to.equal("finalized");
+
+    // Defaults to confirmed when unspecified.
+    await stub.queryEventsForRelay(expected, destinationChainId, ["FilledRelay"]);
+    expect(observed).to.equal("confirmed");
+  });
 });
