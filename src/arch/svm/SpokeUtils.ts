@@ -346,7 +346,7 @@ export async function relayFillStatus(
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
-  return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
+  return resolveFillStatusFromPdaEvents(fillStatusPda, relayData, destinationChainId, toSlot, svmEventsClient);
 }
 
 /**
@@ -421,7 +421,13 @@ export async function fillStatusArray(
       chunk.map(async (missingIndex) => {
         return {
           index: missingIndex,
-          fillStatus: await resolveFillStatusFromPdaEvents(fillStatusPdas[missingIndex], toSlot, svmEventsClient),
+          fillStatus: await resolveFillStatusFromPdaEvents(
+            fillStatusPdas[missingIndex],
+            relayData[missingIndex],
+            destinationChainId,
+            toSlot,
+            svmEventsClient
+          ),
         };
       })
     );
@@ -458,19 +464,18 @@ export async function findFillEvent(
   const opts = undefined;
   toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), opts, logger)).slot);
 
-  // Get fillStatus PDA using relayData
-  const programId = svmEventsClient.getProgramAddress();
-  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
-
-  // Get fill events from fillStatus PDA
-  const fillEvents = await svmEventsClient.queryDerivedAddressEvents(
-    SVMEventNames.FilledRelay,
-    fillStatusPda,
-    BigInt(fromSlot),
-    BigInt(toSlot),
-    { limit: 10 }
+  // Get the fill events pertaining to this relay.
+  const fillEvents = await svmEventsClient.queryEventsForRelay(
+    relayData,
+    destinationChainId,
+    [SVMEventNames.FilledRelay],
+    { fromSlot: BigInt(fromSlot), toSlot: BigInt(toSlot) }
   );
-  assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
+  assert(
+    fillEvents.length <= 1,
+    `Expected at most one fill event for relay ${relayData.originChainId}:${relayData.depositId.toString()},` +
+      ` got ${fillEvents.length}`
+  );
 
   const [rawEvent] = fillEvents;
   if (!isDefined(rawEvent)) {
@@ -1018,33 +1023,27 @@ export function getRelayDataHashFromEvent(event: SvmRelayEventData, destinationC
 
 async function resolveFillStatusFromPdaEvents(
   fillStatusPda: Address,
+  relayData: RelayDataWithMessageHash,
+  destinationChainId: number,
   toSlot: bigint,
   svmEventsClient: SvmCpiEventsClient
 ): Promise<FillStatus> {
-  // Get fill and requested slow fill events from fillStatus PDA
-  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill] as const;
-  const relevantEvents = (
-    await Promise.all(
-      eventsToQuery.map((eventName) =>
-        // PDAs should have only a few events, requesting up to 10 should be enough.
-        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, undefined, toSlot, { limit: 10 })
-      )
-    )
-  ).flat();
+  // Get the fill and requested slow fill events pertaining to this relay.
+  const relevantEvents = await svmEventsClient.queryEventsForRelay(
+    relayData,
+    destinationChainId,
+    [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill],
+    { toSlot, fillStatusPda }
+  );
 
-  // Sort events in ascending order of slot number
-  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
-
-  // At this point we have an ordered array of only fill and requested slow fill events and
-  // since it's not possible to submit a slow fill request once a fill has been submitted,
-  // we can use the last event in the list to determine the fill status at the requested slot.
-  const fillStatusEvent = relevantEvents.pop();
-  if (!isDefined(fillStatusEvent)) {
-    // No fill or requested slow fill events found for this PDA
-    return FillStatus.Unfilled;
+  // A fill takes precedence over a slow fill request irrespective of event ordering (UMIP-179): a relay
+  // cannot be filled twice and a slow fill request cannot follow a fill, so any FilledRelay event is
+  // authoritative. Slot ordering is not a reliable discriminator, since both events may land in the same slot.
+  if (relevantEvents.some(({ name }) => name === SVMEventNames.FilledRelay)) {
+    return FillStatus.Filled;
   }
 
-  return fillStatusEvent.name === SVMEventNames.FilledRelay ? FillStatus.Filled : FillStatus.RequestedSlowFill;
+  return relevantEvents.length > 0 ? FillStatus.RequestedSlowFill : FillStatus.Unfilled;
 }
 
 /**
