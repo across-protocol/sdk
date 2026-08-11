@@ -170,25 +170,11 @@ export function isArrayOf<T>(array: unknown, predicate: (value: unknown) => valu
 }
 
 /**
- * Checks whether a value is a byte array in either of its decoded representations: a Uint8Array, or a
- * non-empty plain array of integers in [0, 255] (as produced for fixed byte-array fields by Anchor borsh
- * decoding). An empty plain array is not considered a byte array, since it is indistinguishable from an
- * empty list.
+ * Checks if a value is a Uint8Array.
  * @param value The value to check.
- * @returns True if the value is a byte array, false otherwise.
+ * @returns True if the value is a Uint8Array, false otherwise.
  */
-export function isByteArray(value: unknown): value is Uint8Array | number[] {
-  return value instanceof Uint8Array || isUint8Array(value);
-}
-
-/**
- * Checks if a value is a byte array: a plain array of integers in [0, 255], as produced for fixed byte-array
- * fields by Anchor borsh decoding. Note that this deliberately matches number[] and NOT Uint8Array instances;
- * prefer isByteArray(), which matches both representations.
- * @param value The value to check.
- * @returns True if the value is a byte array, false otherwise.
- */
-export function isUint8Array(value: unknown): value is number[] {
+export function isUint8Array(value: unknown): value is Uint8Array {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
