@@ -34,7 +34,7 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getMessageHash, isByteArray, isDefined } from "../../utils";
+import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -387,8 +387,8 @@ function unwrapEventDataInner(
     return BigNumber.from(data);
   }
   // Handle Uint8Array and byte arrays
-  if (isByteArray(data)) {
-    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (data instanceof Uint8Array || isUint8Array(data)) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
     const hex = ethers.utils.hexlify(bytes);
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
