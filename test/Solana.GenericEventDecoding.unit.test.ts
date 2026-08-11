@@ -36,11 +36,11 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
     }
   });
 
-  // A program address is retained across IDL upgrades, so the bundled decoders must only apply when the
-  // supplied IDL's schema actually matches the bundled one. A drifted CCTP IDL (here: DepositForBurn gains a
-  // trailing field) must decode per the *supplied* IDL via the generic path - the bundled decoder would
-  // silently drop the new field.
-  it("decodes per the supplied IDL when a CCTP schema has drifted from the bundled one", () => {
+  // A program address is retained across IDL upgrades, so the bundled decoders only apply when the caller
+  // supplied the exact bundled IDL instance. A drifted CCTP IDL (here: DepositForBurn gains a trailing field)
+  // must decode per the *supplied* IDL via the generic path - the bundled decoder would silently drop the new
+  // field.
+  it("decodes per the supplied IDL when a CCTP IDL differs from the bundled one", () => {
     const drifted: Idl = JSON.parse(JSON.stringify(TokenMessengerMinterIdl));
     const depositForBurn = (drifted.types ?? []).find((type) => type.name === "DepositForBurn");
     expect(depositForBurn).to.not.equal(undefined);
@@ -65,13 +65,6 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
     const decoded = decodeEvent(drifted, rawEvent);
     expect(decoded.name).to.equal("DepositForBurn");
     expect(decoded.data).to.deep.include({ newField: 777n });
-  });
-
-  it("rejects a supplied SvmSpoke IDL whose schema has drifted from the bundled one", () => {
-    const drifted: Idl = JSON.parse(JSON.stringify(SvmSpokeIdl));
-    (drifted.events ?? []).pop();
-    const bogus = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9]).toString("base64");
-    expect(() => decodeEvent(drifted, bogus)).to.throw(/does not match the bundled SvmSpoke IDL/);
   });
 
   // The codama decoders must produce the same consumer-visible data as the legacy Anchor + parseEventData
