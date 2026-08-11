@@ -133,9 +133,6 @@ export function toAddressType(address: string, chainId: number): Address {
   // (0x41 prefix + address + checksum), not the canonical address, so rawAddress is the wrong input here.
   if (chainIsTvm(chainId) && TvmAddress.validate(address)) return TvmAddress.from(address);
 
-  // Decode only after the TVM case has concluded. TVM never consumes rawAddress, and decoding eagerly throws on the
-  // 41-prefixed hex form of a TRON address: it is valid per TvmAddress.validate(), but is not valid base58, since
-  // the alphabet excludes '0'.
   const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
   if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   else if (chainIsSvm(chainId) && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
@@ -366,15 +363,15 @@ export class TvmAddress extends Address {
       return TronWeb.isAddress(address);
     }
 
-    // 0x-hex: hold it to the same rule as the decoded representation. The try/catch is strictly for arrayify(),
-    // which throws on odd-length ("0xabc") and non-hex ("0xnothex") input; the recursive validate() call operates
-    // on bytes and cannot throw. utils.isHexString() would not be a sufficient guard on its own, since it accepts
-    // odd-length hex that arrayify still rejects. This mirrors isValidEvmAddress() above.
+    // arrayify throws on odd-length and non-hex input.
+    let rawAddress: Uint8Array;
     try {
-      return TvmAddress.validate(utils.arrayify(address));
+      rawAddress = utils.arrayify(address);
     } catch {
       return false;
     }
+
+    return TvmAddress.validate(rawAddress);
   }
 
   override isTVM(): this is TvmAddress {
