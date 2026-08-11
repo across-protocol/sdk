@@ -67,6 +67,13 @@ describe("SVM fill event association", () => {
     },
   });
 
+  const requestSlowFillEvent = (relay: RelayDataWithMessageHash): DecodedEvent<RelayEventName> => {
+    const fill = fillEvent(relay);
+    if (fill.name !== "FilledRelay") throw new Error("fillEvent() must produce a FilledRelay event");
+    const { relayer: _relayer, repaymentChainId: _repaymentChainId, relayExecutionInfo: _info, ...data } = fill.data;
+    return { name: "RequestedSlowFill", data };
+  };
+
   // Exercise the real association pipeline against a stubbed event source by shadowing the private
   // queryAllEvents member at runtime. Object.create() returns `any` and Object.assign() merges the stubbed
   // members without reference to the class's private declarations, so no type assertions are needed.
@@ -123,5 +130,23 @@ describe("SVM fill event association", () => {
 
     expect(status).to.equal(FillStatus.Unfilled);
     expect(filled).to.equal(FillStatus.Filled);
+  });
+
+  // UMIP-179: a fill takes precedence over a slow fill request irrespective of event ordering. The stub
+  // assigns slots by array index, so the request lands in a later slot than the fill here; slot ordering
+  // must not resolve the status to RequestedSlowFill.
+  it("resolves Filled when both a fill and a slow fill request are present", async () => {
+    const expected = relayData(3);
+
+    const status = await relayFillStatus(
+      program,
+      expected,
+      destinationChainId,
+      client([fillEvent(expected), requestSlowFillEvent(expected)]),
+      spyLogger,
+      100
+    );
+
+    expect(status).to.equal(FillStatus.Filled);
   });
 });

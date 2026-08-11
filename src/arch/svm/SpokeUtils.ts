@@ -1036,19 +1036,14 @@ async function resolveFillStatusFromPdaEvents(
     { toSlot, fillStatusPda }
   );
 
-  // Sort events in ascending order of slot number
-  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
-
-  // At this point we have an ordered array of only fill and requested slow fill events and
-  // since it's not possible to submit a slow fill request once a fill has been submitted,
-  // we can use the last event in the list to determine the fill status at the requested slot.
-  const fillStatusEvent = relevantEvents.pop();
-  if (!isDefined(fillStatusEvent)) {
-    // No fill or requested slow fill events found for this PDA
-    return FillStatus.Unfilled;
+  // A fill takes precedence over a slow fill request irrespective of event ordering (UMIP-179): a relay
+  // cannot be filled twice and a slow fill request cannot follow a fill, so any FilledRelay event is
+  // authoritative. Slot ordering is not a reliable discriminator, since both events may land in the same slot.
+  if (relevantEvents.some(({ name }) => name === SVMEventNames.FilledRelay)) {
+    return FillStatus.Filled;
   }
 
-  return fillStatusEvent.name === SVMEventNames.FilledRelay ? FillStatus.Filled : FillStatus.RequestedSlowFill;
+  return relevantEvents.length > 0 ? FillStatus.RequestedSlowFill : FillStatus.Unfilled;
 }
 
 /**
