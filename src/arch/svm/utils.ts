@@ -1,4 +1,11 @@
-import { MessageTransmitterClient, SvmSpokeClient, SvmSpokeIdl } from "@across-protocol/contracts";
+import {
+  MessageTransmitterClient,
+  MessageTransmitterIdl,
+  SvmSpokeClient,
+  SvmSpokeIdl,
+  TokenMessengerMinterClient,
+  TokenMessengerMinterIdl,
+} from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
@@ -150,6 +157,86 @@ const svmSpokeEventDecoders: Record<EventName, () => Decoder<EventData>> = {
  * corresponding decoder generated from the program, so the decoded data matches the generated event types.
  * Events that cannot be identified are rejected.
  */
+// Per-program maps of CCTP event name to the event data type generated from the program. The decoder tables
+// below are typed against these maps, so a decoder registered under the wrong name is a compile error (up to
+// structural identity), and the completeness of each table against its IDL is pinned by a unit test.
+interface TokenMessengerMinterEvents {
+  OwnershipTransferStarted: TokenMessengerMinterClient.OwnershipTransferStarted;
+  OwnershipTransferred: TokenMessengerMinterClient.OwnershipTransferred;
+  DepositForBurn: TokenMessengerMinterClient.DepositForBurn;
+  MintAndWithdraw: TokenMessengerMinterClient.MintAndWithdraw;
+  RemoteTokenMessengerAdded: TokenMessengerMinterClient.RemoteTokenMessengerAdded;
+  RemoteTokenMessengerRemoved: TokenMessengerMinterClient.RemoteTokenMessengerRemoved;
+  SetTokenController: TokenMessengerMinterClient.SetTokenController;
+  PauserChanged: TokenMessengerMinterClient.PauserChanged;
+  SetBurnLimitPerMessage: TokenMessengerMinterClient.SetBurnLimitPerMessage;
+  LocalTokenAdded: TokenMessengerMinterClient.LocalTokenAdded;
+  LocalTokenRemoved: TokenMessengerMinterClient.LocalTokenRemoved;
+  TokenPairLinked: TokenMessengerMinterClient.TokenPairLinked;
+  TokenPairUnlinked: TokenMessengerMinterClient.TokenPairUnlinked;
+  Pause: TokenMessengerMinterClient.Pause;
+  Unpause: TokenMessengerMinterClient.Unpause;
+  TokenCustodyBurned: TokenMessengerMinterClient.TokenCustodyBurned;
+}
+
+interface MessageTransmitterEvents {
+  OwnershipTransferStarted: MessageTransmitterClient.OwnershipTransferStarted;
+  OwnershipTransferred: MessageTransmitterClient.OwnershipTransferred;
+  PauserChanged: MessageTransmitterClient.PauserChanged;
+  AttesterManagerUpdated: MessageTransmitterClient.AttesterManagerUpdated;
+  MessageReceived: MessageTransmitterClient.MessageReceived;
+  SignatureThresholdUpdated: MessageTransmitterClient.SignatureThresholdUpdated;
+  AttesterEnabled: MessageTransmitterClient.AttesterEnabled;
+  AttesterDisabled: MessageTransmitterClient.AttesterDisabled;
+  MaxMessageBodySizeUpdated: MessageTransmitterClient.MaxMessageBodySizeUpdated;
+  Pause: MessageTransmitterClient.Pause;
+  Unpause: MessageTransmitterClient.Unpause;
+}
+
+const tokenMessengerMinterEventDecoders: {
+  [N in keyof TokenMessengerMinterEvents]: () => Decoder<TokenMessengerMinterEvents[N]>;
+} = {
+  OwnershipTransferStarted: TokenMessengerMinterClient.getOwnershipTransferStartedDecoder,
+  OwnershipTransferred: TokenMessengerMinterClient.getOwnershipTransferredDecoder,
+  DepositForBurn: TokenMessengerMinterClient.getDepositForBurnDecoder,
+  MintAndWithdraw: TokenMessengerMinterClient.getMintAndWithdrawDecoder,
+  RemoteTokenMessengerAdded: TokenMessengerMinterClient.getRemoteTokenMessengerAddedDecoder,
+  RemoteTokenMessengerRemoved: TokenMessengerMinterClient.getRemoteTokenMessengerRemovedDecoder,
+  SetTokenController: TokenMessengerMinterClient.getSetTokenControllerDecoder,
+  PauserChanged: TokenMessengerMinterClient.getPauserChangedDecoder,
+  SetBurnLimitPerMessage: TokenMessengerMinterClient.getSetBurnLimitPerMessageDecoder,
+  LocalTokenAdded: TokenMessengerMinterClient.getLocalTokenAddedDecoder,
+  LocalTokenRemoved: TokenMessengerMinterClient.getLocalTokenRemovedDecoder,
+  TokenPairLinked: TokenMessengerMinterClient.getTokenPairLinkedDecoder,
+  TokenPairUnlinked: TokenMessengerMinterClient.getTokenPairUnlinkedDecoder,
+  Pause: TokenMessengerMinterClient.getPauseDecoder,
+  Unpause: TokenMessengerMinterClient.getUnpauseDecoder,
+  TokenCustodyBurned: TokenMessengerMinterClient.getTokenCustodyBurnedDecoder,
+};
+
+const messageTransmitterEventDecoders: {
+  [N in keyof MessageTransmitterEvents]: () => Decoder<MessageTransmitterEvents[N]>;
+} = {
+  OwnershipTransferStarted: MessageTransmitterClient.getOwnershipTransferStartedDecoder,
+  OwnershipTransferred: MessageTransmitterClient.getOwnershipTransferredDecoder,
+  PauserChanged: MessageTransmitterClient.getPauserChangedDecoder,
+  AttesterManagerUpdated: MessageTransmitterClient.getAttesterManagerUpdatedDecoder,
+  MessageReceived: MessageTransmitterClient.getMessageReceivedDecoder,
+  SignatureThresholdUpdated: MessageTransmitterClient.getSignatureThresholdUpdatedDecoder,
+  AttesterEnabled: MessageTransmitterClient.getAttesterEnabledDecoder,
+  AttesterDisabled: MessageTransmitterClient.getAttesterDisabledDecoder,
+  MaxMessageBodySizeUpdated: MessageTransmitterClient.getMaxMessageBodySizeUpdatedDecoder,
+  Pause: MessageTransmitterClient.getPauseDecoder,
+  Unpause: MessageTransmitterClient.getUnpauseDecoder,
+};
+
+// Codama decoders for the CCTP programs consumed through SvmCpiEventsClient, keyed by program (IDL) address.
+// Exported for the table-completeness unit tests.
+export const cctpEventDecoders: Record<string, Record<string, () => Decoder<unknown>> | undefined> = {
+  [TokenMessengerMinterIdl.address]: tokenMessengerMinterEventDecoders,
+  [MessageTransmitterIdl.address]: messageTransmitterEventDecoders,
+};
+
 export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
   // The generated decoders only apply to SvmSpoke events; any other program's events (e.g. the CCTP
   // TokenMessengerMinter and MessageTransmitter programs) are decoded generically below.
@@ -167,6 +254,19 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: 
 
     // Skip the discriminator; the event data follows it.
     return { name, data: svmSpokeEventDecoders[name]().decode(rawEventData, discriminator.length) };
+  }
+
+  // CCTP programs: decode with the generated codama decoders so that the decoded data matches the generated
+  // event types. Events missing from a decoder table fall through to the generic Anchor path below.
+  const decoders = cctpEventDecoders[idl.address];
+  if (isDefined(decoders)) {
+    const rawEventData = getBase64Encoder().encode(rawEvent);
+    const discriminator = rawEventData.subarray(0, 8);
+    const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
+    const decoder = isDefined(name) ? decoders[name] : undefined;
+    if (isDefined(name) && isDefined(decoder)) {
+      return { name, data: decoder().decode(rawEventData, discriminator.length) };
+    }
   }
 
   const event = new BorshEventCoder(idl).decode(rawEvent);
