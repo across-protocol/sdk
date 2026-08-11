@@ -972,29 +972,48 @@ export async function getAssociatedTokenAddress(
   return associatedToken;
 }
 
+// getRelayDataHash() is the SVM-specific implementation backing the chain-dispatching getRelayDataHash() in
+// src/utils/SpokeUtils.ts.
 export function getRelayDataHash(relayData: RelayData & { messageHash: string }, destinationChainId: number): string {
   assert(relayData.messageHash.startsWith("0x"), "Message hash must be a hex string");
+  const messageHash = Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex"));
+  return hashRelayData(toSvmRelayData(relayData), messageHash, destinationChainId);
+}
 
+// The relay data hash never covers the message itself: the SvmSpoke hashes relay data with the message replaced
+// by messageHash, so that the hash can be reconstructed from events, which carry only messageHash. The message
+// is therefore not accepted as an input here. The RelayData encoder requires one, so encode an empty placeholder
+// and splice messageHash into its position (the message is the final RelayData field), matching the SvmSpoke:
+// https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/merkle_proof_utils.rs#L5
+function hashRelayData(
+  relayData: Omit<SvmSpokeClient.RelayDataArgs, "message">,
+  messageHash: Uint8Array,
+  destinationChainId: number
+): string {
   const uint64Encoder = getU64Encoder();
+  const encodedRelayData = SvmSpokeClient.getRelayDataEncoder().encode({ ...relayData, message: new Uint8Array(0) });
 
-  const svmRelayData = toSvmRelayData(relayData);
-  const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
-  const encodedRelayData = relayDataEncoder.encode(svmRelayData);
-  const encodedMessage = Buffer.from(relayData.message.slice(2), "hex");
-  const encodedMessageHash = Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex"));
-
-  // Reformat the encoded relay data the same way it is done in the SvmSpoke:
-  // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/merkle_proof_utils.rs#L5
-  // We want to use messageHash always so we can construct the relayDataHash just from the Fill.
-  // If we don't have a message, we can just pass an empty message here.
-  const messageOffset = encodedRelayData.length - 4 - encodedMessage.length;
+  const messageOffset = encodedRelayData.length - 4; // Strip the empty message (its 4-byte u32 length prefix).
   const contentToHash = Buffer.concat([
     encodedRelayData.slice(0, messageOffset),
-    encodedMessageHash,
+    messageHash,
     Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
 
   return keccak256(contentToHash);
+}
+
+// Relay data as embedded in SVM relay events (FilledRelay, RequestedSlowFill): the native RelayData with the
+// message replaced by its hash. Events never carry the message itself; messageHash is the commitment, and the
+// message must be reconciled against the corresponding deposit. Both relay event types satisfy this shape.
+export type SvmRelayEventData = Omit<SvmSpokeClient.RelayData, "message"> & { messageHash: ReadonlyUint8Array };
+
+/**
+ * Computes the relay data hash for the relay data embedded in a FilledRelay or RequestedSlowFill event. This is
+ * the same hash the relay's fillStatus PDA is derived from, so it identifies which relay an event belongs to.
+ */
+export function getRelayDataHashFromEvent(event: SvmRelayEventData, destinationChainId: number): string {
+  return hashRelayData(event, Uint8Array.from(event.messageHash), destinationChainId);
 }
 
 async function resolveFillStatusFromPdaEvents(
