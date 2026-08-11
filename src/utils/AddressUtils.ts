@@ -127,14 +127,17 @@ export function isValidEvmAddress(address: string): boolean {
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
 export function toAddressType(address: string, chainId: number): Address {
-  const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
-
   // Validate before constructing so a malformed value (which may originate from unverified on-chain event data)
   // falls through to a non-throwing RawAddress, matching the EVM/SVM branches. The TVM branch validates the input
   // string rather than rawAddress: for a TRON address bs58.decode yields the 25-byte Base58Check payload
   // (0x41 prefix + address + checksum), not the canonical address, so rawAddress is the wrong input here.
   if (chainIsTvm(chainId) && TvmAddress.validate(address)) return TvmAddress.from(address);
-  else if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
+
+  // Decode only after the TVM case has concluded. TVM never consumes rawAddress, and decoding eagerly throws on the
+  // 41-prefixed hex form of a TRON address: it is valid per TvmAddress.validate(), but is not valid base58, since
+  // the alphabet excludes '0'.
+  const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
+  if (chainIsEvm(chainId) && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   else if (chainIsSvm(chainId) && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
 
   return new RawAddress(rawAddress);

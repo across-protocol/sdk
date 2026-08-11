@@ -388,6 +388,21 @@ describe("Address Utils: Address Type", function () {
         expect(addr).to.be.instanceOf(TvmAddress);
         expect(addr.toNative()).to.equal(tronBase58);
       });
+
+      it("Returns a TvmAddress for 41-prefixed hex input that is not valid base58", function () {
+        // Fixed rather than random: this hex ends in '0', which the base58 alphabet excludes. Decoding rawAddress
+        // before the TVM branch had concluded therefore threw "Non-base58 character" on a perfectly valid TVM
+        // address. A random fixture would only trip that path ~92% of the time.
+        const hex41 = "41e552f6487585c2b58bc2c9bb4492bc1f17132cd0";
+        const expected = "TWsm8HtU2A5eEzoT8ev8yaoFjHsXLLrckb";
+        expect(TronWeb.address.fromHex(hex41)).to.equal(expected);
+        expect(TvmAddress.validate(hex41)).to.be.true;
+        expect(() => bs58.decode(hex41)).to.throw(/Non-base58 character/);
+
+        const addr = toAddressType(hex41, CHAIN_IDs.TRON);
+        expect(addr).to.be.instanceOf(TvmAddress);
+        expect(addr.toNative()).to.equal(expected);
+      });
     });
 
     describe("eq", function () {
