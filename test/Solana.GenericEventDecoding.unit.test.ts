@@ -166,7 +166,9 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
     ];
 
     // Exercise the real queryDerivedAddressEvents() implementation against a stubbed event source by
-    // shadowing the private queryAllEvents member at runtime (see the relay association tests).
+    // shadowing the private queryAllEvents member at runtime. Object.create() returns `any` and
+    // Object.assign() merges the stubbed members without reference to the class's private declarations,
+    // so no type assertions are needed.
     const stub: SvmCpiEventsClient = Object.create(SvmCpiEventsClient.prototype);
     Object.assign(stub, {
       queryAllEvents: (): Promise<RawEventWithData[]> =>
@@ -174,6 +176,7 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
           events.map((decoded, index) => ({
             ...decoded,
             slot: BigInt(index),
+            // A valid-form (all-zero-bytes) signature; the filtering logic never inspects it.
             signature: signature("1".repeat(64)),
             blockTime: null,
             confirmationStatus: "confirmed",
