@@ -7,7 +7,7 @@ import {
 } from "@across-protocol/contracts";
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import { type ReadonlyUint8Array } from "@solana/kit";
-import { cctpEventDecoders, decodeEvent, getRandomSvmAddress, parseEventData } from "../src/arch/svm";
+import { cctpPrograms, decodeEvent, getRandomSvmAddress, parseEventData } from "../src/arch/svm";
 import { expect } from "./utils";
 
 // Decode through the legacy pipeline (generic Anchor coder + parseEventData) for differential comparison.
@@ -28,12 +28,50 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
   it("registers a decoder for every CCTP IDL event", () => {
     const cctpIdls: Idl[] = [TokenMessengerMinterIdl, MessageTransmitterIdl];
     for (const idl of cctpIdls) {
-      const decoders = cctpEventDecoders[idl.address];
-      expect(decoders, idl.address).to.not.equal(undefined);
-      const tableNames = Object.keys(decoders ?? {}).sort();
+      const program = cctpPrograms[idl.address];
+      expect(program, idl.address).to.not.equal(undefined);
+      const tableNames = Object.keys(program?.eventDecoders ?? {}).sort();
       const idlNames = (idl.events ?? []).map((event) => event.name).sort();
       expect(tableNames).to.deep.equal(idlNames);
     }
+  });
+
+  // A program address is retained across IDL upgrades, so the bundled decoders must only apply when the
+  // supplied IDL's schema actually matches the bundled one. A drifted CCTP IDL (here: DepositForBurn gains a
+  // trailing field) must decode per the *supplied* IDL via the generic path - the bundled decoder would
+  // silently drop the new field.
+  it("decodes per the supplied IDL when a CCTP schema has drifted from the bundled one", () => {
+    const drifted: Idl = JSON.parse(JSON.stringify(TokenMessengerMinterIdl));
+    const depositForBurn = (drifted.types ?? []).find((type) => type.name === "DepositForBurn");
+    expect(depositForBurn).to.not.equal(undefined);
+    if (depositForBurn?.type.kind === "struct" && Array.isArray(depositForBurn.type.fields)) {
+      depositForBurn.type.fields.push({ name: "new_field", type: "u64" });
+    }
+
+    const payload = TokenMessengerMinterClient.getDepositForBurnEncoder().encode({
+      nonce: 1n,
+      burnToken: getRandomSvmAddress(),
+      amount: 9n,
+      depositor: getRandomSvmAddress(),
+      mintRecipient: getRandomSvmAddress(),
+      destinationDomain: 1,
+      destinationTokenMessenger: getRandomSvmAddress(),
+      destinationCaller: getRandomSvmAddress(),
+    });
+    const newField = Buffer.alloc(8);
+    newField.writeBigUInt64LE(777n);
+    const rawEvent = encodeEvent(drifted, "DepositForBurn", Buffer.concat([Buffer.from(payload), newField]));
+
+    const decoded = decodeEvent(drifted, rawEvent);
+    expect(decoded.name).to.equal("DepositForBurn");
+    expect(decoded.data).to.deep.include({ newField: 777n });
+  });
+
+  it("rejects a supplied SvmSpoke IDL whose schema has drifted from the bundled one", () => {
+    const drifted: Idl = JSON.parse(JSON.stringify(SvmSpokeIdl));
+    (drifted.events ?? []).pop();
+    const bogus = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9]).toString("base64");
+    expect(() => decodeEvent(drifted, bogus)).to.throw(/does not match the bundled SvmSpoke IDL/);
   });
 
   // The codama decoders must produce the same consumer-visible data as the legacy Anchor + parseEventData

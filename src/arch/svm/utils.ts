@@ -230,17 +230,45 @@ const messageTransmitterEventDecoders: {
   Unpause: MessageTransmitterClient.getUnpauseDecoder,
 };
 
-// Codama decoders for the CCTP programs consumed through SvmCpiEventsClient, keyed by program (IDL) address.
-// Exported for the table-completeness unit tests.
-export const cctpEventDecoders: Record<string, Record<string, () => Decoder<unknown>> | undefined> = {
-  [TokenMessengerMinterIdl.address]: tokenMessengerMinterEventDecoders,
-  [MessageTransmitterIdl.address]: messageTransmitterEventDecoders,
+// Codama decoders for the CCTP programs consumed through SvmCpiEventsClient, keyed by program (IDL) address,
+// alongside the bundled IDL each decoder set was generated from. Exported for the table-completeness unit tests.
+export const cctpPrograms: Record<
+  string,
+  { idl: Idl; eventDecoders: Record<string, () => Decoder<unknown>> } | undefined
+> = {
+  [TokenMessengerMinterIdl.address]: { idl: TokenMessengerMinterIdl, eventDecoders: tokenMessengerMinterEventDecoders },
+  [MessageTransmitterIdl.address]: { idl: MessageTransmitterIdl, eventDecoders: messageTransmitterEventDecoders },
 };
+
+// A program address is retained across program (IDL) upgrades, so it does not by itself prove that the bundled
+// decoders match a caller-supplied IDL: an event with an unchanged name/discriminator but an updated payload
+// layout would silently decode into shifted fields. Verify the schema itself (events + types), cached per IDL
+// instance since IDLs are module-level constants.
+const bundledIdlMatches = new WeakMap<Idl, boolean>();
+function matchesBundledIdl(idl: Idl, bundled: Idl): boolean {
+  if (idl === bundled) {
+    return true;
+  }
+  let match = bundledIdlMatches.get(idl);
+  if (match === undefined) {
+    const schema = ({ events, types }: Idl) => JSON.stringify({ events, types });
+    match = schema(idl) === schema(bundled);
+    bundledIdlMatches.set(idl, match);
+  }
+  return match;
+}
 
 export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
   // The generated decoders only apply to SvmSpoke events; any other program's events (e.g. the CCTP
   // TokenMessengerMinter and MessageTransmitter programs) are decoded generically below.
   if (idl.address === SvmSpokeIdl.address) {
+    // A supplied SvmSpoke IDL whose schema has drifted from the bundled one must never be decoded with the
+    // bundled decoders (shifted fields), and downstream consumers rely on the generated types, so the generic
+    // path is not a safe fallback either: fail loudly.
+    assert(
+      matchesBundledIdl(idl, SvmSpokeIdl),
+      "decodeEvent: supplied SvmSpoke IDL does not match the bundled SvmSpoke IDL"
+    );
     // Decode to a plain Uint8Array, not a Buffer: the generated decoders slice their input to populate byte-array
     // fields, and slicing a Buffer yields a Buffer, whose toString() and JSON serialisation differ from the
     // Uint8Array that the generated types promise.
@@ -257,13 +285,14 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: 
   }
 
   // CCTP programs: decode with the generated codama decoders so that the decoded data matches the generated
-  // event types. Events missing from a decoder table fall through to the generic Anchor path below.
-  const decoders = cctpEventDecoders[idl.address];
-  if (isDefined(decoders)) {
+  // event types. Events missing from a decoder table, or a supplied IDL whose schema has drifted from the
+  // bundled one, fall through to the generic Anchor path below, which decodes per the supplied IDL.
+  const cctpProgram = cctpPrograms[idl.address];
+  if (isDefined(cctpProgram) && matchesBundledIdl(idl, cctpProgram.idl)) {
     const rawEventData = getBase64Encoder().encode(rawEvent);
     const discriminator = rawEventData.subarray(0, 8);
     const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
-    const decoder = isDefined(name) ? decoders[name] : undefined;
+    const decoder = isDefined(name) ? cctpProgram.eventDecoders[name] : undefined;
     if (isDefined(name) && isDefined(decoder)) {
       return { name, data: decoder().decode(rawEventData, discriminator.length) };
     }
