@@ -139,6 +139,34 @@ export class SvmCpiEventsClient {
   }
 
   /**
+   * Queries events for the provided derived address, filtered by event name. This is the generic query for
+   * programs without SpokePool-specific handling (e.g. the CCTP TokenMessengerMinter and MessageTransmitter).
+   *
+   * note: The returned events are scoped to *transactions* referencing the derived address; any event emitted
+   * by such a transaction is returned, whether or not the event pertains to the derived address (e.g. a
+   * batched fill emits events for many relays, all of which are returned for each relay's fillStatus PDA).
+   * Callers must associate events with the derived address themselves; for SvmSpoke relay events, prefer
+   * queryEventsForRelay(), which does this association by relay data hash.
+   *
+   * @param eventName - The name of the event to filter by.
+   * @param derivedAddress - The derived address whose referencing transactions are queried.
+   * @param fromSlot - Optional starting slot.
+   * @param toSlot - Optional ending slot.
+   * @param options - Options for fetching signatures.
+   * @returns A promise that resolves to an array of events matching the eventName.
+   */
+  public async queryDerivedAddressEvents(
+    eventName: string,
+    derivedAddress: Address,
+    fromSlot?: bigint,
+    toSlot?: bigint,
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
+  ): Promise<RawEventWithData[]> {
+    const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
+    return events.filter((event) => event.name === eventName);
+  }
+
+  /**
    * Queries all events for a specific program.
    *
    * @param fromSlot - Optional starting slot.

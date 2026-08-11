@@ -6,8 +6,16 @@ import {
   TokenMessengerMinterIdl,
 } from "@across-protocol/contracts";
 import { BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { type ReadonlyUint8Array } from "@solana/kit";
-import { cctpPrograms, decodeEvent, getRandomSvmAddress, parseEventData } from "../src/arch/svm";
+import { signature, type ReadonlyUint8Array } from "@solana/kit";
+import {
+  cctpPrograms,
+  decodeEvent,
+  getRandomSvmAddress,
+  parseEventData,
+  RawDecodedEvent,
+  RawEventWithData,
+  SvmCpiEventsClient,
+} from "../src/arch/svm";
 import { expect } from "./utils";
 
 // Decode through the legacy pipeline (generic Anchor coder + parseEventData) for differential comparison.
@@ -145,5 +153,38 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
   it("continues to reject unknown SvmSpoke events", () => {
     const bogus = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9]).toString("base64");
     expect(() => decodeEvent(SvmSpokeIdl, bogus)).to.throw(/unknown SvmSpoke event/);
+  });
+
+  // Regression: the relayer queries CCTP events via queryDerivedAddressEvents() with plain string event
+  // names (e.g. "DepositForBurn" against the message sent event PDA). Non-SvmSpoke events carry no typed
+  // name, so the method must accept any event name and return raw (untyped) events.
+  it("queries derived-address events for non-SvmSpoke programs by name", async () => {
+    const program = getRandomSvmAddress();
+    const events: RawDecodedEvent[] = [
+      { name: "DepositForBurn", data: { nonce: 1n } },
+      { name: "MintAndWithdraw", data: { amount: 2n } },
+    ];
+
+    // Exercise the real queryDerivedAddressEvents() implementation against a stubbed event source by
+    // shadowing the private queryAllEvents member at runtime (see the relay association tests).
+    const stub: SvmCpiEventsClient = Object.create(SvmCpiEventsClient.prototype);
+    Object.assign(stub, {
+      queryAllEvents: (): Promise<RawEventWithData[]> =>
+        Promise.resolve(
+          events.map((decoded, index) => ({
+            ...decoded,
+            slot: BigInt(index),
+            signature: signature("1".repeat(64)),
+            blockTime: null,
+            confirmationStatus: "confirmed",
+            program,
+          }))
+        ),
+    });
+
+    const matched = await stub.queryDerivedAddressEvents("DepositForBurn", getRandomSvmAddress());
+    expect(matched.length).to.equal(1);
+    expect(matched[0].name).to.equal("DepositForBurn");
+    expect(matched[0].data).to.deep.equal({ nonce: 1n });
   });
 });
