@@ -10,11 +10,19 @@ import {
   GetTransactionApi,
   Signature,
 } from "@solana/kit";
-import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
-import { EventName, EventWithData, RawDecodedEvent, RawEventWithData, SVMEventNames, SVMProvider } from "./types";
+import { bs58, chainIsSvm, getMessageHash, isDefined } from "../../utils";
+import {
+  DecodedEvent,
+  EventName,
+  EventWithData,
+  RawDecodedEvent,
+  RawEventWithData,
+  SVMEventNames,
+  SVMProvider,
+} from "./types";
 import { decodeEvent, getFillStatusPda, isDevnet } from "./utils";
-import { Deposit, DepositWithTime, Fill, FillWithTime, RelayDataWithMessageHash } from "../../interfaces";
-import { getRelayDataHash, getRelayDataHashFromEvent, unwrapEventData } from "./";
+import { DepositWithTime, FillWithTime, RelayDataWithMessageHash } from "../../interfaces";
+import { depositFromEvent, fillFromEvent, getRelayDataHash, getRelayDataHashFromEvent } from "./";
 import assert from "assert";
 
 /**
@@ -329,37 +337,18 @@ export class SvmCpiEventsClient {
     ]);
 
     // Filter for FundsDeposited events only
-    const depositEvents = events?.filter((event) => event?.name === SVMEventNames.FundsDeposited);
+    const depositEvents = events?.filter(
+      (event): event is { program: Address } & DecodedEvent<"FundsDeposited"> =>
+        event.name === SVMEventNames.FundsDeposited
+    );
     if (!txDetails || !depositEvents?.length) {
       return;
     }
 
-    return depositEvents.map((event) => {
-      const data = unwrapEventData<
-        Deposit & {
-          depositor: string;
-          recipient: string;
-          exclusiveRelayer: string;
-          inputToken: string;
-          outputToken: string;
-        }
-      >(event.data, ["depositId", "outputAmount"]);
-      return {
-        ...data,
-        depositor: toAddressType(data.depositor, data.originChainId),
-        recipient: toAddressType(data.recipient, data.destinationChainId),
-        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
-        inputToken: toAddressType(data.inputToken, data.originChainId),
-        outputToken: toAddressType(data.outputToken, data.destinationChainId),
-        depositTimestamp: Number(txDetails.blockTime),
-        originChainId,
-        messageHash: getMessageHash(data.message),
-        blockNumber: Number(txDetails.slot),
-        txnIndex: 0,
-        txnRef: txSignature,
-        logIndex: 0,
-      } satisfies DepositEventFromSignature;
-    });
+    return depositEvents.map((event) => ({
+      ...depositFromEvent(event.data, originChainId, { slot: txDetails.slot, signature: txSignature }),
+      depositTimestamp: Number(txDetails.blockTime),
+    }));
   }
 
   /**
@@ -389,37 +378,18 @@ export class SvmCpiEventsClient {
     ]);
 
     // Filter for FilledRelay events only
-    const fillEvents = events?.filter((event) => event?.name === SVMEventNames.FilledRelay);
+    const fillEvents = events?.filter(
+      (event): event is { program: Address } & DecodedEvent<"FilledRelay"> => event.name === SVMEventNames.FilledRelay
+    );
 
     if (!txDetails || !fillEvents?.length) {
       return;
     }
 
-    return fillEvents.map((event) => {
-      const data = unwrapEventData<
-        Fill & {
-          depositor: string;
-          recipient: string;
-          exclusiveRelayer: string;
-          inputToken: string;
-          outputToken: string;
-        }
-      >(event.data, ["depositId", "inputAmount"]);
-      return {
-        ...data,
-        depositor: toAddressType(data.depositor, data.originChainId),
-        recipient: toAddressType(data.recipient, data.destinationChainId),
-        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
-        inputToken: toAddressType(data.inputToken, data.originChainId),
-        outputToken: toAddressType(data.outputToken, data.destinationChainId),
-        fillTimestamp: Number(txDetails.blockTime),
-        blockNumber: Number(txDetails.slot),
-        txnRef: txSignature,
-        txnIndex: 0,
-        logIndex: 0,
-        destinationChainId,
-      } satisfies FillEventFromSignature;
-    });
+    return fillEvents.map((event) => ({
+      ...fillFromEvent(event.data, destinationChainId, { slot: txDetails.slot, signature: txSignature }),
+      fillTimestamp: Number(txDetails.blockTime),
+    }));
   }
 
   public getProgramAddress(): Address {

@@ -33,8 +33,8 @@ import {
 import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { RelayData, RelayDataWithMessageHash } from "../../interfaces";
+import { BigNumber, Address as SdkAddress, getMessageHash, isDefined } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
@@ -386,10 +386,9 @@ function unwrapEventDataInner(
     }
     return BigNumber.from(data);
   }
-  // Handle Uint8Array and byte arrays
-  if (data instanceof Uint8Array || isUint8Array(data)) {
-    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
-    const hex = ethers.utils.hexlify(bytes);
+  // Handle byte arrays
+  if (data instanceof Uint8Array) {
+    const hex = ethers.utils.hexlify(data);
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
     }
@@ -405,22 +404,6 @@ function unwrapEventDataInner(
   }
   // Handle objects
   if (isUnwrappedRecord(data)) {
-    // Special case: if an object is in the context of the fillType key, then
-    // parse out the fillType from the object
-    if (currentKey === "fillType") {
-      const fillType = Object.keys(data)[0];
-      switch (fillType) {
-        case "FastFill":
-          return FillType.FastFill;
-        case "ReplacedSlowFill":
-          return FillType.ReplacedSlowFill;
-        case "SlowFill":
-          return FillType.SlowFill;
-        default:
-          throw new Error(`Unknown fill type: ${fillType}`);
-      }
-    }
-
     // Special case: if an object is empty, return 0x
     if (Object.keys(data).length === 0) {
       return "0x";
