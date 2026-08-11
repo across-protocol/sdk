@@ -12,9 +12,9 @@ import {
 } from "@solana/kit";
 import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
 import { EventName, EventWithData, RawDecodedEvent, RawEventWithData, SVMEventNames, SVMProvider } from "./types";
-import { decodeEvent, isDevnet } from "./utils";
-import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
-import { unwrapEventData } from "./";
+import { decodeEvent, getFillStatusPda, isDevnet } from "./utils";
+import { Deposit, DepositWithTime, Fill, FillWithTime, RelayDataWithMessageHash } from "../../interfaces";
+import { getRelayDataHash, getRelayDataHashFromEvent, unwrapEventData } from "./";
 import assert from "assert";
 
 /**
@@ -46,6 +46,9 @@ type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransa
 
 export type DepositEventFromSignature = Omit<DepositWithTime, "fromLiteChain" | "toLiteChain">;
 export type FillEventFromSignature = FillWithTime;
+
+// The events that embed the relay data of the relay they pertain to (see queryEventsForRelay()).
+export type RelayEventName = Extract<EventName, "FilledRelay" | "RequestedSlowFill">;
 
 export class SvmCpiEventsClient {
   private rpc: SVMProvider;
@@ -102,13 +105,57 @@ export class SvmCpiEventsClient {
   }
 
   /**
+   * Queries FilledRelay and/or RequestedSlowFill events pertaining to a specific relay.
+   *
+   * Events are located via the relay's fillStatus PDA, but Solana only indexes transactions by account, so the
+   * underlying query yields all program events from any transaction touching that PDA - including events for
+   * other relays (e.g. from batched fills). Each event is therefore associated back to the relay by its relay
+   * data hash, the same hash the fillStatus PDA is derived from; events belonging to other relays are dropped.
+   * Signatures are paginated to exhaustion within the slot bounds, so transactions spamming the PDA can add
+   * latency but cannot displace the relay's own events. A caller-supplied fillStatus PDA is likewise only a
+   * transaction locator: association is by relay data hash, so a stale or incorrect PDA can only yield missing
+   * events, never another relay's.
+   *
+   * @param relayData - Relay data identifying the relay to query events for.
+   * @param destinationChainId - Destination chain ID of the relay (must be an SVM chain).
+   * @param eventNames - The names of the events to filter by (FilledRelay and/or RequestedSlowFill).
+   * @param opts - Optional slot bounds, a precomputed fillStatus PDA and the commitment level (default:
+   * confirmed), which applies to both the signature listing and the transaction reads.
+   * @returns A promise that resolves to an array of events pertaining to the relay.
+   */
+  public async queryEventsForRelay(
+    relayData: RelayDataWithMessageHash,
+    destinationChainId: number,
+    eventNames: RelayEventName[],
+    opts: {
+      fromSlot?: bigint;
+      toSlot?: bigint;
+      fillStatusPda?: Address;
+      commitment?: Exclude<Commitment, "processed">;
+    } = {}
+  ): Promise<EventWithData<RelayEventName>[]> {
+    assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
+    const { commitment = "confirmed" } = opts;
+    const fillStatusPda =
+      opts.fillStatusPda ?? (await getFillStatusPda(this.programAddress, relayData, destinationChainId));
+    const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+    const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
+
+    const events = await this.queryAllEvents(opts.fromSlot, opts.toSlot, { limit: 1000, commitment }, fillStatusPda);
+    return events
+      .filter((event): event is EventWithData<RelayEventName> => eventNames.some((name) => name === event.name))
+      .filter((event) => getRelayDataHashFromEvent(event.data, destinationChainId) === relayDataHash);
+  }
+
+  /**
    * Queries events for the provided derived address, filtered by event name. This is the generic query for
    * programs without SpokePool-specific handling (e.g. the CCTP TokenMessengerMinter and MessageTransmitter).
    *
    * note: The returned events are scoped to *transactions* referencing the derived address; any event emitted
    * by such a transaction is returned, whether or not the event pertains to the derived address (e.g. a
    * batched fill emits events for many relays, all of which are returned for each relay's fillStatus PDA).
-   * Callers must associate events with the derived address themselves.
+   * Callers must associate events with the derived address themselves; for SvmSpoke relay events, prefer
+   * queryEventsForRelay(), which does this association by relay data hash.
    *
    * @param eventName - The name of the event to filter by.
    * @param derivedAddress - The derived address whose referencing transactions are queried.
@@ -175,7 +222,8 @@ export class SvmCpiEventsClient {
       return true;
     });
 
-    // Fetch events for all signatures in parallel.
+    // Fetch events for all signatures in parallel. Dispatch is unbounded, but request concurrency is bounded
+    // by the provider's rate-limiting queue (RateLimitedSolanaRpcFactory), mirroring the EVM provider layer.
     const eventsWithSlots = await Promise.all(
       filteredSignatures.map(async (signatureTransaction) => {
         const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);
