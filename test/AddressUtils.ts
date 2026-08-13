@@ -6,6 +6,7 @@ import {
   SvmAddress,
   TvmAddress,
   toAddressType,
+  tryToAddressType,
   isValidEvmAddress,
 } from "../src/utils";
 import { CHAIN_IDs } from "../src/constants";
@@ -486,5 +487,57 @@ describe("Address Utils: normalizeAddressString", function () {
   it("Returns undefined for malformed addresses", function () {
     expect(normalizeAddressString("not-an-address")).to.be.undefined;
     expect(normalizeAddressString("")).to.be.undefined;
+  });
+});
+
+describe("Address Utils: tryToAddressType", function () {
+  const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
+
+  // Every chain family shares the same decode step, so the throwing inputs are not TVM-specific.
+  const chains = [CHAIN_IDs.MAINNET, CHAIN_IDs.SOLANA, CHAIN_IDs.TRON];
+
+  // Inputs that toAddressType() throws on today: bs58.decode rejects non-base58, arrayify rejects odd-length
+  // and non-hex 0x input.
+  const undecodable = ["garbage!!!", "not-base58-0OIl", "0xabc", "0xnothex"];
+
+  it("Returns undefined instead of throwing for undecodable input", function () {
+    for (const chainId of chains) {
+      for (const address of undecodable) {
+        expect(() => toAddressType(address, chainId)).to.throw();
+        expect(() => tryToAddressType(address, chainId)).to.not.throw();
+        expect(tryToAddressType(address, chainId)).to.be.undefined;
+      }
+    }
+  });
+
+  it("Agrees with toAddressType for every decodable input", function () {
+    const cases: [string, number][] = [
+      [randomBytes(20), CHAIN_IDs.MAINNET],
+      [randomBytes(32), CHAIN_IDs.SOLANA],
+      [bs58.encode(ethers.utils.randomBytes(32)), CHAIN_IDs.SOLANA],
+      [randomBytes(20), CHAIN_IDs.TRON],
+      [TvmAddress.from(randomBytes(20)).toNative(), CHAIN_IDs.TRON],
+      [TronWeb.address.toHex(TvmAddress.from(randomBytes(20)).toNative()), CHAIN_IDs.TRON],
+    ];
+
+    for (const [address, chainId] of cases) {
+      const expected = toAddressType(address, chainId);
+      const actual = tryToAddressType(address, chainId);
+      expect(actual).to.not.be.undefined;
+      expect(actual!.constructor.name).to.equal(expected.constructor.name);
+      expect(actual!.toNative()).to.equal(expected.toNative());
+    }
+  });
+
+  it("Does not mask an already-decodable input that merely fails validation", function () {
+    // A 32-byte value with non-zero upper bytes decodes fine but is not a valid EVM/TVM address. That already
+    // falls through to RawAddress rather than throwing, so tryToAddressType must return it, not undefined.
+    const malformed = "0xff" + randomBytes(31).slice(2);
+    for (const chainId of [CHAIN_IDs.MAINNET, CHAIN_IDs.TRON]) {
+      const addr = tryToAddressType(malformed, chainId);
+      expect(addr).to.not.be.undefined;
+      expect(addr!.isEVM()).to.be.false;
+      expect(addr!.isTVM()).to.be.false;
+    }
   });
 });

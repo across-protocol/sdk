@@ -140,6 +140,27 @@ export function toAddressType(address: string, chainId: number): Address {
   return new RawAddress(rawAddress);
 }
 
+/**
+ * Total counterpart to `toAddressType()`. Returns undefined rather than throwing when the input cannot be decoded
+ * at all: `0x`-prefixed input that is odd-length or non-hex, and unprefixed input that is not valid base58.
+ *
+ * Use this at boundaries where the address string is unverified — config, CLI arguments, API parameters — and keep
+ * `toAddressType()` where a malformed address indicates a programming error and should surface loudly. Note that
+ * this does not make every input yield an address: it makes failure representable, which is the part callers
+ * handling untrusted input cannot currently express.
+ *
+ * @param address Stringified address type to convert. Can be either hex encoded or base58 encoded.
+ * @param chainId Chain ID for the intended use of the address.
+ * @returns a child `Address` type most fitting for the chain ID, or undefined if the input cannot be decoded.
+ */
+export function tryToAddressType(address: string, chainId: number): Address | undefined {
+  try {
+    return toAddressType(address, chainId);
+  } catch {
+    return undefined;
+  }
+}
+
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
 export abstract class Address {
