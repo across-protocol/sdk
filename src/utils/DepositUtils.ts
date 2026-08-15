@@ -19,6 +19,9 @@ import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUt
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
+import { utils as ethersUtils } from "ethers";
+import bs58 from "bs58";
+import { TronWeb } from "tronweb";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -194,7 +197,37 @@ export function validateFillForDeposit(
   // Note: this short circuits when a key is found where the comparison doesn't match.
   // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
   // validated against the fields in Fill and Deposit, generating an error if there is a discrepancy.
-  let invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
+  // Address fields must be compared family-agnostically.
+  // Address.toString() / toNative() is family-dependent (EVM checksummed hex vs TVM T... base58
+  // vs SVM base58). See AddressUtils.ts:221: "this is not an identity... Use eq()/compare()...".
+  // toBytes32() is family-agnostic (32-byte hex, base-class, not overridden) and is consistent
+  // across EvmAddress/SvmAddress/TvmAddress/RawAddress. Also handles cached string values
+  // (Address serialises via toJSON() -> native string) by re-deriving bytes32.
+  const ADDRESS_KEYS = new Set<string>(["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"]);
+  const toComparable = (key: string, v: unknown): string => {
+    const isAddressField = ADDRESS_KEYS.has(key);
+    if (isAddressField) {
+      if (typeof v === "string") {
+        const s = (v as string).trim();
+        if (!s) return s;
+        try {
+          if (s.startsWith("0x")) return ethersUtils.hexZeroPad(ethersUtils.hexStripZeros(s), 32).toLowerCase();
+          if (s.length === 34 && TronWeb.isAddress(s)) {
+            const hex = TronWeb.address.toHex(s);
+            return ethersUtils.hexZeroPad("0x" + hex.slice(2), 32).toLowerCase();
+          }
+          const decoded = bs58.decode(s);
+          if (decoded.length <= 32) return ethersUtils.hexZeroPad(ethersUtils.hexlify(decoded), 32).toLowerCase();
+        } catch {}
+        return s.toLowerCase();
+      }
+      if (v !== null && typeof v === "object" && "__address_type_brand" in (v as Record<string, unknown>)) {
+        return (v as { toBytes32(): string }).toBytes32();
+      }
+    }
+    return (v as { toString(): string }).toString();
+  };
+  let invalidKey = RELAYDATA_KEYS.find((key) => toComparable(key, relayData[key]) !== toComparable(key, deposit[key]));
 
   // There should be no paths for `messageHash` to be unset, but mask it off anyway.
   if (!isDefined(invalidKey) && [relayData.messageHash, deposit.messageHash].includes(UNDEFINED_MESSAGE_HASH)) {

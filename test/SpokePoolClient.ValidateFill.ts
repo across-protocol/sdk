@@ -550,4 +550,84 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("recipient mismatch")).to.be.true;
   });
+  it("Matches fills with deposits across different address families (family-agnostic comparison)", async function () {
+    // This test isolates validateFillForDeposit itself (not construction paths).
+    // Bypass toAddressType by injecting address objects of different families that share raw bytes.
+    // Old code using toString() would false-negative here; new code uses toBytes32() so it passes.
+    const { SvmAddress, TvmAddress, EvmAddress, RawAddress } = await import("../src/utils/AddressUtils");
+    const { utils } = await import("ethers");
+    const bs58 = await import("bs58");
+
+    // Use a 20-byte value that is valid as EVM and TVM, and use its 32-byte padded form for SVM.
+    const raw20 = "0x" + "ab".repeat(20);
+    const raw32Hex = utils.hexZeroPad(raw20, 32).toLowerCase();
+
+    // Build addresses of different families wrapping the SAME raw bytes
+    const evmAddr = EvmAddress.from(raw20);
+    const tvmAddr = TvmAddress.from(raw20);
+    // SVM needs 32 bytes with non-zero leading bytes; our raw32 has 12 zero leading bytes -> SvmAddress.validate would reject.
+    // Use a 32-byte value with non-zero prefix for SVM, and compare EVM vs Raw instead for the core assertion.
+    // For EVM vs TVM, both are 20-byte, so they share exact raw bytes -> strongest proof.
+    expect(evmAddr.toBytes32()).to.equal(tvmAddr.toBytes32());
+    expect(evmAddr.toString()).to.not.equal(tvmAddr.toString()); // doc says toString is not identity
+
+    // Construct minimal RelayData-like objects to exercise validateFillForDeposit directly
+    const baseRelay: any = {
+      depositId: toBN(1),
+      originChainId,
+      destinationChainId,
+      depositor: evmAddr,
+      recipient: evmAddr,
+      inputToken: evmAddr,
+      inputAmount: toBNWei(1),
+      outputToken: evmAddr,
+      outputAmount: toBNWei(1),
+      fillDeadline: Math.floor(Date.now() / 1000) + 3600,
+      exclusivityDeadline: 0,
+      exclusiveRelayer: EvmAddress.from("0x0000000000000000000000000000000000000000"),
+      messageHash: utils.keccak256("0x"),
+    };
+    const baseDeposit: any = {
+      ...baseRelay,
+      message: "0x",
+      messageHash: baseRelay.messageHash,
+      quoteTimestamp: Math.floor(Date.now() / 1000),
+      fromLiteChain: false,
+      toLiteChain: false,
+    };
+
+    // Same family — should pass (baseline)
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, { ...baseDeposit, depositor: evmAddr }).valid).to.be.true;
+
+    // Cross-family same bytes — OLD toString would fail, NEW toBytes32 must pass
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, { ...baseDeposit, depositor: tvmAddr }).valid).to.be.true;
+    expect(validateFillForDeposit({ ...baseRelay, recipient: tvmAddr }, { ...baseDeposit, recipient: evmAddr }).valid).to.be.true;
+    expect(validateFillForDeposit({ ...baseRelay, inputToken: tvmAddr }, { ...baseDeposit, inputToken: evmAddr }).valid).to.be.true;
+    expect(validateFillForDeposit({ ...baseRelay, outputToken: evmAddr }, { ...baseDeposit, outputToken: tvmAddr }).valid).to.be.true;
+    expect(validateFillForDeposit({ ...baseRelay, exclusiveRelayer: evmAddr }, { ...baseDeposit, exclusiveRelayer: tvmAddr }).valid).to.be.true;
+
+    // RawAddress (fallback family) vs EvmAddress same bytes — must also pass
+    const rawAddr = new RawAddress(utils.arrayify(raw32Hex));
+    expect(rawAddr.toBytes32()).to.equal(evmAddr.toBytes32());
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, { ...baseDeposit, depositor: rawAddr }).valid).to.be.true;
+
+    // Different bytes must still be rejected — prove we didn't make comparison too permissive
+    const other20 = "0x" + "cd".repeat(20);
+    const otherEvm = EvmAddress.from(other20);
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, { ...baseDeposit, depositor: otherEvm }).valid).to.be.false;
+    expect(validateFillForDeposit({ ...baseRelay, depositor: otherEvm }, { ...baseDeposit, depositor: evmAddr }).valid).to.be.false;
+
+    // Cached-string interop: deposit comes from JSON cache (Address.toJSON() -> native string)
+    // Simulate by using string instead of Address object for deposit side
+    const cachedDeposit = { ...baseDeposit, depositor: evmAddr.toString() as any }; // string, not Address
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, cachedDeposit).valid).to.be.true;
+    // Cached TVM string vs EVM object — same raw bytes, different native encodings -> must still match
+    const cachedTvmString = tvmAddr.toString();
+    expect(validateFillForDeposit({ ...baseRelay, depositor: evmAddr }, { ...baseDeposit, depositor: cachedTvmString as any }).valid).to.be.true;
+
+    // Non-address field mismatch must still be detected (sanity: we didn't break primitive comparison)
+    expect(validateFillForDeposit({ ...baseRelay, depositId: toBN(999) }, baseDeposit).valid).to.be.false;
+    expect(validateFillForDeposit({ ...baseRelay, inputAmount: toBNWei(999) }, baseDeposit).valid).to.be.false;
+  });
+
 });
