@@ -254,3 +254,121 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
     expect(response).to.deep.equal({ result: "ok" });
   });
 });
+
+// A minimal getTransaction envelope carrying the fields that arch/svm/eventsClient actually decodes events from.
+function getTransactionResponse(meta: Record<string, unknown> = {}, result: Record<string, unknown> = {}) {
+  return {
+    result: {
+      slot: 421829272,
+      blockTime: 1735689600,
+      transaction: { message: { accountKeys: ["SpokePool11111111111111111111111111111111", "EventAuth1111"] } },
+      meta: {
+        err: null,
+        loadedAddresses: { writable: [], readonly: [] },
+        innerInstructions: [{ index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "3Bxs4h" }] }],
+        ...meta,
+      },
+      ...result,
+    },
+  };
+}
+
+function resolvingTransport(response: unknown, onCall?: () => void): RpcTransport {
+  return (() => {
+    onCall?.();
+    return Promise.resolve(response);
+  }) as unknown as RpcTransport;
+}
+
+describe("QuorumFallbackSolanaRpcFactory getTransaction quorum", () => {
+  it("rejects a nodeQuorumThreshold larger than the provider set", () => {
+    expect(() => buildFactory([resolvingTransport(getTransactionResponse())], 2)).to.throw(
+      /must be <= the number of providers/
+    );
+  });
+
+  it("reaches quorum when providers differ only on optional, node-version-dependent metadata", async () => {
+    // A newer node reports compute units, stack heights and full logs; an older one omits them. Both describe
+    // the same transaction, so this must not fail quorum.
+    const verbose = getTransactionResponse({
+      computeUnitsConsumed: 42069,
+      logMessages: ["Program log: a", "Program log: b"],
+      rewards: [],
+      innerInstructions: [
+        { index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "3Bxs4h", stackHeight: 2 }] },
+      ],
+    });
+    const terse = getTransactionResponse();
+    const factory = buildFactory([resolvingTransport(verbose), resolvingTransport(terse)], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal(verbose);
+  });
+
+  it("fails quorum when providers disagree on the event instruction data", async () => {
+    // The forgery this quorum exists to catch: same shape, different CPI event payload.
+    const honest = getTransactionResponse();
+    const forged = getTransactionResponse({
+      innerInstructions: [{ index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "forged" }] }],
+    });
+    const factory = buildFactory([resolvingTransport(honest), resolvingTransport(forged)], 2);
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("fails quorum when providers disagree on blockTime", async () => {
+    // blockTime is consumed as depositTimestamp, so it is deliberately not normalised away.
+    const factory = buildFactory(
+      [
+        resolvingTransport(getTransactionResponse()),
+        resolvingTransport(getTransactionResponse({}, { blockTime: 1735689999 })),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("does not let providers missing the transaction outvote a provider that has it", async () => {
+    // Two pruned/lagging providers agree on null. That must not silently resolve to "no events" while an
+    // archival provider still holds the transaction.
+    let archivalCalled = false;
+    const present = getTransactionResponse();
+    const factory = buildFactory(
+      [
+        resolvingTransport({ result: null }),
+        resolvingTransport({ result: null }),
+        resolvingTransport(present, () => (archivalCalled = true)),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect(archivalCalled).to.equal(true);
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("returns a missing transaction once every provider agrees it is missing", async () => {
+    const factory = buildFactory([resolvingTransport({ result: null }), resolvingTransport({ result: null })], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal({ result: null });
+  });
+});

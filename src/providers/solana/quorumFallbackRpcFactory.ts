@@ -1,6 +1,6 @@
 import { Logger } from "winston";
 import { RpcFromTransport, RpcResponse, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
-import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
+import { isDefined, isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
 import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
 import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
@@ -35,12 +35,24 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         `nodeQuorum,Threshold cannot be < 1 and must be an integer. Currently set to ${this.nodeQuorumThreshold}`
       );
     }
+    // An unsatisfiable threshold would otherwise be accepted silently: `requiredFactories` is a slice, so
+    // it shrinks to the providers that exist and the all-agree early return below is trivially satisfied by
+    // a single provider. That reports quorum while providing none. Mirrors RetryProvider's check.
+    if (this.nodeQuorumThreshold > this.rpcFactories.length) {
+      throw new Error(
+        `nodeQuorumThreshold (${this.nodeQuorumThreshold}) must be <= the number of providers (${this.rpcFactories.length})`
+      );
+    }
   }
 
   public createTransport(): RpcTransport {
     return async <TResponse>(...args: Parameters<RpcTransport>): Promise<RpcResponse<TResponse>> => {
       const { method, params } = args[0].payload as { method: string; params?: unknown[] };
       const quorumThreshold = this._getQuorum(method, params ?? []);
+      // A missing result only counts as a vote for methods where absence is a fact about the chain. See
+      // ABSENCE_IS_PROVIDER_LOCAL.
+      const absenceIsProviderLocal = ABSENCE_IS_PROVIDER_LOCAL.includes(method);
+      const isMissingResult = (response: unknown) => absenceIsProviderLocal && !isDefined(unwrapRpcResult(response));
       const requiredFactories = this.rpcFactories.slice(0, quorumThreshold);
       const fallbackFactories = [...this.rpcFactories.slice(quorumThreshold)];
       const errors: [SolanaClusterRpcFactory, string][] = [];
@@ -120,8 +132,15 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
       const values = results.map((result) => result.value);
       // Start at element 1 and begin comparing.
-      // If _all_ values are equal, we have hit quorum, so return.
-      if (values.slice(1).every(([, output]) => compareSvmRpcResults(method, values[0][1], output))) {
+      const allValuesAgree = values.slice(1).every(([, output]) => compareSvmRpcResults(method, values[0][1], output));
+      // "Everyone agrees the transaction is missing" is only a real answer once there is nobody left to ask;
+      // until then the required providers may simply be the pruned or lagging ones. Fall through to the
+      // fallbacks so a provider that actually holds the transaction can overrule them.
+      const missingNeedsCorroboration = isMissingResult(values[0][1]) && fallbackFactories.length > 0;
+
+      // If _all_ values are equal, we have hit quorum, so return. The length check is belt-and-braces against
+      // a `requiredFactories` slice shorter than the threshold; the constructor already rejects that config.
+      if (allValuesAgree && values.length >= quorumThreshold && !missingNeedsCorroboration) {
         return values[0][1];
       }
 
@@ -222,18 +241,28 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       // This filters only the fallbacks that succeeded.
       const fallbackValues = fallbackResults.filter(isPromiseFulfilled).map((promise) => promise.value);
 
-      const [quorumResult, count] = getHighestCountResult([...values, ...fallbackValues]);
+      const allValues = [...values, ...fallbackValues];
+
+      // Only providers that actually returned the transaction get a vote, so that a pruned or lagging node
+      // cannot outvote an archival one and silently erase a real deposit or fill.
+      const votingValues = allValues.filter(([, result]) => !isMissingResult(result));
+      if (absenceIsProviderLocal && votingValues.length === 0) {
+        // Nobody we consulted has it, so the absence is a property of the chain rather than of one provider.
+        return allValues[0][1];
+      }
+
+      const [quorumResult, count] = getHighestCountResult(votingValues);
       // If this count is less than we need for quorum, throw the quorum error.
 
       if (count < quorumThreshold) {
-        throwQuorumError(quorumResult, [...values, ...fallbackValues]);
+        throwQuorumError(quorumResult, allValues);
       }
 
       // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
-      const mismatchedProviders = [...values, ...fallbackValues]
+      const mismatchedProviders = allValues
         .filter(([, result]) => !compareSvmRpcResults(method, result, quorumResult))
         .map(([factory]) => factory.clusterUrl);
-      const successfulProviderUrls = [...values, ...fallbackValues].map(([provider]) => provider.clusterUrl);
+      const successfulProviderUrls = allValues.map(([provider]) => provider.clusterUrl);
       if (mismatchedProviders.length > 0 || errors.length > 0) {
         logQuorumMismatchOrFailureDetails(
           method,
@@ -251,15 +280,22 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
   _getQuorum(method: string, _params: Array<unknown>): number {
     // Only use quorum if this is a historical query that doesn't depend on the current block number.
-
+    //
+    // getTransaction returns the instruction data that every SpokePool event (FundsDeposited, FilledRelay,
+    // RequestedSlowFill, ...) is decoded from, so without quorum a single compromised provider can fabricate
+    // a fill and drive a fraudulent relayer-refund leaf. It is historical and deterministic once the slot is
+    // confirmed, which makes it safe to quorum — mirroring the eth_getLogs treatment in RetryProvider.
+    //
+    // getSignaturesForAddress is deliberately NOT quorumed. arch/svm/eventsClient fetches the newest page and
+    // filters by slot afterwards instead of pinning the request, so the page tracks the confirmed tip: two
+    // honest providers a slot apart return different leading signatures, and deep equality would fail quorum
+    // and stall all event ingestion. This mirrors RetryProvider excluding "latest"/"pending" from
+    // eth_getBlockByNumber quorum. It leaves an omission vector — a malicious provider can withhold
+    // signatures — that needs a range-reconciling comparator rather than deep equality, so it is left to a
+    // follow-up.
     switch (method) {
       case "getBlock":
       case "getBlockTime":
-      // getSignaturesForAddress and getTransaction are the sole source of all SpokePool events
-      // (FundsDeposited, FilledRelay, RequestedSlowFill, ...). They are historical/deterministic, so
-      // they must be quorumed — mirroring the eth_getLogs treatment in RetryProvider — otherwise a
-      // single compromised RPC provider could forge or hide deposits/fills and drive bundle data.
-      case "getSignaturesForAddress":
       case "getTransaction":
         return this.nodeQuorumThreshold;
     }
@@ -272,3 +308,18 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 // These methods return a bigint and their results are loggable because they are succinct and can further assist
 // quorum debugging.
 const METHODS_RETURNING_BIGINT = ["getBlockTime", "getSlot"];
+
+// Methods whose null result is a statement about the queried provider rather than about the chain: a pruned or
+// lagging node answering "I don't have this transaction" is not the same claim as "this transaction does not
+// exist". arch/svm/eventsClient decodes a null transaction as "no events", so letting absence win a quorum vote
+// would silently drop the deposit or fill instead of surfacing the disagreement.
+const ABSENCE_IS_PROVIDER_LOCAL = ["getTransaction"];
+
+// The SVM transports resolve to the JSON-RPC envelope ({ jsonrpc, id, result }); unwrap it so that a missing
+// payload is detected whether we are handed the envelope or a bare result.
+function unwrapRpcResult(response: unknown): unknown {
+  if (isDefined(response) && typeof response === "object" && "result" in (response as Record<string, unknown>)) {
+    return (response as Record<string, unknown>).result;
+  }
+  return response;
+}
