@@ -424,6 +424,27 @@ describe("QuorumFallbackSolanaRpcFactory getTransaction quorum", () => {
     }
     expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
   });
+
+  it("still compares an id nested inside the result payload", async () => {
+    // Only the top-level envelope id is provider-local bookkeeping. An `id` occurring inside the result is
+    // payload data, so stripping it would blind the comparison to a real difference. This pins the strip to
+    // the envelope: making it recurse would let these two disagreeing payloads reach quorum.
+    const factory = buildFactory(
+      [
+        resolvingTransport({ jsonrpc: "2.0", id: "42", result: { slot: 421829272, parsed: { id: "one" } } }),
+        resolvingTransport({ jsonrpc: "2.0", id: "42", result: { slot: 421829272, parsed: { id: "two" } } }),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
 });
 
 function signaturePage(signatures: { signature: string; slot: number }[]) {
