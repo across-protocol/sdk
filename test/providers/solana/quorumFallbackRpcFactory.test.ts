@@ -372,3 +372,44 @@ describe("QuorumFallbackSolanaRpcFactory getTransaction quorum", () => {
     expect(response).to.deep.equal({ result: null });
   });
 });
+
+function signaturePage(signatures: { signature: string; slot: number }[]) {
+  return {
+    result: signatures.map(({ signature, slot }) => ({
+      signature,
+      slot,
+      err: null,
+      memo: null,
+      blockTime: 1735689600,
+      confirmationStatus: "confirmed",
+    })),
+  };
+}
+
+describe("QuorumFallbackSolanaRpcFactory getSignaturesForAddress", () => {
+  it("does not quorum the moving signature page, so providers at different tips cannot stall ingestion", async () => {
+    // arch/svm/eventsClient fetches the newest page and filters by slot afterwards rather than pinning the
+    // request, so two honest providers one slot apart legitimately return different leading signatures.
+    // Quorumming this method would turn that routine divergence into a quorum error and block all SVM event
+    // ingestion, which is why _getQuorum deliberately leaves it at 1.
+    let laggingCalled = false;
+    const atTip = signaturePage([
+      { signature: "sigNew", slot: 421829273 },
+      { signature: "sigOld", slot: 421829272 },
+    ]);
+    const oneSlotBehind = signaturePage([{ signature: "sigOld", slot: 421829272 }]);
+    const factory = buildFactory(
+      [resolvingTransport(atTip), resolvingTransport(oneSlotBehind, () => (laggingCalled = true))],
+      2
+    );
+
+    const response = await factory.createTransport()(
+      payload("getSignaturesForAddress", ["SpokePool11111111111111111111111111111111", { limit: 1000 }])
+    );
+
+    expect(response).to.deep.equal(atTip);
+    // Quorum 1 means only the first provider is consulted. Re-adding this method to _getQuorum would consult
+    // both, mismatch on the leading signature, and throw -- which is exactly the regression this guards.
+    expect(laggingCalled).to.equal(false);
+  });
+});
