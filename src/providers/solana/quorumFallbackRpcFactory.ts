@@ -246,7 +246,11 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       // Only providers that actually returned the transaction get a vote, so that a pruned or lagging node
       // cannot outvote an archival one and silently erase a real deposit or fill.
       const votingValues = allValues.filter(([, result]) => !isMissingResult(result));
-      if (absenceIsProviderLocal && votingValues.length === 0) {
+      // Absence is only conclusive once every provider we consulted actually answered. A fallback that
+      // rejected — say the one archival node still holding the transaction is briefly unreachable — has not
+      // agreed that it is missing, so fail loudly and let the caller retry rather than dropping the event.
+      const everyFallbackAnswered = fallbackResults.every(isPromiseFulfilled);
+      if (absenceIsProviderLocal && votingValues.length === 0 && everyFallbackAnswered) {
         // Nobody we consulted has it, so the absence is a property of the chain rather than of one provider.
         return allValues[0][1];
       }

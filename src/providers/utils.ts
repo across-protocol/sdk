@@ -286,13 +286,43 @@ const SVM_IGNORED_FIELDS: Record<string, string[]> = {
   getTransaction: ["computeUnitsConsumed", "stackHeight", "logMessages", "rewards"],
 };
 
-export function compareSvmRpcResults(method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
-  const ignoredKeys = SVM_IGNORED_FIELDS[method];
-  if (!isDefined(ignoredKeys)) {
-    return isEqual(rpcResultA, rpcResultB);
+/**
+ * The SVM transports resolve to the raw JSON-RPC envelope, and its `id` is a per-process counter that the
+ * provider echoes back (`createRpcMessage` in @solana/rpc-spec-types). CachedSolanaRpcFactory caches whole
+ * envelopes under a key that excludes the id, with no TTL, and only once a transaction is finalized — so two
+ * providers that reach finality at different moments cache different ids for the identical transaction, and
+ * comparing them would report a permanent disagreement. Drop the id before comparing.
+ *
+ * Only the top-level envelope id is dropped. This deliberately does not recurse — a result payload may carry
+ * its own `id` field — and the envelope is only recognised when `jsonrpc` sits alongside. The rest of the
+ * envelope is left intact, including `error`, so that two differing error responses still compare as a
+ * disagreement instead of collapsing onto an absent `result`.
+ */
+function stripJsonRpcEnvelopeId(response: unknown): unknown {
+  if (!isDefined(response) || typeof response !== "object" || Array.isArray(response)) {
+    return response;
   }
 
-  return isEqual(deleteIgnoredKeysDeep(ignoredKeys, rpcResultA), deleteIgnoredKeysDeep(ignoredKeys, rpcResultB));
+  const envelope = response as Record<string, unknown>;
+  if (!("id" in envelope) || !("jsonrpc" in envelope)) {
+    return response;
+  }
+
+  const withoutId = { ...envelope };
+  delete withoutId.id;
+  return withoutId;
+}
+
+export function compareSvmRpcResults(method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
+  const resultA = stripJsonRpcEnvelopeId(rpcResultA);
+  const resultB = stripJsonRpcEnvelopeId(rpcResultB);
+
+  const ignoredKeys = SVM_IGNORED_FIELDS[method];
+  if (!isDefined(ignoredKeys)) {
+    return isEqual(resultA, resultB);
+  }
+
+  return isEqual(deleteIgnoredKeysDeep(ignoredKeys, resultA), deleteIgnoredKeysDeep(ignoredKeys, resultB));
 }
 
 export enum CacheType {

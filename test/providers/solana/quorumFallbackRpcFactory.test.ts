@@ -371,6 +371,59 @@ describe("QuorumFallbackSolanaRpcFactory getTransaction quorum", () => {
     const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
     expect(response).to.deep.equal({ result: null });
   });
+
+  it("does not treat absence as unanimous when a consulted fallback failed", async () => {
+    // Two pruned providers agree on null while the archival node that may hold the transaction is briefly
+    // unreachable. It never agreed the transaction is missing, so this must not resolve to "no events".
+    const factory = buildFactory(
+      [
+        resolvingTransport({ result: null }),
+        resolvingTransport({ result: null }),
+        rejectingTransport(new Error("archival node unreachable")),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("reaches quorum when cached envelopes carry different JSON-RPC ids", async () => {
+    // The transports resolve to the raw envelope, and CachedSolanaRpcFactory caches it whole (no TTL) only
+    // once a transaction is finalized. Providers that finalize at different moments therefore serve the same
+    // transaction under different per-process ids, which must not read as a provider disagreement.
+    const cached = { jsonrpc: "2.0", id: "42", ...getTransactionResponse() };
+    const fresh = { jsonrpc: "2.0", id: "57", ...getTransactionResponse() };
+    const factory = buildFactory([resolvingTransport(cached), resolvingTransport(fresh)], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal(cached);
+  });
+
+  it("still reports a disagreement when envelopes differ beyond the JSON-RPC id", async () => {
+    // Guards the id-stripping above from over-normalising: only the id is dropped, so differing errors on
+    // otherwise identical envelopes remain a genuine mismatch.
+    const factory = buildFactory(
+      [
+        resolvingTransport({ jsonrpc: "2.0", id: "42", error: { code: -32001, message: "a" } }),
+        resolvingTransport({ jsonrpc: "2.0", id: "57", error: { code: -32009, message: "b" } }),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
 });
 
 function signaturePage(signatures: { signature: string; slot: number }[]) {
