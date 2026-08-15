@@ -255,6 +255,12 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
     switch (method) {
       case "getBlock":
       case "getBlockTime":
+      // getSignaturesForAddress and getTransaction are the sole source of all SpokePool events
+      // (FundsDeposited, FilledRelay, RequestedSlowFill, ...). They are historical/deterministic, so
+      // they must be quorumed — mirroring the eth_getLogs treatment in RetryProvider — otherwise a
+      // single compromised RPC provider could forge or hide deposits/fills and drive bundle data.
+      case "getSignaturesForAddress":
+      case "getTransaction":
         return this.nodeQuorumThreshold;
     }
 
