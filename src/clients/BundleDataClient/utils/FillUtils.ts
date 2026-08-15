@@ -13,6 +13,7 @@ import {
 } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
+import { isChainDisabledAtBlock } from "./PoolRebalanceUtils";
 
 /**
  * @notice Addresses that must never be paid out of a root bundle (as repayment, deposit refund, or slow fill).
@@ -133,6 +134,14 @@ export async function verifyFillRepayment(
       // also be the same mapping as the repayment token on the repayment chain.
       if (
         !matchedDeposit.fromLiteChain &&
+        // areTokensEquivalent() only inspects PoolRebalanceRoutes, so the destination chain must additionally be
+        // enabled at the bundle end block -- the same gate _getRepaymentChainId applies to the requested chain.
+        // Switching to a disabled destination would be undone downstream: getRefundInformationFromFill re-resolves
+        // it back to the origin chain, and the msg.sender assigned below is only guaranteed to be valid on the
+        // destination chain, so updateBundleFillsV3 would silently drop the fill instead of recording it as
+        // unrepayable. Declining the switch here falls through to the check below, which correctly returns
+        // undefined when the resolved chain can't repay this address.
+        !isChainDisabledAtBlock(fill.destinationChainId, bundleEndBlockForMainnet, hubPoolClient.configStoreClient) &&
         hubPoolClient.areTokensEquivalent(
           fill.inputToken,
           fill.originChainId,
@@ -193,9 +202,11 @@ function _getRepaymentChainId(
 
   // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute and the repayment chain is not disabled in protocol.
   const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient, bundleEndBlockForMainnet);
-  const repaymentChainIsValid = !hubPoolClient.configStoreClient
-    .getDisabledChainsForBlock(bundleEndBlockForMainnet)
-    .includes(relayData.repaymentChainId);
+  const repaymentChainIsValid = !isChainDisabledAtBlock(
+    relayData.repaymentChainId,
+    bundleEndBlockForMainnet,
+    hubPoolClient.configStoreClient
+  );
   if (repaymentTokenIsValid && repaymentChainIsValid) {
     return relayData.repaymentChainId;
   }
