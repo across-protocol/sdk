@@ -530,6 +530,8 @@ export class Coingecko {
 
   private async _callPro<T>(path: string): Promise<T> {
     const url = `${this.proHost}/${path}`;
-    return await fetchWithTimeout<T>(url, { x_cg_pro_api_key: this.apiKey });
+    // Send the Pro API key as a request header rather than a query-string parameter so it is never
+    // interpolated into the request URL (and therefore never leaked into thrown/logged error messages).
+    return await fetchWithTimeout<T>(url, {}, { "x-cg-pro-api-key": this.apiKey ?? "" });
   }
 }
