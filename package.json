@@ -145,6 +145,11 @@
     "./dist/esm/*": {
       "require": "./dist/cjs/*.js",
       "import": "./dist/esm/*.js"
+    },
+    "./dist/types/*": {
+      "types": "./dist/types/*.d.ts",
+      "require": "./dist/cjs/*.js",
+      "import": "./dist/esm/*.js"
     }
   },
   "resolutions": {
