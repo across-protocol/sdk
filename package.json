@@ -133,6 +133,11 @@
       "import": "./dist/esm/src/utils/abi/typechain/index.js",
       "types": "./dist/types/src/utils/abi/typechain/index.d.ts"
     },
+    "./*": {
+      "require": "./dist/cjs/src/*.js",
+      "import": "./dist/esm/src/*.js",
+      "types": "./dist/types/src/*.d.ts"
+    },
     "./dist/cjs/*": {
       "require": "./dist/cjs/*.js",
       "import": "./dist/esm/*.js"
