@@ -2,7 +2,9 @@ import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
 import { TronWeb } from "tronweb";
-import { BigNumber, chainIsEvm, chainIsSvm, chainIsTvm, isDefined } from "./";
+import { BigNumber } from "./BigNumberUtils";
+import { chainIsEvm, chainIsSvm, chainIsTvm } from "./NetworkUtils";
+import { isDefined } from "./TypeGuards";
 
 /**
  * Verify whether an address' bytecode resembles an EIP-7702 delegation.
