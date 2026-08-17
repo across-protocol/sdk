@@ -152,6 +152,14 @@
       "import": "./dist/esm/*.js"
     }
   },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./*",
+        "./dist/types/src/*"
+      ]
+    }
+  },
   "resolutions": {
     "**/@solana/codecs": "5.4.0",
     "**/@solana/codecs-numbers": "5.4.0"
