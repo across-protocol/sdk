@@ -19,7 +19,10 @@ import {
   getRandomSvmAddress,
   bigToU8a32,
 } from "../../arch/svm";
-import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress, SvmAddress } from "../../utils";
+import { bnZero, bnOne } from "../../utils/BigNumberUtils";
+import { bs58, randomAddress } from "../../utils/common";
+import { getCurrentTime } from "../../utils/TimeUtils";
+import { EvmAddress, SvmAddress } from "../../utils/AddressUtils";
 import { FillType } from "../../interfaces";
 
 const randomBytes = (n: number) => ethersUtils.hexlify(ethersUtils.randomBytes(n));

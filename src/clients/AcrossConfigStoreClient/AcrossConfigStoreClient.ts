@@ -5,20 +5,19 @@ import { isError } from "../../typeguards";
 import { averageBlockTime } from "../../arch/evm";
 import {
   EventSearchConfig,
-  EvmAddress,
-  MakeOptional,
-  isArrayOf,
-  isDefined,
-  isPositiveInteger,
-  max,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   sortEventsDescending,
   spreadEventWithBlockNumber,
-  toBN,
-  toWei,
-  utf8ToHex,
-} from "../../utils";
+} from "../../utils/EventUtils";
+import { EvmAddress } from "../../utils/AddressUtils";
+import { MakeOptional } from "../../utils/TypeUtils";
+import { isArrayOf } from "../../utils/ArrayUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { isPositiveInteger } from "../../utils/NumberUtils";
+import { max } from "../../utils/common";
+import { toBN, toWei } from "../../utils/BigNumberUtils";
+import { utf8ToHex } from "../../utils/FormattingUtils";
 import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 import {
   ConfigStoreVersionUpdate,

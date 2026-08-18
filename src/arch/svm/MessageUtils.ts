@@ -1,6 +1,7 @@
-import { deserializeMessage } from ".";
+import { deserializeMessage } from "./SpokeUtils";
 import { RelayData } from "../../interfaces";
-import { BigNumber, bnZero, isMessageEmpty } from "../../utils";
+import { BigNumber, bnZero } from "../../utils/BigNumberUtils";
+import { isMessageEmpty } from "../../utils/DepositUtils";
 
 /**
  * @notice Return the native token cost of filling a deposit beyond gas cost. We're not using msg.value in our fills,

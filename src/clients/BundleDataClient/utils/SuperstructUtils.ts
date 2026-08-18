@@ -19,7 +19,9 @@ import { isAddress as isValidEvmAddress } from "viem";
 import { isAddress as isValidSvmAddress } from "@solana/kit";
 import { TronWeb } from "tronweb";
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, bs58, EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils";
+import { BigNumber } from "../../../utils/BigNumberUtils";
+import { bs58 } from "../../../utils/common";
+import { EvmAddress, RawAddress, SvmAddress, TvmAddress, toBytes32 } from "../../../utils/AddressUtils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{64}$/);

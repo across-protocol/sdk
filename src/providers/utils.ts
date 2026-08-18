@@ -2,7 +2,8 @@
 import assert from "assert";
 import { providers } from "ethers";
 import { isEqual, sortBy } from "lodash";
-import { getOriginFromURL, isDefined } from "../utils";
+import { getOriginFromURL } from "../utils/NetworkUtils";
+import { isDefined } from "../utils/TypeGuards";
 import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";

@@ -12,17 +12,13 @@ import {
   RunningBalances,
   SpokePoolClientsByChain,
 } from "../../../interfaces";
-import {
-  bnZero,
-  AnyObject,
-  fixedPointAdjustment,
-  count2DDictionaryValues,
-  count3DDictionaryValues,
-  toAddressType,
-  getImpliedBundleBlockRanges,
-  isDefined,
-  EvmAddress,
-} from "../../../utils";
+import { bnZero } from "../../../utils/BigNumberUtils";
+import { AnyObject } from "../../../utils/TypeUtils";
+import { fixedPointAdjustment } from "../../../utils/common";
+import { count2DDictionaryValues, count3DDictionaryValues } from "../../../utils/ObjectUtils";
+import { toAddressType, EvmAddress } from "../../../utils/AddressUtils";
+import { getImpliedBundleBlockRanges } from "../../../utils/BundleUtils";
+import { isDefined } from "../../../utils/TypeGuards";
 import {
   addLastRunningBalance,
   constructPoolRebalanceLeaves,

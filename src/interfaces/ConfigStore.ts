@@ -1,5 +1,5 @@
 import { RateModel } from "../lpFeeCalculator";
-import { BigNumber } from "../utils";
+import { BigNumber } from "../utils/BigNumberUtils";
 import { SortableEvent } from "./Common";
 
 export interface ParsedTokenConfig {

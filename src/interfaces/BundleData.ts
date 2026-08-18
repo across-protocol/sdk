@@ -3,7 +3,7 @@ import { DepositWithBlock, FillWithBlock, Refund } from "./SpokePool";
 import { HubPoolClient } from "../clients/HubPoolClient";
 import { AcrossConfigStoreClient } from "../clients";
 import { ArweaveClient } from "../caching";
-import { BigNumber } from "../utils";
+import { BigNumber } from "../utils/BigNumberUtils";
 
 export type ExpiredDepositsToRefundV3 = {
   [originChainId: number]: {

@@ -7,29 +7,22 @@ import {
 } from "../constants";
 import { GasPriceEstimateOptions } from "../gasPriceOracle";
 import { RelayData, TokenInfo } from "../interfaces";
+import { BigNumber, BigNumberish, bnZero, toBN } from "../utils/BigNumberUtils";
 import {
-  BigNumber,
-  BigNumberish,
   MAX_BIG_INT,
   TransactionCostEstimate,
-  bnZero,
   fixedPointAdjustment,
-  getTokenInfo,
-  isDefined,
   max,
   min,
   nativeToToken,
   percent,
-  toBN,
   toBNWei,
-  compareAddressesSimple,
-  ConvertDecimals,
-  chainIsSvm,
-  Address,
-  EvmAddress,
-  SvmAddress,
-  toAddressType,
-} from "../utils";
+} from "../utils/common";
+import { getTokenInfo } from "../utils/TokenUtils";
+import { isDefined } from "../utils/TypeGuards";
+import { compareAddressesSimple, Address, EvmAddress, SvmAddress, toAddressType } from "../utils/AddressUtils";
+import { ConvertDecimals } from "../utils/FormattingUtils";
+import { chainIsSvm } from "../utils/NetworkUtils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {

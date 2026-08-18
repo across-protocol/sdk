@@ -2,7 +2,7 @@ import { Logger } from "winston";
 import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/kit";
 import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
 import { isSolanaError } from "../../arch/svm";
-import { delay } from "../../utils";
+import { delay } from "../../utils/common";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { shouldFailImmediate } from "./utils";

@@ -1,6 +1,7 @@
 import { SortableEvent } from "./Common";
 import { SpokePoolClient } from "../clients";
-import { BigNumber, Address, EvmAddress } from "../utils";
+import { BigNumber } from "../utils/BigNumberUtils";
+import { Address, EvmAddress } from "../utils/AddressUtils";
 import { RelayerRefundLeaf } from "./HubPool";
 
 export interface RelayData {

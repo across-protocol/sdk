@@ -50,23 +50,13 @@ import {
   RelayDataWithMessageHash,
   SortableEvent,
 } from "../../interfaces";
-import {
-  BigNumber,
-  EvmAddress,
-  Address as SdkAddress,
-  SvmAddress,
-  bs58,
-  chainIsProd,
-  chainIsSvm,
-  chunk,
-  getMessageHash,
-  isDefined,
-  isUnsafeDepositId,
-  keccak256,
-  mapAsync,
-  unpackDepositEvent,
-  unpackFillEvent,
-} from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
+import { EvmAddress, Address as SdkAddress, SvmAddress } from "../../utils/AddressUtils";
+import { bs58, keccak256 } from "../../utils/common";
+import { chainIsProd, chainIsSvm } from "../../utils/NetworkUtils";
+import { chunk, mapAsync } from "../../utils/ArrayUtils";
+import { getMessageHash, isUnsafeDepositId, unpackDepositEvent, unpackFillEvent } from "../../utils/SpokeUtils";
+import { isDefined } from "../../utils/TypeGuards";
 import {
   createDefaultTransaction,
   getCCTPNoncePda,
@@ -79,21 +69,17 @@ import {
   toAddress,
   unwrapEventData,
   getRootBundlePda,
-  getAcrossPlusMessageDecoder,
-  getAccountMeta,
   getInstructionParamsPda,
-  type AcrossPlusMessage,
   toSvmRelayData,
-} from "./";
-import { SvmCpiEventsClient } from "./eventsClient";
-import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
-import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
   isEmergencyDeleteRootBundleMessageBody,
   isRelayRootBundleMessageBody,
 } from "./utils";
+import { getAcrossPlusMessageDecoder, getAccountMeta, type AcrossPlusMessage } from "./encoders";
+import { SvmCpiEventsClient } from "./eventsClient";
+import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative

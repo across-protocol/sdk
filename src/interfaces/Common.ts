@@ -1,5 +1,5 @@
 import { Log as _Log } from "@ethersproject/abstract-provider";
-import { BigNumber } from "../utils";
+import { BigNumber } from "../utils/BigNumberUtils";
 
 export type Log = _Log & {
   event: string;

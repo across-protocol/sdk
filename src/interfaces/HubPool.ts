@@ -1,4 +1,5 @@
-import { Address, BigNumber, EvmAddress } from "../utils";
+import { Address, EvmAddress } from "../utils/AddressUtils";
+import { BigNumber } from "../utils/BigNumberUtils";
 import { SortableEvent } from "./Common";
 
 export interface PoolRebalanceLeaf {

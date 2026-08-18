@@ -12,17 +12,13 @@ import {
   fillStatusArray,
 } from "../../arch/svm";
 import { FillStatus, RelayDataWithMessageHash, SortableEvent } from "../../interfaces";
-import {
-  BigNumber,
-  DepositSearchResult,
-  EventSearchConfig,
-  InvalidFill,
-  getNetworkName,
-  isDefined,
-  MakeOptional,
-  sortEventsAscendingInPlace,
-  SvmAddress,
-} from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
+import { DepositSearchResult, InvalidFill } from "../../utils/DepositUtils";
+import { EventSearchConfig, sortEventsAscendingInPlace } from "../../utils/EventUtils";
+import { getNetworkName } from "../../utils/NetworkUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { MakeOptional } from "../../utils/TypeUtils";
+import { SvmAddress } from "../../utils/AddressUtils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";

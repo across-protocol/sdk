@@ -1,6 +1,7 @@
 import { TronWeb } from "tronweb";
 import { PopulatedTransaction } from "ethers";
-import { isDefined, TvmAddress } from "../../utils";
+import { isDefined } from "../../utils/TypeGuards";
+import { TvmAddress } from "../../utils/AddressUtils";
 
 export interface TronTransactionResult {
   txid: string;

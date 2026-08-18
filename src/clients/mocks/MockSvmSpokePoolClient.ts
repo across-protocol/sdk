@@ -2,15 +2,12 @@ import winston from "winston";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { Address } from "@solana/kit";
 import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../interfaces";
-import {
-  getCurrentTime,
-  bnZero,
-  MakeOptional,
-  EventSearchConfig,
-  Address as SDKAddress,
-  toAddressType,
-  isDefined,
-} from "../../utils";
+import { getCurrentTime } from "../../utils/TimeUtils";
+import { bnZero } from "../../utils/BigNumberUtils";
+import { MakeOptional } from "../../utils/TypeUtils";
+import { EventSearchConfig } from "../../utils/EventUtils";
+import { Address as SDKAddress, toAddressType } from "../../utils/AddressUtils";
+import { isDefined } from "../../utils/TypeGuards";
 import { SpokePoolUpdate, SVMSpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
