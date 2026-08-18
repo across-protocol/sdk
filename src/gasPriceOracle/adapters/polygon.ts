@@ -1,6 +1,8 @@
 import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { BigNumber, bnZero, fixedPointAdjustment, isDefined, parseUnits } from "../../utils";
+import { BigNumber, bnZero, parseUnits } from "../../utils/BigNumberUtils";
+import { fixedPointAdjustment } from "../../utils/common";
+import { isDefined } from "../../utils/TypeGuards";
 import { CHAIN_IDs } from "../../constants";
 import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";

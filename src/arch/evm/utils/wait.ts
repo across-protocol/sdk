@@ -1,6 +1,6 @@
 import assert from "assert";
 import { createPublicClient, http, isAddress, Log } from "viem";
-import { isDefined } from "../../../utils";
+import { isDefined } from "../../../utils/TypeGuards";
 
 export enum WAITFOR_FAIL {
   TIMEOUT,

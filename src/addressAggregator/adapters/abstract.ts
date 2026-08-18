@@ -1,5 +1,6 @@
 import { AdapterOptions, AddressListAdapter } from "../types";
-import { Logger, fetchWithTimeout } from "../../utils";
+import { Logger } from "../../utils/LogUtils";
+import { fetchWithTimeout } from "../../utils/FetchUtils";
 
 const { ACROSS_USER_AGENT = "across-protocol" } = process.env;
 

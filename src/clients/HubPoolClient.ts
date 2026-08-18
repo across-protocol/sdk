@@ -24,30 +24,24 @@ import {
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { EVMBlockFinder } from "../arch/evm";
+import { BigNumber, bnZero } from "../utils/BigNumberUtils";
+import { dedupArray, mapAsync } from "../utils/ArrayUtils";
 import {
-  BigNumber,
-  bnZero,
-  dedupArray,
   EventSearchConfig,
-  MakeOptional,
-  assign,
-  fetchTokenInfo,
-  getCachedBlockForTimestamp,
-  getCurrentTime,
-  isDefined,
-  mapAsync,
   paginatedEventQuery,
-  shouldCache,
   sortEventsDescending,
   spreadEventWithBlockNumber,
-  getTokenInfo,
-  getUsdcSymbol,
-  chainIsSvm,
-  getDeployedAddress,
-  SvmAddress,
-  EvmAddress,
-  Address,
-} from "../utils";
+} from "../utils/EventUtils";
+import { MakeOptional } from "../utils/TypeUtils";
+import { assign } from "../utils/ObjectUtils";
+import { fetchTokenInfo, getTokenInfo, getUsdcSymbol } from "../utils/TokenUtils";
+import { getCachedBlockForTimestamp } from "../utils/BlockUtils";
+import { getCurrentTime } from "../utils/TimeUtils";
+import { isDefined } from "../utils/TypeGuards";
+import { shouldCache } from "../utils/CachingUtils";
+import { chainIsSvm } from "../utils/NetworkUtils";
+import { getDeployedAddress } from "../utils/DeploymentUtils";
+import { SvmAddress, EvmAddress, Address } from "../utils/AddressUtils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 

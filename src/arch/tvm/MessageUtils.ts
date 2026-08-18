@@ -1,5 +1,7 @@
 import { RelayData, SpeedUpCommon } from "../../interfaces";
-import { BigNumber, bnZero, isDefined, isMessageEmpty, toBN } from "../../utils";
+import { BigNumber, bnZero, toBN } from "../../utils/BigNumberUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { isMessageEmpty } from "../../utils/DepositUtils";
 
 // Tron prices each byte of a transaction's serialized raw_data + signature at this many
 // SUN of bandwidth when the relayer's free bandwidth allowance has been exhausted. The

@@ -1,5 +1,6 @@
 import AbstractApiClient from "./abstractClient";
-import { BigNumber, fetchWithTimeout, parseEther } from "../utils";
+import { BigNumber, parseEther } from "../utils/BigNumberUtils";
+import { fetchWithTimeout } from "../utils/FetchUtils";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,

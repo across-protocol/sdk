@@ -1,6 +1,10 @@
 import winston from "winston";
 import { Contract } from "ethers";
-import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Address, isDefined } from "../../utils";
+import { BigNumber, bnZero } from "../../utils/BigNumberUtils";
+import { randomAddress } from "../../utils/common";
+import { assign } from "../../utils/ObjectUtils";
+import { toAddressType, EvmAddress, Address } from "../../utils/AddressUtils";
+import { isDefined } from "../../utils/TypeGuards";
 import { Log, PendingRootBundle, RealizedLpFee, L1TokenInfo } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";

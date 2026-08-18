@@ -6,18 +6,10 @@ import { CHAIN_IDs } from "../../constants";
 import { RelayData } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
-import {
-  BigNumberish,
-  EvmAddress,
-  TvmAddress,
-  TransactionCostEstimate,
-  BigNumber,
-  toBNWei,
-  bnZero,
-  chainIsOPStack,
-  fixedPointAdjustment,
-  Address,
-} from "../../utils";
+import { BigNumberish, BigNumber, bnZero } from "../../utils/BigNumberUtils";
+import { EvmAddress, TvmAddress, Address } from "../../utils/AddressUtils";
+import { TransactionCostEstimate, toBNWei, fixedPointAdjustment } from "../../utils/common";
+import { chainIsOPStack } from "../../utils/NetworkUtils";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { getGasPriceEstimate, GasPriceEstimateOptions } from "../../gasPriceOracle";

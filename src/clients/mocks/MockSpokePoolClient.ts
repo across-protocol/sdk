@@ -16,21 +16,13 @@ import {
   SpeedUp,
   TokensBridged,
 } from "../../interfaces";
-import {
-  toBN,
-  toBNWei,
-  getCurrentTime,
-  getMessageHash,
-  randomAddress,
-  BigNumber,
-  bnZero,
-  bnOne,
-  toBytes32,
-  spreadEventWithBlockNumber,
-  Address,
-  toAddressType,
-  isDefined,
-} from "../../utils";
+import { toBN, BigNumber, bnZero, bnOne } from "../../utils/BigNumberUtils";
+import { toBNWei, randomAddress } from "../../utils/common";
+import { getCurrentTime } from "../../utils/TimeUtils";
+import { getMessageHash } from "../../utils/SpokeUtils";
+import { toBytes32, Address, toAddressType } from "../../utils/AddressUtils";
+import { spreadEventWithBlockNumber } from "../../utils/EventUtils";
+import { isDefined } from "../../utils/TypeGuards";
 import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides } from "./MockEvents";

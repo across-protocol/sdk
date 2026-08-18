@@ -4,15 +4,10 @@ import { CHAIN_IDs } from "../../constants";
 import { FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { get1967Upgrades } from "../evm/UpgradeUtils";
 import { relayFillStatus as evmRelayFillStatus } from "../evm/SpokeUtils";
-import {
-  BigNumber,
-  getRelayDataHash,
-  isDefined,
-  isUnsafeDepositId,
-  paginatedEventQuery,
-  spreadEventWithBlockNumber,
-  unpackFillEvent,
-} from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
+import { getRelayDataHash, isUnsafeDepositId, unpackFillEvent } from "../../utils/SpokeUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { paginatedEventQuery, spreadEventWithBlockNumber } from "../../utils/EventUtils";
 
 type BlockTag = providers.BlockTag;
 

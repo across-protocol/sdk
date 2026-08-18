@@ -3,7 +3,8 @@
 // and ethers BNs in the main entry point function calculateRealizedLpFeePct.
 
 import Decimal from "decimal.js";
-import { BigNumberish, BN, toBN, toBNWei, fromWei, min, max, fixedPointAdjustment } from "../utils";
+import { BigNumberish, BN, toBN } from "../utils/BigNumberUtils";
+import { toBNWei, fromWei, min, max, fixedPointAdjustment } from "../utils/common";
 
 // note a similar type exists in the constants file, but are strings only. This is a bit more permissive to allow
 // backward compatibility for callers with a rate model defined with bignumbers and not strings.

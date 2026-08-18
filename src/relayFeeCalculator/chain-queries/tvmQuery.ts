@@ -1,6 +1,6 @@
 import { arch } from "../..";
 import { RelayData } from "../../interfaces";
-import { BigNumber } from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
 import { CustomGasTokenQueries } from "./customGasToken";
 
 /**

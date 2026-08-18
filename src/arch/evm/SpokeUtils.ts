@@ -2,21 +2,13 @@ import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData, SpeedUpCommon } from "../../interfaces";
-import {
-  bnUint32Max,
-  BigNumber,
-  toBN,
-  bnZero,
-  chunk,
-  getRelayDataHash,
-  isDefined,
-  isUnsafeDepositId,
-  getNetworkName,
-  paginatedEventQuery,
-  spreadEventWithBlockNumber,
-  Address,
-  unpackFillEvent,
-} from "../../utils";
+import { bnUint32Max, BigNumber, toBN, bnZero } from "../../utils/BigNumberUtils";
+import { chunk } from "../../utils/ArrayUtils";
+import { getRelayDataHash, isUnsafeDepositId, unpackFillEvent } from "../../utils/SpokeUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { getNetworkName } from "../../utils/NetworkUtils";
+import { paginatedEventQuery, spreadEventWithBlockNumber } from "../../utils/EventUtils";
+import { Address } from "../../utils/AddressUtils";
 
 type BlockTag = providers.BlockTag;
 

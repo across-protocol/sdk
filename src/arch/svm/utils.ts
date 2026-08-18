@@ -25,7 +25,11 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
+import { Address as SdkAddress } from "../../utils/AddressUtils";
+import { getMessageHash } from "../../utils/SpokeUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { isUint8Array } from "../../utils/ArrayUtils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,

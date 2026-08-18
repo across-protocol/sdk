@@ -1,6 +1,8 @@
 import { providers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
-import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
+import { EventSearchConfig } from "../utils/EventUtils";
+import { isDefined } from "../utils/TypeGuards";
+import { MakeOptional } from "../utils/TypeUtils";
 import { getNearestSlotTime, SVMProvider } from "../arch/svm";
 import winston from "winston";
 

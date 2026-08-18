@@ -4,7 +4,7 @@ import winston, { Logger } from "winston";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { SolanaDefaultRpcFactory } from "./defaultRpcFactory";
 import { SolanaRateLimitTask } from "./utils";
-import { getOriginFromURL } from "../../utils";
+import { getOriginFromURL } from "../../utils/NetworkUtils";
 
 // This factory is a very small addition to the SolanaDefaultRpcFactory that ensures that no more than maxConcurrency
 // requests are ever in flight. It uses the async/queue library to manage this.

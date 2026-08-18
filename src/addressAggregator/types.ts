@@ -1,4 +1,4 @@
-import { Logger } from "../utils";
+import { Logger } from "../utils/LogUtils";
 
 export type AdapterOptions = {
   name?: string;

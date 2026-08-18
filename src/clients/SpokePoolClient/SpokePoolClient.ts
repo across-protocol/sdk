@@ -1,28 +1,16 @@
 import winston from "winston";
 import { utils as ethersUtils } from "ethers";
-import {
-  AnyObject,
-  BigNumber,
-  bnZero,
-  DefaultLogLevels,
-  DepositSearchResult,
-  EventSearchConfig,
-  EvmAddress,
-  MAX_BIG_INT,
-  MakeOptional,
-  assign,
-  getRelayEventKey,
-  isDefined,
-  isSlowFill,
-  validateFillForDeposit,
-  chainIsEvm,
-  chainIsProd,
-  Address,
-  toAddressType,
-  unpackDepositEvent,
-  unpackFillEvent,
-} from "../../utils";
-import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
+import { AnyObject, MakeOptional } from "../../utils/TypeUtils";
+import { BigNumber, bnZero } from "../../utils/BigNumberUtils";
+import { DefaultLogLevels } from "../../utils/LogUtils";
+import { DepositSearchResult, getRelayEventKey, validateFillForDeposit } from "../../utils/DepositUtils";
+import { EvmAddress, Address, toAddressType } from "../../utils/AddressUtils";
+import { MAX_BIG_INT } from "../../utils/common";
+import { assign } from "../../utils/ObjectUtils";
+import { isDefined } from "../../utils/TypeGuards";
+import { isSlowFill, unpackDepositEvent, unpackFillEvent } from "../../utils/SpokeUtils";
+import { chainIsEvm, chainIsProd } from "../../utils/NetworkUtils";
+import { EventSearchConfig, duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
   BridgedToHubPoolWithBlock,

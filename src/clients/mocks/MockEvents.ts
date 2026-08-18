@@ -2,7 +2,7 @@ import assert from "assert";
 import { utils as ethersUtils } from "ethers";
 import { random } from "lodash";
 import { Log } from "../../interfaces";
-import { isDefined } from "../../utils";
+import { isDefined } from "../../utils/TypeGuards";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
 export type EventOverrides = {

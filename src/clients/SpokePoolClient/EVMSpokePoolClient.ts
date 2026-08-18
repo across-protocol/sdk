@@ -14,16 +14,12 @@ import {
   findDepositBlock as findDepositBlockTvm,
 } from "../../arch/tvm";
 import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  DepositSearchResult,
-  getNetworkName,
-  InvalidFill,
-  MakeOptional,
-  EvmAddress,
-  unpackDepositEvent,
-  chainIsTvm,
-} from "../../utils";
+import { BigNumber } from "../../utils/BigNumberUtils";
+import { DepositSearchResult, InvalidFill } from "../../utils/DepositUtils";
+import { getNetworkName, chainIsTvm } from "../../utils/NetworkUtils";
+import { MakeOptional } from "../../utils/TypeUtils";
+import { EvmAddress } from "../../utils/AddressUtils";
+import { unpackDepositEvent } from "../../utils/SpokeUtils";
 import {
   EventSearchConfig,
   logToSortableEvent,

@@ -1,7 +1,10 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress, isDefined } from "../../../utils";
+import { BigNumber, bnZero } from "../../../utils/BigNumberUtils";
+import { chainIsEvm, chainIsSvm } from "../../../utils/NetworkUtils";
+import { compareAddresses, EvmAddress } from "../../../utils/AddressUtils";
+import { isDefined } from "../../../utils/TypeGuards";
 import { getNearestSlotTime } from "../../../arch/svm";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";

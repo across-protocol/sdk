@@ -19,34 +19,30 @@ import {
   DepositWithBlock,
   CachingMechanismInterface,
 } from "../../interfaces";
-import { SpokePoolClient } from "..";
 import { findFillEvent as findEvmFillEvent } from "../../arch/evm";
 import { findFillEvent as findSvmFillEvent } from "../../arch/svm";
 import { findFillEvent as findTvmFillEvent } from "../../arch/tvm";
+import { BigNumber, bnZero } from "../../utils/BigNumberUtils";
 import {
-  BigNumber,
-  bnZero,
   queryHistoricalDepositForFill,
-  assign,
-  fixedPointAdjustment,
-  isDefined,
-  forEachAsync,
-  getBlockRangeForChain,
   getRelayEventKey,
-  isSlowFill,
-  mapAsync,
   isZeroValueDeposit,
   isZeroValueFillOrSlowFillRequest,
-  duplicateEvent,
   invalidOutputToken,
-  Address,
-  toBytes32,
   convertRelayDataParamsToBytes32,
   convertFillParamsToBytes32,
-  chainIsTvm,
-  getArweaveTopicCacheKey,
-  jsonReplacerWithBigNumbers,
-} from "../../utils";
+} from "../../utils/DepositUtils";
+import { assign } from "../../utils/ObjectUtils";
+import { fixedPointAdjustment } from "../../utils/common";
+import { isDefined } from "../../utils/TypeGuards";
+import { forEachAsync, mapAsync } from "../../utils/ArrayUtils";
+import { getBlockRangeForChain } from "../../utils/BundleUtils";
+import { isSlowFill } from "../../utils/SpokeUtils";
+import { duplicateEvent } from "../../utils/EventUtils";
+import { Address, toBytes32 } from "../../utils/AddressUtils";
+import { chainIsTvm } from "../../utils/NetworkUtils";
+import { getArweaveTopicCacheKey } from "../../utils/CachingUtils";
+import { jsonReplacerWithBigNumbers } from "../../utils/JSONUtils";
 import winston from "winston";
 import {
   BLOCKED_ADDRESSES,
@@ -60,7 +56,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
+import { SpokePoolClient, isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 import { DEFAULT_CACHING_TTL } from "../../constants";
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;

@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { deepCopy } from "ethers/lib/utils";
-import { BigNumber, bnOne } from "../utils";
+import { BigNumber, bnOne } from "../utils/BigNumberUtils";
 import AbstractApiClient from "./abstractClient";
 import {
   AcrossBridgeStatisticsType,

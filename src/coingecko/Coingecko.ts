@@ -1,5 +1,7 @@
 import assert from "assert";
-import { fetchWithTimeout, getCoingeckoTokenIdByAddress, retry } from "../utils";
+import { fetchWithTimeout } from "../utils/FetchUtils";
+import { getCoingeckoTokenIdByAddress } from "../utils/TokenUtils";
+import { retry } from "../utils/common";
 import { Logger } from "../relayFeeCalculator";
 import { CoingeckoPriceNotFoundError } from "./CoingeckoErrors";
 

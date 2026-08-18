@@ -4,7 +4,7 @@ import { BlockFinder, type Block, type BlockTimeAverage, type BlockFinderHints }
 import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
-import { SVMProvider } from "./";
+import { SVMProvider } from "./types";
 import { getNearestSlotTime } from "./utils";
 import winston from "winston";
 

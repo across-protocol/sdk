@@ -1,4 +1,6 @@
-import { Logger, mapAsync, normalizeAddressString } from "../utils";
+import { Logger } from "../utils/LogUtils";
+import { mapAsync } from "../utils/ArrayUtils";
+import { normalizeAddressString } from "../utils/AddressUtils";
 import { AddressListAdapter, INVALID_ADDRESS } from "./types";
 import * as adapters from "./adapters";
 

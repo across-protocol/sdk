@@ -4,7 +4,7 @@ import { is, object, optional, string, tuple } from "superstruct";
 import { CachingMechanismInterface } from "../../interfaces";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { CacheType } from "../utils";
-import { jsonReplacerWithBigInts, jsonReviverWithBigInts } from "../../utils";
+import { jsonReplacerWithBigInts, jsonReviverWithBigInts } from "../../utils/JSONUtils";
 import { RetrySolanaRpcFactory } from "./retryRpcFactory";
 
 // A CachedFactory contains a RetryFactory and provides a caching layer that caches

@@ -1,4 +1,4 @@
-import { fetchWithTimeout, FetchQueryParams } from "../../utils";
+import { fetchWithTimeout, FetchQueryParams } from "../../utils/FetchUtils";
 import assert from "assert";
 
 export type BaseHTTPAdapterArgs = {

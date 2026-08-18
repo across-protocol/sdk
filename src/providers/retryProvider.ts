@@ -1,7 +1,8 @@
 import { ethers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { CHAIN_IDs } from "../constants";
-import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
+import { delay } from "../utils/common";
+import { isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils/TypeGuards";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import {

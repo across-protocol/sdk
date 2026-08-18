@@ -1,5 +1,5 @@
 import { Contract } from "ethers";
-import { paginatedEventQuery } from "../../utils";
+import { paginatedEventQuery } from "../../utils/EventUtils";
 
 /**
  * Query for EIP-1967 contract upgrade events.

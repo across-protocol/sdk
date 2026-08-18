@@ -1,4 +1,4 @@
-import { BigNumber } from "../utils";
+import { BigNumber } from "../utils/BigNumberUtils";
 
 export interface OutstandingTransfers {
   [address: string]: {

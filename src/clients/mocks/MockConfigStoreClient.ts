@@ -2,7 +2,10 @@ import assert from "assert";
 import winston from "winston";
 import { Contract, ethers } from "ethers";
 import { Log } from "../../interfaces";
-import { getCurrentTime, EventSearchConfig, MakeOptional, utf8ToHex, spreadEventWithBlockNumber } from "../../utils";
+import { getCurrentTime } from "../../utils/TimeUtils";
+import { EventSearchConfig, spreadEventWithBlockNumber } from "../../utils/EventUtils";
+import { MakeOptional } from "../../utils/TypeUtils";
+import { utf8ToHex } from "../../utils/FormattingUtils";
 import {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
