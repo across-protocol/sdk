@@ -13,7 +13,7 @@ import {
 import { bs58, chainIsSvm, getMessageHash, isDefined, toAddressType } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
-import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
+import { Deposit, DepositWithTime, Fill, FillWithTime, RelayExecutionEventInfo } from "../../interfaces";
 import { unwrapEventData } from "./";
 import assert from "assert";
 
@@ -290,12 +290,14 @@ export class SvmCpiEventsClient {
           outputToken: string;
         }
       >(event.data, ["depositId", "outputAmount"]);
+      // A FundsDeposited event carries destinationChainId but not originChainId (origin is implicitly this
+      // SVM chain), so depositor/inputToken must be resolved against the originChainId function argument.
       return {
         ...data,
-        depositor: toAddressType(data.depositor, data.originChainId),
+        depositor: toAddressType(data.depositor, originChainId),
         recipient: toAddressType(data.recipient, data.destinationChainId),
         exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
-        inputToken: toAddressType(data.inputToken, data.originChainId),
+        inputToken: toAddressType(data.inputToken, originChainId),
         outputToken: toAddressType(data.outputToken, data.destinationChainId),
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
@@ -349,15 +351,26 @@ export class SvmCpiEventsClient {
           exclusiveRelayer: string;
           inputToken: string;
           outputToken: string;
+          relayer: string;
+          relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
         }
       >(event.data, ["depositId", "inputAmount"]);
+      // A FilledRelay event carries originChainId but not destinationChainId (destination is implicitly this
+      // SVM chain), so recipient/exclusiveRelayer/outputToken must be resolved against the
+      // destinationChainId function argument. relayer and relayExecutionInfo.updatedRecipient were not
+      // converted at all, leaving them as raw hex strings mistyped as Address.
       return {
         ...data,
         depositor: toAddressType(data.depositor, data.originChainId),
-        recipient: toAddressType(data.recipient, data.destinationChainId),
-        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
+        recipient: toAddressType(data.recipient, destinationChainId),
+        exclusiveRelayer: toAddressType(data.exclusiveRelayer, destinationChainId),
         inputToken: toAddressType(data.inputToken, data.originChainId),
-        outputToken: toAddressType(data.outputToken, data.destinationChainId),
+        outputToken: toAddressType(data.outputToken, destinationChainId),
+        relayer: toAddressType(data.relayer, data.repaymentChainId),
+        relayExecutionInfo: {
+          ...data.relayExecutionInfo,
+          updatedRecipient: toAddressType(data.relayExecutionInfo.updatedRecipient, destinationChainId),
+        },
         fillTimestamp: Number(txDetails.blockTime),
         blockNumber: Number(txDetails.slot),
         txnRef: txSignature,

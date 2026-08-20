@@ -483,8 +483,14 @@ export async function findFillEvent(
     return;
   }
 
+  // Merge the transaction/slot metadata carried on EventWithData before unpacking, mirroring findDeposit.
+  // unpackFillEvent does not derive these from the raw event, so without this they come back undefined.
+  const blockNumber = Number(rawEvent.slot);
+  const txnRef = rawEvent.signature.toString();
+  const txnIndex = 0;
+  const logIndex = 0;
   const rawFill = unwrapEventData<SortableEvent>(rawEvent.data, ["depositId", "inputAmount"]);
-  const fill = unpackFillEvent(rawFill, destinationChainId);
+  const fill = unpackFillEvent({ ...rawFill, blockNumber, txnRef, txnIndex, logIndex }, destinationChainId);
   return fill satisfies FillWithBlock;
 }
 
@@ -501,7 +507,11 @@ export async function fillRelayInstruction(
   signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
   repaymentAddress: EvmAddress | SvmAddress,
-  repaymentChainId: number
+  repaymentChainId: number,
+  // Owning token program of the output mint. Defaults to the classic SPL token program; pass the
+  // Token-2022 program id when filling a Token-2022 output mint so that both the relayer ATA and
+  // the instruction's tokenProgram account resolve to that program.
+  outputTokenProgram?: Address<string>
 ): Promise<Instruction> {
   const program = toAddress(spokePool);
   assert(
@@ -519,8 +529,8 @@ export async function fillRelayInstruction(
     getStatePda(program),
     getFillStatusPda(program, relayData, relayData.destinationChainId),
     getEventAuthority(program),
-    getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), signer.address, program),
-    getAssociatedTokenAddress(relayer, relayData.outputToken),
+    getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
+    getAssociatedTokenAddress(relayer, relayData.outputToken, outputTokenProgram),
   ]);
 
   const svmRelayData = toSvmRelayData(relayData);
@@ -532,6 +542,10 @@ export async function fillRelayInstruction(
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda,
+    // Must match the program the relayer ATA was derived against above. The instruction builder
+    // otherwise defaults this account to the classic SPL token program, which would pair a
+    // Token-2022 ATA with the wrong token program and fail on-chain.
+    tokenProgram: outputTokenProgram,
     eventAuthority,
     program,
     relayHash: relayDataHash,
