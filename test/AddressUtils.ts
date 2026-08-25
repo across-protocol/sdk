@@ -42,6 +42,20 @@ describe("Address Utils: Address Type", function () {
       expect(EvmAddress.validate(arrayify(invalidEvmAddress))).to.be.false;
       expect(() => toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
     });
+    it("Falls through instead of throwing for malformed TVM addresses", function () {
+      // A 32-byte value with non-zero upper bytes is not a valid TVM (or EVM) address. Because address inputs can
+      // come from unverified on-chain event data, the TVM branch must fall through to a non-throwing type rather
+      // than throw, exactly like the EVM/SVM branches.
+      const malformed = "0xff" + randomBytes(31).slice(2);
+      expect(TvmAddress.validate(arrayify(malformed))).to.be.false;
+      expect(() => toAddressType(malformed, CHAIN_IDs.TRON)).to.not.throw();
+      expect(toAddressType(malformed, CHAIN_IDs.TRON).isTVM()).to.be.false;
+    });
+    it("Coerces valid TVM addresses to TvmAddress", function () {
+      // 20-byte and zero-padded 32-byte inputs are valid and should still resolve to a TvmAddress.
+      expect(toAddressType(randomBytes(20), CHAIN_IDs.TRON).isTVM()).to.be.true;
+      expect(toAddressType(EVM_ZERO_PAD + randomBytes(20).slice(2), CHAIN_IDs.TRON).isTVM()).to.be.true;
+    });
     it("Rejects padded SVM (suspect EVM) addresses", function () {
       const rawAddress = arrayify(EVM_ZERO_PAD + randomBytes(20).slice(2));
       expect(rawAddress.slice(0, 12).every((field: number) => field === 0)).to.be.true;
@@ -354,6 +368,43 @@ describe("Address Utils: Address Type", function () {
         expect(TvmAddress.validate(new Uint8Array(15))).to.be.false;
         expect(TvmAddress.validate(new Uint8Array(21))).to.be.false;
       });
+
+      it("Accepts a valid TRON Base58Check string", function () {
+        expect(TvmAddress.validate(tronBase58)).to.be.true;
+      });
+
+      it("Accepts a valid 0x-hex address string", function () {
+        expect(TvmAddress.validate(hex20)).to.be.true;
+      });
+
+      it("Rejects a malformed 0x-hex string (non-zero upper bytes)", function () {
+        expect(TvmAddress.validate("0xff" + "00".repeat(31))).to.be.false;
+      });
+
+      it("Rejects a string that fails the Base58Check checksum", function () {
+        // A random 25-byte payload encoded as plain Base58 will, with overwhelming probability, fail the
+        // 4-byte Base58Check checksum that TronWeb verifies.
+        expect(TvmAddress.validate(bs58.encode(ethers.utils.randomBytes(25)))).to.be.false;
+      });
+
+      it("Rejects hex that cannot be decoded at all", function () {
+        // arrayify throws on odd-length and non-hex input. The string is not an address, so this must surface as
+        // a false rather than a propagated throw.
+        for (const input of ["0xabc", "0xnothex", "0x"]) {
+          expect(() => TvmAddress.validate(input)).to.not.throw();
+          expect(TvmAddress.validate(input)).to.be.false;
+        }
+      });
+
+      it("Rejects garbage strings without throwing", function () {
+        // TronWeb's internal decode58 throws on non-Base58 characters, but TronWeb.isAddress() wraps all
+        // decoding in try/catch and returns false (verified against tronweb@6.2.2), so validate() never throws.
+        const garbage = ["T!!!not-base58-0OIl", "", " ", "Tshort", "0x", "🚀".repeat(17)];
+        for (const input of garbage) {
+          expect(() => TvmAddress.validate(input)).to.not.throw();
+          expect(TvmAddress.validate(input)).to.be.false;
+        }
+      });
     });
 
     describe("toAddressType integration", function () {
@@ -367,6 +418,21 @@ describe("Address Utils: Address Type", function () {
         const addr = toAddressType(tronBase58, CHAIN_IDs.TRON);
         expect(addr).to.be.instanceOf(TvmAddress);
         expect(addr.toNative()).to.equal(tronBase58);
+      });
+
+      it("Returns a TvmAddress for 41-prefixed hex input that is not valid base58", function () {
+        // Fixed rather than random: this hex ends in '0', which the base58 alphabet excludes. Decoding rawAddress
+        // before the TVM branch had concluded therefore threw "Non-base58 character" on a perfectly valid TVM
+        // address. A random fixture would only trip that path ~92% of the time.
+        const hex41 = "41e552f6487585c2b58bc2c9bb4492bc1f17132cd0";
+        const expected = "TWsm8HtU2A5eEzoT8ev8yaoFjHsXLLrckb";
+        expect(TronWeb.address.fromHex(hex41)).to.equal(expected);
+        expect(TvmAddress.validate(hex41)).to.be.true;
+        expect(() => bs58.decode(hex41)).to.throw(/Non-base58 character/);
+
+        const addr = toAddressType(hex41, CHAIN_IDs.TRON);
+        expect(addr).to.be.instanceOf(TvmAddress);
+        expect(addr.toNative()).to.equal(expected);
       });
     });
 
