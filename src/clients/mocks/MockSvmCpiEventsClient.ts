@@ -219,6 +219,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
           )
         )
       ),
+      logIndex: 0,
       program: address,
       data: args,
       confirmationStatus: "finalized",

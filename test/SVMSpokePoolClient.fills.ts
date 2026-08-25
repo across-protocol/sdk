@@ -111,6 +111,10 @@ describe("SVMSpokePoolClient: Fills", function () {
     fill = fill!;
 
     expect(fill.depositId).to.equal(BigNumber.from(relayData.depositId));
+    expect(fill.blockNumber).to.be.greaterThan(0);
+    expect(fill.txnRef).to.be.a("string").and.not.be.empty;
+    expect(fill.txnIndex).to.equal(0);
+    expect(fill.logIndex).to.be.at.least(0);
 
     // Looking for a fill can return undefined:
     const missingFill = await findFillEvent(
