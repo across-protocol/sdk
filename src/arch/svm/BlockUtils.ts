@@ -87,7 +87,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     }
 
     // Find the index where the slot would be inserted and use that as the end slot (since it is >= the timestamp).
-    const index = sortedIndexBy(this.blocks, { timestamp } as Block, "timestamp");
+    const index = sortedIndexBy<Pick<Block, "timestamp">>(this.blocks, { timestamp }, "timestamp");
     return this.findBlock(this.blocks[index - 1], this.blocks[index], timestamp);
   }
 
@@ -118,7 +118,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
 
   // Grabs the slot for a particular number and caches it.
   private async getBlock(number: number): Promise<SVMBlock> {
-    let index = sortedIndexBy(this.blocks, { number } as Block, "number");
+    let index = sortedIndexBy<Pick<Block, "number">>(this.blocks, { number }, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
 
     // The resolved slot may be rotated backwards if no timestamp exists at the requested slot.
@@ -131,7 +131,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     };
 
     // Recompute the index after the async call since the state of this.blocks could have changed!
-    index = sortedIndexBy(this.blocks, { number: slot } as Block, "number");
+    index = sortedIndexBy<Pick<Block, "number">>(this.blocks, { number: slot }, "number");
 
     // Rerun this check to avoid duplicate insertion.
     if (this.blocks[index]?.number === slot) return this.blocks[index];

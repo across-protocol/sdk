@@ -42,14 +42,7 @@ import assert from "assert";
 import winston from "winston";
 import { arrayify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
-import {
-  DepositWithBlock,
-  FillStatus,
-  FillWithBlock,
-  RelayData,
-  RelayDataWithMessageHash,
-  SortableEvent,
-} from "../../interfaces";
+import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -483,8 +476,11 @@ export async function findFillEvent(
     return;
   }
 
-  const rawFill = unwrapEventData<SortableEvent>(rawEvent.data, ["depositId", "inputAmount"]);
-  const fill = unpackFillEvent(rawFill, destinationChainId);
+  // SortableEvent fields are sourced from the transaction envelope; only the fill fields come from event data.
+  const blockNumber = Number(rawEvent.slot);
+  const txnRef = rawEvent.signature.toString();
+  const rawFill = unwrapEventData(rawEvent.data, ["depositId", "inputAmount"]);
+  const fill = unpackFillEvent({ ...rawFill, blockNumber, txnRef, txnIndex: 0, logIndex: 0 }, destinationChainId);
   return fill satisfies FillWithBlock;
 }
 
@@ -1016,11 +1012,6 @@ async function resolveFillStatusFromPdaEvents(
     )
   ).flat();
 
-  if (relevantEvents.length === 0) {
-    // No fill or requested slow fill events found for this PDA
-    return FillStatus.Unfilled;
-  }
-
   // Sort events in ascending order of slot number
   relevantEvents.sort((a, b) => Number(a.slot - b.slot));
 
@@ -1028,13 +1019,18 @@ async function resolveFillStatusFromPdaEvents(
   // since it's not possible to submit a slow fill request once a fill has been submitted,
   // we can use the last event in the list to determine the fill status at the requested slot.
   const fillStatusEvent = relevantEvents.pop();
-  switch (fillStatusEvent!.name) {
+  if (!isDefined(fillStatusEvent)) {
+    // No fill or requested slow fill events found for this PDA
+    return FillStatus.Unfilled;
+  }
+
+  switch (fillStatusEvent.name) {
     case SVMEventNames.FilledRelay:
       return FillStatus.Filled;
     case SVMEventNames.RequestedSlowFill:
       return FillStatus.RequestedSlowFill;
     default:
-      throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
+      throw new Error(`Unexpected event name: ${fillStatusEvent.name}`);
   }
 }
 
