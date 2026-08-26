@@ -190,4 +190,13 @@ describe("SVM event decoding (non-SvmSpoke IDLs)", () => {
     expect(matched[0].name).to.equal("DepositForBurn");
     expect(matched[0].data).to.deep.equal({ nonce: 1n });
   });
+
+  // queryEvents() narrows event.data by event.name, a correlation that only the generated SvmSpoke decoders
+  // establish. A client bound to another IDL may emit an identically-named event with an unrelated payload,
+  // so the typed query must reject it outright rather than mislabel it as an SvmSpoke event.
+  it("rejects the typed query on a client bound to a non-SvmSpoke IDL", async () => {
+    const rpc = {} as unknown as Parameters<typeof SvmCpiEventsClient.createFor>[0];
+    const client = await SvmCpiEventsClient.createFor(rpc, getRandomSvmAddress(), TokenMessengerMinterIdl);
+    await expect(client.queryEvents("FundsDeposited")).to.be.rejectedWith(/not SvmSpoke/);
+  });
 });

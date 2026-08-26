@@ -85,6 +85,11 @@ export class SvmCpiEventsClient {
   /**
    * Queries events for the SvmSpoke program filtered by event name.
    *
+   * Only valid on a client bound to the SvmSpoke IDL: the typed return narrows `data` by `name`, and that
+   * correlation is only proven for events decoded by the generated SvmSpoke decoders (see decodeEvent()).
+   * A client bound to any other IDL via createFor() may emit an identically-named event with an unrelated
+   * payload, so this rejects rather than mislabel it; use queryDerivedAddressEvents() for those programs.
+   *
    * @param eventName - The name of the event to filter by.
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
@@ -97,6 +102,10 @@ export class SvmCpiEventsClient {
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData<T>[]> {
+    assert(
+      this.idl.address === SvmSpokeIdl.address,
+      `queryEvents: client is bound to ${this.idl.address ?? "an unknown IDL"}, not SvmSpoke`
+    );
     const events = await this.queryAllEvents(fromSlot, toSlot, options);
     return events.filter((event): event is EventWithData<T> => event.name === eventName);
   }
