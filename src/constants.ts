@@ -33,6 +33,15 @@ export const HUBPOOL_CHAIN_ID = 1;
 // List of versions where certain UMIP features were deprecated or activated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 
+// ConfigStore VERSION at which UMIP-179 "abandoned-destination" depositor refunds activate. From this
+// version onward, a deposit whose destinationChainId is not an active protocol chain (never onboarded, or
+// in DISABLED_CHAINS across its fillable window) is refunded to the depositor on the origin SpokePool once
+// its fillDeadline elapses, instead of being silently dropped from bundle consideration. See UMIP-179
+// "Finding Abandoned-Destination Deposits".
+// TODO(UMIP-179): set to the ratified activation VERSION before mainnet enablement. The high placeholder
+// keeps the feature inert (never triggers) until governance sets the real value.
+export const ABANDONED_DESTINATION_REFUND_CONFIG_STORE_VERSION = 100;
+
 // A hardcoded identifier used, by default, to tag all Arweave records.
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 

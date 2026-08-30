@@ -62,7 +62,7 @@ import {
 } from "./utils";
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
-import { DEFAULT_CACHING_TTL } from "../../constants";
+import { ABANDONED_DESTINATION_REFUND_CONFIG_STORE_VERSION, DEFAULT_CACHING_TTL } from "../../constants";
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
@@ -1205,6 +1205,75 @@ export class BundleDataClient {
         }
       }
     });
+
+    // Refund deposits whose destination is not an active protocol chain ("abandoned destinations").
+    // A deposit to a destination that was never onboarded, or that was in DISABLED_CHAINS across its
+    // fillable window, is otherwise filtered out of bundle consideration entirely (see `allChainIds`) and
+    // stranded on the origin SpokePool. Per UMIP-179 "Finding Abandoned-Destination Deposits", refund it to
+    // the depositor on the ORIGIN chain once its fillDeadline elapses within the origin bundle range. Gated
+    // on the ConfigStore VERSION so proposers switch deterministically.
+    if (
+      this.clients.configStoreClient.getConfigStoreVersionForBlock(bundleEndBlockForMainnet) >=
+      ABANDONED_DESTINATION_REFUND_CONFIG_STORE_VERSION
+    ) {
+      const activeChainIds = new Set(allChainIds);
+      // Cache HubPool-block resolutions by timestamp; abandoned deposits are rare so per-deposit is fine.
+      const hubPoolBlockForTimestamp: { [timestamp: number]: number } = {};
+      const resolveHubPoolBlock = async (timestamp: number): Promise<number> =>
+        (hubPoolBlockForTimestamp[timestamp] ??= await this.clients.hubPoolClient.getBlockNumber(timestamp));
+
+      for (const originChainId of allChainIds) {
+        const originClient = spokePoolClients[originChainId];
+        const originBundleTimestamps = bundleBlockTimestamps[originChainId];
+        if (!isDefined(originClient) || !isDefined(originBundleTimestamps)) {
+          continue;
+        }
+        const [originStartTime, originEndTime] = originBundleTimestamps;
+
+        for (const deposit of originClient.getDeposits()) {
+          const { destinationChainId, fillDeadline } = deposit;
+          // Active destinations are handled by the loops above; only non-active destinations reach here.
+          if (activeChainIds.has(destinationChainId)) {
+            continue;
+          }
+          // Forward-only origin-clock gate: only refund deposits whose fillDeadline elapses within this
+          // bundle's origin block range. Deposits whose fillDeadline elapsed in an earlier bundle are
+          // assumed already resolved (mirrors the destination-clock expiry gate above).
+          if (fillDeadline < originStartTime || fillDeadline > originEndTime) {
+            continue;
+          }
+
+          // Classify using on-chain event timestamps (never quoteTimestamp), so the rule is independent of
+          // depositQuoteTimeBuffer. `CHAIN_ID_INDICES` is append-only, so absence at the fillDeadline HubPool
+          // block implies absence for the whole [deposit, fillDeadline] window => no SpokePool ever existed.
+          const fillDeadlineHubBlock = await resolveHubPoolBlock(fillDeadline);
+          const orphaned = !this.clients.configStoreClient
+            .getChainIdIndicesForBlock(fillDeadlineHubBlock)
+            .includes(destinationChainId);
+
+          let abandoned = orphaned;
+          if (!abandoned) {
+            // Disabled destination: require it to have been in DISABLED_CHAINS as of BOTH the deposit's
+            // origin block.timestamp and its fillDeadline (disabled across the whole window). Combined with
+            // the re-enablement bundle-range rule (disabled-gap fills are never bundled), this guarantees no
+            // repayable fill can be double-paid against the depositor refund.
+            const depositTime = await originClient.getTimestampForBlock(deposit.blockNumber);
+            const depositHubBlock = await resolveHubPoolBlock(depositTime);
+            const disabledAtDeposit = this.clients.configStoreClient
+              .getDisabledChainsForBlock(depositHubBlock)
+              .includes(destinationChainId);
+            const disabledAtFillDeadline = this.clients.configStoreClient
+              .getDisabledChainsForBlock(fillDeadlineHubBlock)
+              .includes(destinationChainId);
+            abandoned = disabledAtDeposit && disabledAtFillDeadline;
+          }
+
+          if (abandoned) {
+            updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
+          }
+        }
+      }
+    }
 
     // Batch compute V3 lp fees.
     start = performance.now();
