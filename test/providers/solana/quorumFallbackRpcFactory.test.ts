@@ -61,6 +61,10 @@ function rejectingTransport(error: unknown): RpcTransport {
   return (() => Promise.reject(error)) as unknown as RpcTransport;
 }
 
+function resolvingTransport(value: unknown): RpcTransport {
+  return (() => Promise.resolve(value)) as unknown as RpcTransport;
+}
+
 function payload(method: string, params: unknown[] = []): Parameters<RpcTransport>[0] {
   return { payload: { method, params } } as unknown as Parameters<RpcTransport>[0];
 }
@@ -252,5 +256,86 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
 
     const response = (await factory.createTransport()(payload("getBlockTime", [421829272]))) as RpcResponse<unknown>;
     expect(response).to.deep.equal({ result: "ok" });
+  });
+});
+
+describe("QuorumFallbackSolanaRpcFactory lower-bound quorum on getSlot", () => {
+  it("returns the K-th highest slot across N providers (rejects one lagging provider)", async () => {
+    // Three providers, two of which agree the chain has reached at least 105_000.
+    // Lower-bound quorum value should be 105_000 even though one provider lags at 100_000.
+    const factory = buildFactory(
+      [resolvingTransport(110_000n), resolvingTransport(105_000n), resolvingTransport(100_000n)],
+      2
+    );
+
+    const response = await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+    expect(response).to.equal(105_000n);
+  });
+
+  it("rejects an outlier-high single provider when quorum is 2", async () => {
+    // One provider reports a fake-high; two honest providers agree on the real tip.
+    const factory = buildFactory(
+      [resolvingTransport(9_000_000_000n), resolvingTransport(105_000n), resolvingTransport(104_998n)],
+      2
+    );
+
+    const response = await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+    expect(response).to.equal(105_000n);
+  });
+
+  it("returns the min when only quorum providers respond successfully", async () => {
+    // Quorum=2, three providers, but one errors out. The two successful responses both contribute,
+    // and the K-th highest is the minimum of those two.
+    const factory = buildFactory(
+      [resolvingTransport(110_000n), resolvingTransport(105_000n), rejectingTransport(new Error("rpc down"))],
+      2
+    );
+
+    const response = await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+    expect(response).to.equal(105_000n);
+  });
+
+  it("throws when fewer than quorum providers respond successfully", async () => {
+    // Quorum=2 but only one provider succeeds — lower-bound quorum cannot be reached.
+    const networkError = new Error("network down");
+    const factory = buildFactory(
+      [resolvingTransport(110_000n), rejectingTransport(networkError), rejectingTransport(networkError)],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+      expect.fail("Expected the transport to reject");
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).to.be.instanceOf(Error);
+    expect((caught as Error).message).to.match(/lower-bound quorum/i);
+    expect((caught as Error).message).to.include("1/2");
+  });
+
+  it("returns identical-value agreement directly without divergence logging", async () => {
+    // All providers agree exactly — the K-th highest is the single agreed-upon value.
+    const factory = buildFactory(
+      [resolvingTransport(105_000n), resolvingTransport(105_000n), resolvingTransport(105_000n)],
+      2
+    );
+
+    const response = await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+    expect(response).to.equal(105_000n);
+  });
+
+  it("preserves the single-provider fast path when quorum is 1", async () => {
+    // With quorum=1, lower-bound quorum is skipped — the first provider's response is returned
+    // even if a later provider would have reported a higher slot.
+    const factory = buildFactory(
+      [resolvingTransport(100_000n), resolvingTransport(110_000n), resolvingTransport(105_000n)],
+      1
+    );
+
+    const response = await factory.createTransport()(payload("getSlot", [{ commitment: "finalized" }]));
+    expect(response).to.equal(100_000n);
   });
 });
