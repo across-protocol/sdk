@@ -1,6 +1,6 @@
 import Arweave from "arweave";
-import Transaction from "arweave/node/lib/transaction";
-import { JWKInterface } from "arweave/node/lib/wallet";
+import Transaction from "arweave/node/lib/transaction.js";
+import { JWKInterface } from "arweave/node/lib/wallet.js";
 
 import { Struct, create } from "superstruct";
 import winston from "winston";

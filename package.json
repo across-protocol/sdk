@@ -23,7 +23,7 @@
     "build": "yarn run clean && yarn typechain && yarn dev",
     "dev": "concurrently --kill-others-on-fail --names 'cjs,esm,types' --prefix-colors 'blue,magenta,green' 'yarn run build:cjs' 'yarn run build:esm' 'yarn run build:types'",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
-    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
+    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && tsc-alias --project tsconfig.build.json --outDir ./dist/esm --resolve-full-paths && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
     "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
@@ -76,6 +76,7 @@
     "prettier": "^3.0.3",
     "sinon": "^21.0.0",
     "ts-node": "^10.9.1",
+    "tsc-alias": "^1.8.17",
     "typechain": "^8.3.1",
     "typescript": "^6"
   },

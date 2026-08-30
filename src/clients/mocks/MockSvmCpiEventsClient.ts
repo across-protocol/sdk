@@ -1,8 +1,9 @@
 import assert from "assert";
 import { utils as ethersUtils } from "ethers";
 import { createHash } from "crypto";
-import { hexlify, arrayify, hexZeroPad } from "ethers/lib/utils";
-import { random } from "lodash";
+import { hexlify, arrayify, hexZeroPad } from "ethers/lib/utils.js";
+import lodash from "lodash";
+const { random } = lodash;
 import { Address, UnixTimestamp, signature } from "@solana/kit";
 import { Idl } from "@coral-xyz/anchor";
 import { SvmSpokeClient } from "@across-protocol/contracts";

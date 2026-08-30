@@ -1,5 +1,6 @@
 import assert from "assert";
-import { clamp, sortedIndexBy } from "lodash";
+import lodash from "lodash";
+const { clamp, sortedIndexBy } = lodash;
 import { BlockFinder, type Block, type BlockTimeAverage, type BlockFinderHints } from "../../utils/BlockFinder";
 import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";

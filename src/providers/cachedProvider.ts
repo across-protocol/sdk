@@ -1,4 +1,5 @@
-import { random } from "lodash";
+import lodash from "lodash";
+const { random } = lodash;
 import { CachingMechanismInterface } from "../interfaces";
 import { BLOCK_NUMBER_TTL, PROVIDER_CACHE_TTL, PROVIDER_CACHE_TTL_MODIFIER as ttl_modifier } from "./constants";
 import { RateLimitedProvider } from "./rateLimitedProvider";

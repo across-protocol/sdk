@@ -1,6 +1,7 @@
 import assert from "assert";
 import { utils as ethersUtils } from "ethers";
-import { random } from "lodash";
+import lodash from "lodash";
+const { random } = lodash;
 import { Log } from "../../interfaces";
 import { isDefined } from "../../utils";
 

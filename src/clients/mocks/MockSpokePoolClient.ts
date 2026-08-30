@@ -1,6 +1,7 @@
 import assert from "assert";
 import { Contract } from "ethers";
-import { random } from "lodash";
+import lodash from "lodash";
+const { random } = lodash;
 import winston from "winston";
 import { EMPTY_MESSAGE, ZERO_ADDRESS, ZERO_BYTES } from "../../constants";
 import {

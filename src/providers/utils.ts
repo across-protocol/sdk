@@ -1,7 +1,8 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
 import assert from "assert";
 import { providers } from "ethers";
-import { isEqual, sortBy } from "lodash";
+import lodash from "lodash";
+const { isEqual, sortBy } = lodash;
 import { getOriginFromURL, isDefined } from "../utils";
 import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
