@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
+import { Logger } from "winston";
 import { RetryProvider } from "../../src/providers";
-import { expect } from "../utils";
+import { createSpyLogger, expect } from "../utils";
 
 const chainId = 1;
 const providerCacheNamespace = "test-cache-ns";
@@ -14,7 +15,7 @@ const makeLog = (logIndex: string) => ({
   data: "0x",
 });
 
-function makeProvider(quorumThreshold: number, behaviors: (unknown | Error)[]): RetryProvider {
+function makeProvider(quorumThreshold: number, behaviors: (unknown | Error)[], logger?: Logger): RetryProvider {
   const params = behaviors.map(
     (_, i): ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider> => [
       `https://test${i}.example.com`,
@@ -29,7 +30,12 @@ function makeProvider(quorumThreshold: number, behaviors: (unknown | Error)[]): 
     0, // delay
     1, // maxConcurrency
     providerCacheNamespace,
-    0 // pctRpcCallsLogged
+    0, // pctRpcCallsLogged
+    undefined, // redisClient
+    undefined, // standardTtlBlockDistance
+    undefined, // noTtlBlockDistance
+    undefined, // providerCacheTtl
+    logger
   );
   provider.providers.forEach((subProvider, i) => {
     const behavior = behaviors[i];
@@ -52,6 +58,21 @@ describe("RetryProvider quorum", () => {
 
     expect(caught).to.not.be.instanceOf(ReferenceError);
     expect((caught as Error).message).to.include(quorumError);
+  });
+
+  it("identifies the mismatched providers in the diagnostic log when quorum fails with no fallbacks", async () => {
+    const { spy, spyLogger } = createSpyLogger();
+    const provider = makeProvider(2, [[makeLog("0x1")], []], spyLogger);
+
+    await expect(provider.send("eth_getLogs", [{ fromBlock: "0x1", toBlock: "0x2" }])).to.be.rejectedWith(quorumError);
+
+    const warnLog = spy
+      .getCalls()
+      .map((call) => call.lastArg)
+      .find((log) => log.at === "ProviderUtils" && log.message.includes("mismatched"));
+    expect(warnLog).to.exist;
+    // The first provider's result is the most frequent, so the second provider is flagged as the mismatch.
+    expect(warnLog.mismatchedProviders).to.deep.equal(["https://test1.example.com"]);
   });
 
   it("throws the quorum error when a failing provider consumes the fallback and the survivors disagree", async () => {
