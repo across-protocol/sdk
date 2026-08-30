@@ -786,11 +786,13 @@ export class HubPoolClient extends BaseAbstractClient {
     return endBlock > 0 ? endBlock + 1 : 0;
   }
 
-  // @dev Returns the start block of the next bundle assuming that if there is a currently outstanding root bundle proposal, it will pass liveness.
-  getOptimisticBundleStartBlockNumber(chainIdList: number[], latestMainnetBlock: number, chainId: number): number {
-    // If there is no pending root bundle, then return block ranges based on the latest fully executed root bundle.
+  // @dev Returns the end block of the previous bundle for `chainId`, assuming that if there is a currently outstanding
+  // root bundle proposal, it will pass liveness. This is the optimistic counterpart to
+  // `getLatestBundleEndBlockForChain`.
+  getOptimisticBundleEndBlockForChain(chainIdList: number[], latestMainnetBlock: number, chainId: number): number {
+    // If there is no pending root bundle, then return the end block of the latest fully executed root bundle.
     if (!this.hasPendingProposal()) {
-      return this.getNextBundleStartBlockNumber(chainIdList, latestMainnetBlock, chainId);
+      return this.getLatestBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId);
     }
     // We cannot normally index `this.proposedRootBundles` since a bundle there may have been previously disputed, so only index `this.proposedRootBundles`
     // if we have a pending proposal, since this must mean that the pending root bundle is the most recent proposed root bundle.
@@ -802,7 +804,12 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     // Otherwise, get the bundle end block for the optimistic bundle.
-    const optimisticEndBlock = this.getBundleEndBlockForChain(latestProposedBundle, chainId, chainIdList);
+    return this.getBundleEndBlockForChain(latestProposedBundle, chainId, chainIdList);
+  }
+
+  // @dev Returns the start block of the next bundle assuming that if there is a currently outstanding root bundle proposal, it will pass liveness.
+  getOptimisticBundleStartBlockNumber(chainIdList: number[], latestMainnetBlock: number, chainId: number): number {
+    const optimisticEndBlock = this.getOptimisticBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId);
 
     // As above, this assumes that chain ID's are only added to the chain ID list over time, and that chains are never
     // deleted.

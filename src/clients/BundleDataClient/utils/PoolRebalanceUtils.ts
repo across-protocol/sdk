@@ -72,13 +72,16 @@ export async function getWidestPossibleExpectedBlockRange(
   );
 
   return chainIds.map((chainId: number, index) => {
-    const lastEndBlockForChain = clients.hubPoolClient.getLatestBundleEndBlockForChain(
-      chainIds,
-      latestMainnetBlock,
-      chainId
-    );
+    // Resolve the previous bundle's end block for this chain. In optimistic mode we assume any pending proposal will
+    // pass liveness, so the reference is the latest *proposed* bundle rather than the latest fully executed one.
+    // @dev: Every branch below must resolve its reference the same way. Mixing references lets a chain that takes one
+    // of the paused branches freeze at a stale end block while its peers advance off a newer bundle, which regresses
+    // that chain's end block relative to the previous bundle.
+    const lastEndBlockForChain = optimistic
+      ? clients.hubPoolClient.getOptimisticBundleEndBlockForChain(chainIds, latestMainnetBlock, chainId)
+      : clients.hubPoolClient.getLatestBundleEndBlockForChain(chainIds, latestMainnetBlock, chainId);
 
-    // If chain is disabled, re-use the latest bundle end block for the chain as both the start
+    // If chain is disabled, re-use the previous bundle end block for the chain as both the start
     // and end block.
     if (!enabledChains.includes(chainId)) {
       return [lastEndBlockForChain, lastEndBlockForChain];
@@ -87,19 +90,16 @@ export async function getWidestPossibleExpectedBlockRange(
     // If the latest block hasn't advanced enough from the previous proposed end block, then re-use it. It will
     // be regarded as disabled by the Dataworker clients. Otherwise, add 1 to the previous proposed end block.
     if (lastEndBlockForChain >= latestPossibleBundleEndBlockNumbers[index]) {
-      // @dev: Without this check, then `getNextBundleStartBlockNumber` could return `latestBlock+1` even when the
-      // latest block for the chain hasn't advanced, resulting in an invalid range being produced.
+      // @dev: Without this check, then the start block could be `latestBlock+1` even when the latest block for the
+      // chain hasn't advanced, resulting in an invalid range being produced.
       return [lastEndBlockForChain, lastEndBlockForChain];
     }
 
     // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
     // latest block for chain minus buffer.
-    return [
-      optimistic
-        ? clients.hubPoolClient.getOptimisticBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId)
-        : clients.hubPoolClient.getNextBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId),
-      latestPossibleBundleEndBlockNumbers[index],
-    ];
+    // @dev: This assumes that chain ID's are only added to the chain ID list over time, and that chains are never
+    // deleted, matching `get{Next,OptimisticBundle}StartBlockNumber`.
+    return [lastEndBlockForChain > 0 ? lastEndBlockForChain + 1 : 0, latestPossibleBundleEndBlockNumbers[index]];
   });
 }
 
