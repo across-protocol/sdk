@@ -247,8 +247,82 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
   }
 }
 
-export function compareSvmRpcResults(_method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
-  return isEqual(rpcResultA, rpcResultB);
+/**
+ * Recursively strip `ignoredKeys` from anywhere in a JSON-RPC response. Unlike the EVM helpers above this
+ * walks nested objects and arrays, because the volatile Solana fields are nested — for example
+ * `meta.computeUnitsConsumed` and `meta.innerInstructions[].instructions[].stackHeight`.
+ */
+function deleteIgnoredKeysDeep(ignoredKeys: string[], value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((element) => deleteIgnoredKeysDeep(ignoredKeys, element));
+  }
+
+  // Non-objects (including bigint, and null/undefined) are already comparable as-is.
+  if (!isDefined(value) || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !ignoredKeys.includes(key))
+      .map(([key, nested]) => [key, deleteIgnoredKeysDeep(ignoredKeys, nested)])
+  );
+}
+
+/**
+ * Fields that healthy Solana providers may legitimately disagree on, because they are optional in the
+ * JSON-RPC spec and gated on node version or configuration rather than on consensus. This is the SVM
+ * counterpart of IGNORED_FIELDS above.
+ */
+const SVM_IGNORED_FIELDS: Record<string, string[]> = {
+  // 2026-08-15 computeUnitsConsumed and stackHeight are omitted by older Agave/Solana node versions,
+  // logMessages is truncated at a node-configurable byte limit, and rewards is omitted by some
+  // providers on non-vote transactions. A mixed-version provider set therefore returns materially
+  // identical transactions that are not deeply equal. None of these are read by the SDK.
+  //
+  // Deliberately NOT ignored: blockTime (consumed as depositTimestamp in arch/svm/eventsClient), and
+  // meta.err / meta.innerInstructions / meta.loadedAddresses / transaction.message.accountKeys, which
+  // are exactly the fields an attacker would have to alter to forge or hide an event.
+  getTransaction: ["computeUnitsConsumed", "stackHeight", "logMessages", "rewards"],
+};
+
+/**
+ * The SVM transports resolve to the raw JSON-RPC envelope, and its `id` is a per-process counter that the
+ * provider echoes back (`createRpcMessage` in @solana/rpc-spec-types). CachedSolanaRpcFactory caches whole
+ * envelopes under a key that excludes the id, with no TTL, and only once a transaction is finalized — so two
+ * providers that reach finality at different moments cache different ids for the identical transaction, and
+ * comparing them would report a permanent disagreement. Drop the id before comparing.
+ *
+ * Only the top-level envelope id is dropped. This deliberately does not recurse — a result payload may carry
+ * its own `id` field — and the envelope is only recognised when `jsonrpc` sits alongside. The rest of the
+ * envelope is left intact, including `error`, so that two differing error responses still compare as a
+ * disagreement instead of collapsing onto an absent `result`.
+ */
+function stripJsonRpcEnvelopeId(response: unknown): unknown {
+  if (!isDefined(response) || typeof response !== "object" || Array.isArray(response)) {
+    return response;
+  }
+
+  const envelope = response as Record<string, unknown>;
+  if (!("id" in envelope) || !("jsonrpc" in envelope)) {
+    return response;
+  }
+
+  const withoutId = { ...envelope };
+  delete withoutId.id;
+  return withoutId;
+}
+
+export function compareSvmRpcResults(method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
+  const resultA = stripJsonRpcEnvelopeId(rpcResultA);
+  const resultB = stripJsonRpcEnvelopeId(rpcResultB);
+
+  const ignoredKeys = SVM_IGNORED_FIELDS[method];
+  if (!isDefined(ignoredKeys)) {
+    return isEqual(resultA, resultB);
+  }
+
+  return isEqual(deleteIgnoredKeysDeep(ignoredKeys, resultA), deleteIgnoredKeysDeep(ignoredKeys, resultB));
 }
 
 export enum CacheType {

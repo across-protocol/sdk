@@ -254,3 +254,236 @@ describe("QuorumFallbackSolanaRpcFactory error preservation", () => {
     expect(response).to.deep.equal({ result: "ok" });
   });
 });
+
+// A minimal getTransaction envelope carrying the fields that arch/svm/eventsClient actually decodes events from.
+function getTransactionResponse(meta: Record<string, unknown> = {}, result: Record<string, unknown> = {}) {
+  return {
+    result: {
+      slot: 421829272,
+      blockTime: 1735689600,
+      transaction: { message: { accountKeys: ["SpokePool11111111111111111111111111111111", "EventAuth1111"] } },
+      meta: {
+        err: null,
+        loadedAddresses: { writable: [], readonly: [] },
+        innerInstructions: [{ index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "3Bxs4h" }] }],
+        ...meta,
+      },
+      ...result,
+    },
+  };
+}
+
+function resolvingTransport(response: unknown, onCall?: () => void): RpcTransport {
+  return (() => {
+    onCall?.();
+    return Promise.resolve(response);
+  }) as unknown as RpcTransport;
+}
+
+describe("QuorumFallbackSolanaRpcFactory getTransaction quorum", () => {
+  it("rejects a nodeQuorumThreshold larger than the provider set", () => {
+    expect(() => buildFactory([resolvingTransport(getTransactionResponse())], 2)).to.throw(
+      /must be <= the number of providers/
+    );
+  });
+
+  it("reaches quorum when providers differ only on optional, node-version-dependent metadata", async () => {
+    // A newer node reports compute units, stack heights and full logs; an older one omits them. Both describe
+    // the same transaction, so this must not fail quorum.
+    const verbose = getTransactionResponse({
+      computeUnitsConsumed: 42069,
+      logMessages: ["Program log: a", "Program log: b"],
+      rewards: [],
+      innerInstructions: [
+        { index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "3Bxs4h", stackHeight: 2 }] },
+      ],
+    });
+    const terse = getTransactionResponse();
+    const factory = buildFactory([resolvingTransport(verbose), resolvingTransport(terse)], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal(verbose);
+  });
+
+  it("fails quorum when providers disagree on the event instruction data", async () => {
+    // The forgery this quorum exists to catch: same shape, different CPI event payload.
+    const honest = getTransactionResponse();
+    const forged = getTransactionResponse({
+      innerInstructions: [{ index: 0, instructions: [{ programIdIndex: 0, accounts: [1], data: "forged" }] }],
+    });
+    const factory = buildFactory([resolvingTransport(honest), resolvingTransport(forged)], 2);
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("fails quorum when providers disagree on blockTime", async () => {
+    // blockTime is consumed as depositTimestamp, so it is deliberately not normalised away.
+    const factory = buildFactory(
+      [
+        resolvingTransport(getTransactionResponse()),
+        resolvingTransport(getTransactionResponse({}, { blockTime: 1735689999 })),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("does not let providers missing the transaction outvote a provider that has it", async () => {
+    // Two pruned/lagging providers agree on null. That must not silently resolve to "no events" while an
+    // archival provider still holds the transaction.
+    let archivalCalled = false;
+    const present = getTransactionResponse();
+    const factory = buildFactory(
+      [
+        resolvingTransport({ result: null }),
+        resolvingTransport({ result: null }),
+        resolvingTransport(present, () => (archivalCalled = true)),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect(archivalCalled).to.equal(true);
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("returns a missing transaction once every provider agrees it is missing", async () => {
+    const factory = buildFactory([resolvingTransport({ result: null }), resolvingTransport({ result: null })], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal({ result: null });
+  });
+
+  it("does not treat absence as unanimous when a consulted fallback failed", async () => {
+    // Two pruned providers agree on null while the archival node that may hold the transaction is briefly
+    // unreachable. It never agreed the transaction is missing, so this must not resolve to "no events".
+    const factory = buildFactory(
+      [
+        resolvingTransport({ result: null }),
+        resolvingTransport({ result: null }),
+        rejectingTransport(new Error("archival node unreachable")),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("reaches quorum when cached envelopes carry different JSON-RPC ids", async () => {
+    // The transports resolve to the raw envelope, and CachedSolanaRpcFactory caches it whole (no TTL) only
+    // once a transaction is finalized. Providers that finalize at different moments therefore serve the same
+    // transaction under different per-process ids, which must not read as a provider disagreement.
+    const cached = { jsonrpc: "2.0", id: "42", ...getTransactionResponse() };
+    const fresh = { jsonrpc: "2.0", id: "57", ...getTransactionResponse() };
+    const factory = buildFactory([resolvingTransport(cached), resolvingTransport(fresh)], 2);
+
+    const response = await factory.createTransport()(payload("getTransaction", ["sig"]));
+    expect(response).to.deep.equal(cached);
+  });
+
+  it("still reports a disagreement when envelopes differ beyond the JSON-RPC id", async () => {
+    // Guards the id-stripping above from over-normalising: only the id is dropped, so differing errors on
+    // otherwise identical envelopes remain a genuine mismatch.
+    const factory = buildFactory(
+      [
+        resolvingTransport({ jsonrpc: "2.0", id: "42", error: { code: -32001, message: "a" } }),
+        resolvingTransport({ jsonrpc: "2.0", id: "57", error: { code: -32009, message: "b" } }),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+
+  it("still compares an id nested inside the result payload", async () => {
+    // Only the top-level envelope id is provider-local bookkeeping. An `id` occurring inside the result is
+    // payload data, so stripping it would blind the comparison to a real difference. This pins the strip to
+    // the envelope: making it recurse would let these two disagreeing payloads reach quorum.
+    const factory = buildFactory(
+      [
+        resolvingTransport({ jsonrpc: "2.0", id: "42", result: { slot: 421829272, parsed: { id: "one" } } }),
+        resolvingTransport({ jsonrpc: "2.0", id: "42", result: { slot: 421829272, parsed: { id: "two" } } }),
+      ],
+      2
+    );
+
+    let caught: unknown;
+    try {
+      await factory.createTransport()(payload("getTransaction", ["sig"]));
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as Error)?.message).to.match(/Not enough providers agreed to meet quorum/);
+  });
+});
+
+function signaturePage(signatures: { signature: string; slot: number }[]) {
+  return {
+    result: signatures.map(({ signature, slot }) => ({
+      signature,
+      slot,
+      err: null,
+      memo: null,
+      blockTime: 1735689600,
+      confirmationStatus: "confirmed",
+    })),
+  };
+}
+
+describe("QuorumFallbackSolanaRpcFactory getSignaturesForAddress", () => {
+  it("does not quorum the moving signature page, so providers at different tips cannot stall ingestion", async () => {
+    // arch/svm/eventsClient fetches the newest page and filters by slot afterwards rather than pinning the
+    // request, so two honest providers one slot apart legitimately return different leading signatures.
+    // Quorumming this method would turn that routine divergence into a quorum error and block all SVM event
+    // ingestion, which is why _getQuorum deliberately leaves it at 1.
+    let laggingCalled = false;
+    const atTip = signaturePage([
+      { signature: "sigNew", slot: 421829273 },
+      { signature: "sigOld", slot: 421829272 },
+    ]);
+    const oneSlotBehind = signaturePage([{ signature: "sigOld", slot: 421829272 }]);
+    const factory = buildFactory(
+      [resolvingTransport(atTip), resolvingTransport(oneSlotBehind, () => (laggingCalled = true))],
+      2
+    );
+
+    const response = await factory.createTransport()(
+      payload("getSignaturesForAddress", ["SpokePool11111111111111111111111111111111", { limit: 1000 }])
+    );
+
+    expect(response).to.deep.equal(atTip);
+    // Quorum 1 means only the first provider is consulted. Re-adding this method to _getQuorum would consult
+    // both, mismatch on the leading signature, and throw -- which is exactly the regression this guards.
+    expect(laggingCalled).to.equal(false);
+  });
+});
