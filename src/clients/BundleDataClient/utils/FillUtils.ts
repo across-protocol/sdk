@@ -13,6 +13,7 @@ import {
 } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
+import { isChainDisabledAtBlock } from "./PoolRebalanceUtils";
 
 /**
  * @notice Addresses that must never be paid out of a root bundle (as repayment, deposit refund, or slow fill).
@@ -109,8 +110,12 @@ export async function verifyFillRepayment(
   );
 
   // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
-  // to change it to the msg.sender of the FilledRelay.
-  if (_repaymentAddressNeedsToBeOverwritten(fill)) {
+  // to change it to the msg.sender of the FilledRelay. Validate against the *resolved* repayment chain
+  // (repaymentChainId), not the fill's originally-requested chain: _getRepaymentChainId can fall back to the
+  // origin chain (lite chain, or a disabled/invalid repayment route), and a relayer address whose family
+  // matches the requested chain but not the resolved fallback would otherwise skip the overwrite and be
+  // returned as repayable, only to be silently dropped later in updateBundleFillsV3.
+  if (_repaymentAddressNeedsToBeOverwritten(fill, repaymentChainId)) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     if (chainIsEvm(fill.destinationChainId)) {
@@ -129,11 +134,23 @@ export async function verifyFillRepayment(
       // also be the same mapping as the repayment token on the repayment chain.
       if (
         !matchedDeposit.fromLiteChain &&
+        // areTokensEquivalent() only inspects PoolRebalanceRoutes, so the destination chain must additionally be
+        // enabled at the bundle end block -- the same gate _getRepaymentChainId applies to the requested chain.
+        // Switching to a disabled destination would be undone downstream: getRefundInformationFromFill re-resolves
+        // it back to the origin chain, and the msg.sender assigned below is only guaranteed to be valid on the
+        // destination chain, so updateBundleFillsV3 would silently drop the fill instead of recording it as
+        // unrepayable. Declining the switch here falls through to the check below, which correctly returns
+        // undefined when the resolved chain can't repay this address.
+        !isChainDisabledAtBlock(fill.destinationChainId, bundleEndBlockForMainnet, hubPoolClient.configStoreClient) &&
         hubPoolClient.areTokensEquivalent(
           fill.inputToken,
           fill.originChainId,
           fill.outputToken,
-          fill.destinationChainId
+          fill.destinationChainId,
+          // Evaluate token equivalence at the bundle's mainnet end block rather than the client's current
+          // sync head; otherwise a SetPoolRebalanceRoute landing after the bundle end block can flip the
+          // answer, making the resolved repayment chain non-deterministic across validators for the same fill.
+          bundleEndBlockForMainnet
         )
       ) {
         repaymentChainId = fill.destinationChainId;
@@ -185,9 +202,11 @@ function _getRepaymentChainId(
 
   // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute and the repayment chain is not disabled in protocol.
   const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient, bundleEndBlockForMainnet);
-  const repaymentChainIsValid = !hubPoolClient.configStoreClient
-    .getDisabledChainsForBlock(bundleEndBlockForMainnet)
-    .includes(relayData.repaymentChainId);
+  const repaymentChainIsValid = !isChainDisabledAtBlock(
+    relayData.repaymentChainId,
+    bundleEndBlockForMainnet,
+    hubPoolClient.configStoreClient
+  );
   if (repaymentTokenIsValid && repaymentChainIsValid) {
     return relayData.repaymentChainId;
   }
@@ -226,7 +245,7 @@ function _repaymentChainTokenIsValid(
   return true;
 }
 
-function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
+function _repaymentAddressNeedsToBeOverwritten(fill: Fill, repaymentChainId: number): boolean {
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return false;
@@ -234,6 +253,6 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
 
   // @dev If the repayment chain is EVM, the repayment address is valid if the address is 20 bytes.
   // If the repayment chain is SVM, the repayment address is valid if the address is strictly greater than
-  // 20 bytes.
-  return !fill.relayer.isValidOn(fill.repaymentChainId);
+  // 20 bytes. repaymentChainId is the resolved repayment chain, which may differ from fill.repaymentChainId.
+  return !fill.relayer.isValidOn(repaymentChainId);
 }

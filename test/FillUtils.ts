@@ -27,6 +27,16 @@ describe("FillUtils", function () {
 
   const INVALID_EVM_ADDRESS = createRandomBytes32();
 
+  // Mark `chainIds` as disabled as of mainnet block 0, which is the bundle end block used throughout these tests.
+  const disableChains = (chainIds: number[]) =>
+    hubPoolClient.configStoreClient.cumulativeDisabledChainUpdates.push({
+      chainIds,
+      blockNumber: 0,
+      txnIndex: 0,
+      logIndex: 0,
+      txnRef: "0x",
+    });
+
   beforeEach(async function () {
     relayer = toAddressType(randomAddress(), originChainId);
     [owner] = await ethers.getSigners();
@@ -244,6 +254,43 @@ describe("FillUtils", function () {
         expect(result!.relayer.eq(relayer)).to.be.true;
         // Repayment chain gets overwritten to destination chain.
         expect(result!.repaymentChainId).to.equal(destinationChainId);
+      });
+      it("Relayer is not valid EVM address, repayment does not get overwritten to a destination chain that is disabled", async function () {
+        // The destination chain has a valid PoolRebalanceRoute mapping but is disabled at the bundle end block.
+        // areTokensEquivalent() only inspects token mappings, so the disabled check has to be applied separately;
+        // otherwise getRefundInformationFromFill would resolve the disabled chain back to the origin chain and the
+        // fill would be silently dropped by updateBundleFillsV3.
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken.toNative());
+        disableChains([destinationChainId]);
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: toAddressType(INVALID_EVM_ADDRESS, destinationChainId),
+        };
+        spokeProvider._setTransaction(fill.txnRef, {
+          from: relayer.toNative(),
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer.eq(relayer)).to.be.true;
+        // Repayment stays on the resolved repayment chain instead of moving to the disabled destination chain.
+        expect(result!.repaymentChainId).to.equal(repaymentChainId);
+      });
+      it("Destination chain is disabled and resolved repayment chain is not EVM; fill is unrepayable", async function () {
+        // The resolved repayment chain is SVM, so the EVM msg.sender cannot be repaid there, and the disabled
+        // destination chain is not a legal fallback. The fill must be reported as unrepayable rather than returned
+        // as repayable and then silently dropped downstream.
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, CHAIN_IDs.SOLANA, createRandomBytes32());
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken.toNative());
+        disableChains([destinationChainId]);
+        const svmRepaymentFill = {
+          ...fill,
+          repaymentChainId: CHAIN_IDs.SOLANA,
+        };
+        spokeProvider._setTransaction(fill.txnRef, {
+          from: relayer.toNative(),
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(svmRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
+        expect(result).to.be.undefined;
       });
       it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender on original repayment chain if destination chain does not have valid PoolRebalanceRoute mapping", async function () {
         // valid chain ID's doesn't contain repayment chain.
