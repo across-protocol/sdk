@@ -11,9 +11,9 @@ import winston, { Logger } from "winston";
 
 // Log every Nth rate-limit (429) response. A 429 now also narrows the queue, so each one marks a concurrency change
 // that's worth seeing and the default logs them all. Sampling is retained behind the env var the relayer already
-// used, in case the volume proves excessive. Non-numeric, zero and negative values fall back to logging everything
-// rather than silently muting the log.
-const { NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS } = process.env;
+// used, in case the volume proves excessive. The clamp stops a non-numeric, zero or negative override from muting
+// the log outright (`n % 0` is NaN) when it was only ever meant to sample it.
+const { NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS = "1" } = process.env;
 const logEveryNRateLimitErrors = Math.max(1, Number(NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS) || 1);
 
 // Attaches the provider's own throttleCallback. ethers freezes ConnectionInfo and defines `connection` as
