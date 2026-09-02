@@ -16,25 +16,31 @@ import winston, { Logger } from "winston";
 const { NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS = "1" } = process.env;
 const logEveryNRateLimitErrors = Math.max(1, Number(NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS) || 1);
 
-// Attaches the provider's own throttleCallback. ethers freezes ConnectionInfo and defines `connection` as
-// non-writable, so this can only be installed ahead of super() — it cannot be patched onto a built provider. The
-// callback is routed via `onThrottle` because `this` does not exist yet at that point.
+// Attaches the provider's own throttleCallback. ethers shallow-copies ConnectionInfo and defines `connection` as
+// non-writable and frozen, so the callback has to be in place before super() runs — it cannot be patched onto a
+// constructed provider. Unlike the relayer's equivalent, the callback needs the instance (it resizes the queue), so
+// it arrives here as an arrow closing over a `this` that is still uninitialised at this point; that is safe because
+// it cannot be invoked until a request is in flight, which is necessarily after construction.
 function withThrottleCallback(
   params: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>,
-  onThrottle: (attempt: number) => Promise<boolean>
+  throttleCallback: (attempt: number) => Promise<boolean>
 ): ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider> {
   const [connection, network] = params;
-  if (typeof connection !== "object" || connection === null) {
-    return params;
-  }
+
+  // ethers also accepts a bare URL string, or nothing at all, in place of a ConnectionInfo. Normalise both so that
+  // the callback is installed however the provider was constructed.
+  const connectionInfo =
+    typeof connection === "object" && connection !== null
+      ? connection
+      : { url: connection ?? ethers.providers.StaticJsonRpcProvider.defaultUrl() };
 
   return [
     {
-      ...connection,
+      ...connectionInfo,
       // Effectively disables ethers' internal backoff algorithm in favour of the one below. Note that ethers still
       // honours a `Retry-After` header when the provider sends one, independently of this.
       throttleSlotInterval: 1,
-      throttleCallback: (attempt: number) => onThrottle(attempt),
+      throttleCallback,
     },
     network,
   ];
@@ -58,11 +64,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
     }),
     ...cacheConstructorParams: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>
   ) {
-    const throttle: { onThrottle: (attempt: number) => Promise<boolean> } = {
-      onThrottle: () => Promise.resolve(true),
-    };
-    super(...withThrottleCallback(cacheConstructorParams, (attempt) => throttle.onThrottle(attempt)));
-    throttle.onThrottle = (attempt) => this.onRateLimited(attempt);
+    super(...withThrottleCallback(cacheConstructorParams, (attempt) => this.onRateLimited(attempt)));
 
     // This sets up the queue. Each task is executed by calling the superclass's send method, which fires off the
     // request. This queue sends out requests concurrently, but stops once the concurrency limit is reached. The

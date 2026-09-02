@@ -63,6 +63,18 @@ describe("RateLimitedProvider concurrency feedback", () => {
     server.close();
   }).timeout(15000);
 
+  it("installs the throttle callback when constructed with a bare URL string", async () => {
+    // ethers accepts `string | ConnectionInfo`; the feedback loop should not depend on which one a caller passes.
+    const { server, url } = await rpcServer(1);
+    const provider = new RateLimitedProvider(16, 0, logger, url, 1);
+
+    expect(provider.connection.throttleCallback).to.not.be.undefined;
+    expect(provider.connection.throttleSlotInterval).to.equal(1);
+    expect(await provider.send("eth_chainId", [])).to.equal("0x1");
+    expect(provider.concurrency).to.equal(9);
+    server.close();
+  }).timeout(15000);
+
   it("logs every rate-limit response by default", async () => {
     const { server, url } = await rpcServer(0);
     const { spy, spyLogger } = createSpyLogger();
