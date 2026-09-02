@@ -6,7 +6,45 @@ import { QueueObject, queue } from "async";
 import { ethers } from "ethers";
 import { RateLimitTask } from "./utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
+import { delay } from "../utils/common";
 import winston, { Logger } from "winston";
+
+// Log every Nth rate-limit (429) response. A 429 now also narrows the queue, so each one marks a concurrency change
+// that's worth seeing and the default logs them all. Sampling is retained behind the env var the relayer already
+// used, in case the volume proves excessive. The clamp stops a non-numeric, zero or negative override from muting
+// the log outright (`n % 0` is NaN) when it was only ever meant to sample it.
+const { NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS = "1" } = process.env;
+const logEveryNRateLimitErrors = Math.max(1, Number(NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS) || 1);
+
+// Attaches the provider's own throttleCallback. ethers shallow-copies ConnectionInfo and defines `connection` as
+// non-writable and frozen, so the callback has to be in place before super() runs — it cannot be patched onto a
+// constructed provider. Unlike the relayer's equivalent, the callback needs the instance (it resizes the queue), so
+// it arrives here as an arrow closing over a `this` that is still uninitialised at this point; that is safe because
+// it cannot be invoked until a request is in flight, which is necessarily after construction.
+function withThrottleCallback(
+  params: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>,
+  throttleCallback: (attempt: number) => Promise<boolean>
+): ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider> {
+  const [connection, network] = params;
+
+  // ethers also accepts a bare URL string, or nothing at all, in place of a ConnectionInfo. Normalise both so that
+  // the callback is installed however the provider was constructed.
+  const connectionInfo =
+    typeof connection === "object" && connection !== null
+      ? connection
+      : { url: connection ?? ethers.providers.StaticJsonRpcProvider.defaultUrl() };
+
+  return [
+    {
+      ...connectionInfo,
+      // Effectively disables ethers' internal backoff algorithm in favour of the one below. Note that ethers still
+      // honours a `Retry-After` header when the provider sends one, independently of this.
+      throttleSlotInterval: 1,
+      throttleCallback,
+    },
+    network,
+  ];
+}
 
 // This provider is a very small addition to the StaticJsonRpcProvider that ensures that no more than `maxConcurrency`
 // requests are ever in flight. It uses the async/queue library to manage this.
@@ -14,17 +52,19 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
   // The queue object that manages the tasks.
   private queue: QueueObject<RateLimitTask>;
 
+  private rateLimitLogCounter = 0;
+
   // Takes the same arguments as the JsonRpcProvider, but it has an additional maxConcurrency value at the beginning
   // of the list.
   constructor(
-    maxConcurrency: number,
+    readonly maxConcurrency: number,
     readonly pctRpcCallsLogged: number,
     readonly logger: Logger = winston.createLogger({
       transports: [new winston.transports.Console()],
     }),
     ...cacheConstructorParams: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>
   ) {
-    super(...cacheConstructorParams);
+    super(...withThrottleCallback(cacheConstructorParams, (attempt) => this.onRateLimited(attempt)));
 
     // This sets up the queue. Each task is executed by calling the superclass's send method, which fires off the
     // request. This queue sends out requests concurrently, but stops once the concurrency limit is reached. The
@@ -39,10 +79,52 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
     }, maxConcurrency);
   }
 
+  // The queue's current concurrency limit, which moves between 1 and maxConcurrency as the provider pushes back.
+  get concurrency(): number {
+    return this.queue.concurrency;
+  }
+
+  // Backoff on a rate-limit (429) response, plus feedback onto the queue: being throttled means we are outpacing
+  // this provider, so narrow the queue as well as waiting. The number of attempts is bounded by ethers via
+  // `connection.throttleLimit`, so this always asks for another attempt.
+  private async onRateLimited(attempt: number): Promise<boolean> {
+    this.queue.concurrency = Math.max(1, Math.floor(this.queue.concurrency / 2));
+
+    // Slightly aggressive exponential backoff to account for fierce parallelism.
+    const baseDelay = Math.pow(2, attempt); // seconds; attempt = [0, 1, 2, ...]
+    const retryAfter = baseDelay + baseDelay * Math.random();
+
+    if (this.rateLimitLogCounter++ % logEveryNRateLimitErrors === 0) {
+      this.logger.debug({
+        at: "RateLimitedProvider#onRateLimited",
+        message: `Got rate-limit (429) response on attempt ${attempt}.`,
+        provider: getOriginFromURL(this.connection.url),
+        retryAfter: `${retryAfter} s`,
+        concurrency: this.queue.concurrency,
+        maxConcurrency: this.maxConcurrency,
+        datadog: true,
+      });
+    }
+    await delay(retryAfter);
+
+    return true;
+  }
+
+  // The other half of the feedback loop. An empty queue means we are no longer outpacing the provider, so widen back
+  // towards maxConcurrency. Using the backlog as the signal is self-damping: under sustained load the queue stays
+  // non-empty and the reduced concurrency holds, while an idle provider recovers quickly.
+  private restoreConcurrency(): void {
+    if (this.queue.concurrency < this.maxConcurrency && this.queue.length() === 0) {
+      this.queue.concurrency += 1;
+    }
+  }
+
   async wrapSendWithLog(method: string, params: Array<unknown>) {
     if (this.pctRpcCallsLogged <= 0 || Math.random() > this.pctRpcCallsLogged / 100) {
       // Non sample path: no logging or timing, just issue the request.
-      return super.send(method, params);
+      const result = await super.send(method, params);
+      this.restoreConcurrency();
+      return result;
     } else {
       const loggerArgs = {
         at: "ProviderUtils",
@@ -59,6 +141,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
       const startTime = performance.now();
       try {
         const result = await super.send(method, params);
+        this.restoreConcurrency();
         const elapsedTimeS = (performance.now() - startTime) / 1000;
         this.logger.debug({
           ...loggerArgs,
