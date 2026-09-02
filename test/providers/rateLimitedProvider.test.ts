@@ -1,7 +1,7 @@
 import { createServer, Server } from "http";
 import winston from "winston";
 import { RateLimitedProvider } from "../../src/providers";
-import { expect } from "../utils";
+import { createSpyLogger, expect, spyLogIncludes } from "../utils";
 
 // Serves a 429 for the first `throttleCount` requests, then a valid eth_chainId result.
 function rpcServer(throttleCount: number): Promise<{ server: Server; url: string }> {
@@ -60,6 +60,19 @@ describe("RateLimitedProvider concurrency feedback", () => {
     await throttleCallback?.(0, url);
 
     expect(provider.concurrency).to.equal(1);
+    server.close();
+  }).timeout(15000);
+
+  it("logs every rate-limit response by default", async () => {
+    const { server, url } = await rpcServer(0);
+    const { spy, spyLogger } = createSpyLogger();
+    const provider = new RateLimitedProvider(16, 0, spyLogger, { url }, 1);
+
+    await provider.connection.throttleCallback?.(0, url);
+    await provider.connection.throttleCallback?.(1, url);
+
+    expect(spy.callCount).to.equal(2);
+    expect(spyLogIncludes(spy, -1, "Got rate-limit (429) response")).to.be.true;
     server.close();
   }).timeout(15000);
 });

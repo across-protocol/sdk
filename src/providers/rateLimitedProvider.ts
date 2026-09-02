@@ -9,7 +9,12 @@ import { getOriginFromURL } from "../utils/NetworkUtils";
 import { delay } from "../utils/common";
 import winston, { Logger } from "winston";
 
-const LOG_EVERY_N_RATE_LIMIT_ERRORS = 100;
+// Log every Nth rate-limit (429) response. A 429 now also narrows the queue, so each one marks a concurrency change
+// that's worth seeing and the default logs them all. Sampling is retained behind the env var the relayer already
+// used, in case the volume proves excessive. Non-numeric, zero and negative values fall back to logging everything
+// rather than silently muting the log.
+const { NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS } = process.env;
+const logEveryNRateLimitErrors = Math.max(1, Number(NODE_LOG_EVERY_N_RATE_LIMIT_ERRORS) || 1);
 
 // Attaches the provider's own throttleCallback. ethers freezes ConnectionInfo and defines `connection` as
 // non-writable, so this can only be installed ahead of super() — it cannot be patched onto a built provider. The
@@ -87,7 +92,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
     const baseDelay = Math.pow(2, attempt); // seconds; attempt = [0, 1, 2, ...]
     const retryAfter = baseDelay + baseDelay * Math.random();
 
-    if (this.rateLimitLogCounter++ % LOG_EVERY_N_RATE_LIMIT_ERRORS === 0) {
+    if (this.rateLimitLogCounter++ % logEveryNRateLimitErrors === 0) {
       this.logger.debug({
         at: "RateLimitedProvider#onRateLimited",
         message: `Got rate-limit (429) response on attempt ${attempt}.`,
