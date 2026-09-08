@@ -8,6 +8,26 @@ import { hexToUtf8, isDefined, TvmAddress } from "../../utils";
 // incumbent hash.
 const DUP_TRANSACTION_ERROR = "DUP_TRANSACTION_ERROR";
 
+// `response_code` reaches us in either of two forms: a TRON HTTP node returns the name, while
+// TronWeb's typings declare the protocol's numeric enum. Ordinals are mapped back to the name so
+// that a caller reading `code` — and the DUP_TRANSACTION_ERROR test below — sees one form only.
+// Mirrors `BroadcastReturn_response_code` in tronweb/src/types/Trx.ts, which is not exported.
+const BROADCAST_RESPONSE_CODES: Record<number, string> = {
+  0: "SUCCESS",
+  1: "SIGERROR",
+  2: "CONTRACT_VALIDATE_ERROR",
+  3: "CONTRACT_EXE_ERROR",
+  4: "BANDWITH_ERROR", // TRON's own spelling.
+  5: DUP_TRANSACTION_ERROR,
+  6: "TAPOS_ERROR",
+  7: "TOO_BIG_TRANSACTION_ERROR",
+  8: "TRANSACTION_EXPIRATION_ERROR",
+  9: "SERVER_BUSY",
+  10: "NO_CONNECTION",
+  11: "NOT_ENOUGH_EFFECTIVE_CONNECTION",
+  20: "OTHER_ERROR",
+};
+
 export interface TronTransactionResult {
   txid: string;
   result: boolean;
@@ -142,7 +162,7 @@ export async function submitTransaction(
  * @param tronWeb An authenticated TronWeb instance (with private key set).
  * @param owner Base58 sender address.
  * @param recipient Base58 recipient address.
- * @param amount Transfer amount in SUN (1 TRX = 1,000,000 SUN).
+ * @param amount Transfer amount in SUN (1 TRX = 1,000,000 SUN); must be a positive whole number.
  * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
  */
 async function transferNative(
@@ -153,6 +173,15 @@ async function transferNative(
 ): Promise<TronTransactionResult> {
   if (amount <= 0) {
     throw new Error("submitTransaction: a transaction with no calldata must transfer a non-zero value");
+  }
+
+  // SUN is indivisible, and `transactionBuilder.sendTrx` validates the amount only *after* running
+  // it through `parseInt()` — so a fractional amount is silently truncated and the recipient is
+  // short-changed rather than the call being rejected. `trx.sendTransaction`, which this path
+  // replaced, rejected it outright; keep doing so. The contract-call path needs no equivalent
+  // guard: TronWeb validates `callValue` as an integer before it builds the transaction.
+  if (!Number.isInteger(amount)) {
+    throw new Error(`submitTransaction: transfer amount must be a whole number of SUN, got ${amount}`);
   }
 
   const txn = await tronWeb.transactionBuilder.sendTrx(recipient, amount, owner);
@@ -195,9 +224,7 @@ async function broadcastSignedTransaction<T extends Types.SignedTransaction>(
     return { txid, result: true };
   }
 
-  // The node reports response_code by name ("TAPOS_ERROR", ...), where TronWeb's typings claim the
-  // numeric enum; normalise to a string rather than trust either.
-  const code = isDefined(broadcast.code) ? String(broadcast.code) : undefined;
+  const code = normalizeBroadcastCode(broadcast.code);
 
   // A duplicate is not a failed send: the node is holding this exact transaction.
   if (code === DUP_TRANSACTION_ERROR) {
@@ -206,6 +233,32 @@ async function broadcastSignedTransaction<T extends Types.SignedTransaction>(
 
   const message = decodeBroadcastMessage(broadcast.message);
   return { txid, result: false, ...(isDefined(code) && { code }), ...(isDefined(message) && { message }) };
+}
+
+/**
+ * Resolve a broadcast `response_code` to its TRON name, whichever form the node sent it in.
+ *
+ * Neither form can be assumed: a TRON HTTP node returns the name, TronWeb's typings declare the
+ * numeric enum, and an intermediary may pass the ordinal through as a string. An unrecognised code
+ * is preserved rather than dropped, so a caller always sees whatever the node actually said.
+ *
+ * @param code The raw `code` from the broadcast response; typed `unknown` because the declared type
+ *  is precisely what cannot be relied on here.
+ * @returns The response-code name, or undefined when the node sent none.
+ */
+function normalizeBroadcastCode(code: unknown): string | undefined {
+  if (!isDefined(code)) {
+    return undefined;
+  }
+
+  const ordinal =
+    typeof code === "number" ? code : typeof code === "string" && /^\d+$/.test(code) ? Number(code) : undefined;
+  if (isDefined(ordinal)) {
+    return BROADCAST_RESPONSE_CODES[ordinal] ?? String(ordinal);
+  }
+
+  const name = String(code);
+  return name === "" ? undefined : name;
 }
 
 /**

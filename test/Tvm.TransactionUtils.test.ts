@@ -15,7 +15,9 @@ const CALLDATA = "0xdeadbeef";
 
 type Transfer = { to: string; amount: number; owner: string };
 type ContractCall = { to: string; selector: string; options: Record<string, unknown>; owner: string };
-type BroadcastResponse = { result?: boolean; txid?: string; code?: string; message?: string };
+// `code` is widened to accept a number: TronWeb's typings declare the numeric enum, even though a
+// TRON HTTP node returns the name.
+type BroadcastResponse = { result?: boolean; txid?: string; code?: string | number; message?: string };
 
 type FakeTronWeb = {
   tronWeb: TronWeb;
@@ -140,6 +142,17 @@ describe("TVM TransactionUtils", function () {
       expect(transfers).to.deep.equal([]);
     });
 
+    // `transactionBuilder.sendTrx` validates the amount only after a `parseInt()`, so a fractional
+    // amount would be truncated and broadcast — 1.9 SUN silently becoming 1. The `trx.sendTransaction`
+    // call this path replaced rejected it outright, so the guard has to live here now.
+    it("Rejects a fractional transfer amount rather than truncating it", async function () {
+      const { tronWeb, transfers } = fakeTronWeb();
+
+      const populatedTx = { to: RECIPIENT } as PopulatedTransaction;
+      await assertPromiseError(submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 1.9), "whole number of SUN");
+      expect(transfers).to.deep.equal([]);
+    });
+
     it("Rejects a transaction with no recipient", async function () {
       const { tronWeb } = fakeTronWeb();
 
@@ -186,6 +199,39 @@ describe("TVM TransactionUtils", function () {
       const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
 
       expect(result).to.deep.equal({ txid: TXID, result: true });
+    });
+
+    // TronWeb's typings declare `code` as the protocol's numeric enum, in which
+    // DUP_TRANSACTION_ERROR is 5. Missing that form would report the node's own copy of the
+    // transaction as a failed send — precisely the resubmission this change exists to prevent.
+    it("Treats a numeric duplicate response code as a successful send", async function () {
+      const { tronWeb } = fakeTronWeb({ result: false, txid: TXID, code: 5 });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
+
+      expect(result).to.deep.equal({ txid: TXID, result: true });
+    });
+
+    // A caller comparing against `code` should not have to handle both forms.
+    it("Resolves a numeric response code to its name", async function () {
+      const { tronWeb } = fakeTronWeb({ result: false, txid: TXID, code: 6, message: hexEncode("Tapos check error") });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
+
+      expect(result).to.deep.equal({ txid: TXID, result: false, code: "TAPOS_ERROR", message: "Tapos check error" });
+    });
+
+    // An unrecognised code is surfaced rather than dropped: the node said something, and a caller
+    // debugging a rejection needs to see it.
+    it("Preserves an unrecognised response code", async function () {
+      const { tronWeb } = fakeTronWeb({ result: false, txid: TXID, code: 99 });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
+
+      expect(result).to.deep.equal({ txid: TXID, result: false, code: "99" });
     });
 
     it("Treats a duplicate-transaction rejection on a transfer as a successful send", async function () {
