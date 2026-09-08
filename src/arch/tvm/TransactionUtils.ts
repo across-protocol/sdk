@@ -1,10 +1,52 @@
-import { TronWeb } from "tronweb";
+import { TronWeb, Types } from "tronweb";
 import { PopulatedTransaction } from "ethers";
-import { isDefined, TvmAddress } from "../../utils";
+import { hexToUtf8, isDefined, TvmAddress } from "../../utils";
+
+// TRON's response_code for a transaction the node has already seen. The broadcast is redundant
+// rather than failed: that txid is in the mempool or already in a block, so it is reported as a
+// successful send, mirroring EVM nodes, where an "already known" resubmission resolves to the
+// incumbent hash.
+const DUP_TRANSACTION_ERROR = "DUP_TRANSACTION_ERROR";
 
 export interface TronTransactionResult {
   txid: string;
   result: boolean;
+  /** TRON `response_code` for a rejected broadcast (e.g. "TAPOS_ERROR"); absent on success. */
+  code?: string;
+  /** The node's rejection reason, utf8-decoded where TRON hex-encoded it; absent on success. */
+  message?: string;
+}
+
+/**
+ * Thrown when an already-signed transaction could not be handed to the network: the send itself
+ * failed (transport error, timeout, malformed response), so whether the node took it is unknown.
+ *
+ * The transaction is signed by that point, so its `txid` is final and is carried here. TRON has no
+ * nonce, so a blind resubmit is a second, independent transaction rather than a replacement —
+ * callers must treat this as *possibly sent* and reconcile `txid` on-chain before submitting
+ * anything else.
+ *
+ * Prefer {@link isTronBroadcastError} over `instanceof`: the SDK ships both CJS and ESM builds, and
+ * a consumer that loads both does not share this class identity across them.
+ */
+export class TronBroadcastError extends Error {
+  readonly txid: string;
+
+  constructor(message: string, txid: string, opts?: { cause?: unknown }) {
+    super(message, opts?.cause !== undefined ? { cause: opts.cause } : undefined);
+    this.name = "TronBroadcastError";
+    this.txid = txid;
+  }
+}
+
+/** Structural type guard for {@link TronBroadcastError}; see the note on that class. */
+export function isTronBroadcastError(error: unknown): error is TronBroadcastError {
+  return (
+    error instanceof TronBroadcastError ||
+    (error instanceof Error &&
+      error.name === "TronBroadcastError" &&
+      typeof (error as TronBroadcastError).txid === "string")
+  );
 }
 
 /** Result of an off-chain contract call via `triggerConstantContract` (no broadcast). */
@@ -27,14 +69,19 @@ export interface TronSimulationResult {
  *
  * TRON models a native TRX transfer as its own transaction type (`TransferContract`), distinct from
  * the `TriggerSmartContract` used for calls. A populated transaction with no `data` field is
- * therefore dispatched to TronWeb's `sendTransaction` instead; see {@link transferNative}. Note that
- * this turns on `data` being absent, not empty: an explicit `"0x"` remains a contract call, since
- * that is how TronWeb encodes a `receive`/`fallback` invocation.
+ * therefore built as a transfer instead; see {@link transferNative}. Note that this turns on `data`
+ * being absent, not empty: an explicit `"0x"` remains a contract call, since that is how TronWeb
+ * encodes a `receive`/`fallback` invocation.
+ *
+ * Both paths sign before broadcasting, so from that point on the txid is known locally and is
+ * always reported: on a rejected send it accompanies `result: false`, and on a send that throws it
+ * is carried by the {@link TronBroadcastError}. See {@link broadcastSignedTransaction}.
  *
  * @param tronWeb An authenticated TronWeb instance (with private key set).
  * @param populatedTx The populated transaction containing `to`, and `data` for a contract call.
  * @param feeLimit The maximum TRX to burn for energy consumption, in SUN (1 TRX = 1,000,000 SUN).
- * @returns The transaction ID and result status.
+ * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
+ * @throws {TronBroadcastError} If the broadcast throws after signing; the transaction may be live.
  */
 export async function submitTransaction(
   tronWeb: TronWeb,
@@ -60,7 +107,7 @@ export async function submitTransaction(
   // own encoding for a `receive`/`fallback` selector, which it submits as a TriggerSmartContract; a
   // TransferContract would move the TRX without running the recipient's code.
   if (!isDefined(data)) {
-    return transferNative(tronWeb, tronAddress, callValue);
+    return transferNative(tronWeb, ownerAddress, tronAddress, callValue);
   }
 
   // Use triggerSmartContract with the `input` option to pass pre-encoded calldata.
@@ -81,36 +128,101 @@ export async function submitTransaction(
   }
 
   const signedTx = await tronWeb.trx.sign(txWrapper.transaction);
-  const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
-
-  return {
-    txid: broadcast.txid ?? signedTx.txID,
-    result: broadcast.result ?? false,
-  };
+  return broadcastSignedTransaction(tronWeb, signedTx);
 }
 
 /**
  * Transfer native TRX to an account via a `TransferContract` transaction.
  *
- * TronWeb's `sendTransaction` builds, signs and broadcasts in one call, using the instance's default
- * private key. No fee limit applies, since transfers consume bandwidth rather than energy.
+ * No fee limit applies, since transfers consume bandwidth rather than energy. TronWeb's
+ * `trx.sendTransaction` would fuse build, sign and broadcast into one call; the three steps are
+ * kept apart here so that the signed transaction's txid outlives a failing broadcast, exactly as on
+ * the contract-call path.
  *
  * @param tronWeb An authenticated TronWeb instance (with private key set).
+ * @param owner Base58 sender address.
  * @param recipient Base58 recipient address.
  * @param amount Transfer amount in SUN (1 TRX = 1,000,000 SUN).
- * @returns The transaction ID and result status.
+ * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
  */
-async function transferNative(tronWeb: TronWeb, recipient: string, amount: number): Promise<TronTransactionResult> {
+async function transferNative(
+  tronWeb: TronWeb,
+  owner: string,
+  recipient: string,
+  amount: number
+): Promise<TronTransactionResult> {
   if (amount <= 0) {
     throw new Error("submitTransaction: a transaction with no calldata must transfer a non-zero value");
   }
 
-  const broadcast = await tronWeb.trx.sendTransaction(recipient, amount);
+  const txn = await tronWeb.transactionBuilder.sendTrx(recipient, amount, owner);
+  const signedTx = await tronWeb.trx.sign(txn);
+  return broadcastSignedTransaction(tronWeb, signedTx);
+}
 
-  return {
-    txid: broadcast.txid ?? broadcast.transaction.txID,
-    result: broadcast.result ?? false,
-  };
+/**
+ * Broadcast an already-signed transaction and translate the node's response.
+ *
+ * The txid is fixed at signing, so it survives every exit from this function: a send that throws is
+ * rethrown as a {@link TronBroadcastError} carrying it, and a rejected send returns it alongside
+ * the node's code. Dropping it would strand a transaction that may well be on-chain and — TRON
+ * having no nonce to replace through — the resubmission would execute a second time.
+ *
+ * @param tronWeb An authenticated TronWeb instance.
+ * @param signedTx The signed transaction to broadcast.
+ * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
+ * @throws {TronBroadcastError} If the send throws; the transaction may or may not have been sent.
+ */
+async function broadcastSignedTransaction<T extends Types.SignedTransaction>(
+  tronWeb: TronWeb,
+  signedTx: T
+): Promise<TronTransactionResult> {
+  const { txID } = signedTx;
+
+  let broadcast: Types.BroadcastReturn<T>;
+  try {
+    broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new TronBroadcastError(`TRON broadcast failed for ${txID}; it may still have been sent: ${reason}`, txID, {
+      cause: error,
+    });
+  }
+
+  // A rejected broadcast may omit txid; the locally-computed txID is authoritative either way.
+  const txid = broadcast.txid ?? txID;
+  if (broadcast.result) {
+    return { txid, result: true };
+  }
+
+  // The node reports response_code by name ("TAPOS_ERROR", ...), where TronWeb's typings claim the
+  // numeric enum; normalise to a string rather than trust either.
+  const code = isDefined(broadcast.code) ? String(broadcast.code) : undefined;
+
+  // A duplicate is not a failed send: the node is holding this exact transaction.
+  if (code === DUP_TRANSACTION_ERROR) {
+    return { txid, result: true };
+  }
+
+  const message = decodeBroadcastMessage(broadcast.message);
+  return { txid, result: false, ...(isDefined(code) && { code }), ...(isDefined(message) && { message }) };
+}
+
+/**
+ * TRON hex-encodes the rejection reason on a broadcast response. Decode it where it is valid utf8
+ * hex and fall back to the raw value otherwise — a diagnostic must never mask the failure it
+ * describes.
+ */
+function decodeBroadcastMessage(message?: string): string | undefined {
+  if (!isDefined(message) || message === "") {
+    return undefined;
+  }
+
+  try {
+    return hexToUtf8(message.startsWith("0x") ? message : `0x${message}`);
+  } catch {
+    return message;
+  }
 }
 
 /**
