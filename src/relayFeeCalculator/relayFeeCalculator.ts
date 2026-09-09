@@ -553,7 +553,9 @@ export class RelayFeeCalculator {
               throw error;
             });
 
-    const gasFeePercent = await this.gasFeePercent(
+    // Apply configured discounts multiplicatively as (100 - discount) / 100 with
+    // BigNumber integer division (round down) so fee totals and percents stay consistent.
+    const gasFeePercent = (await this.gasFeePercent(
       deposit,
       outputAmount,
       outputTokenInfo,
@@ -563,7 +565,9 @@ export class RelayFeeCalculator {
       gasPrice,
       _nativeGasCost,
       _tokenGasCost
-    );
+    ))
+      .mul(100 - this.gasDiscountPercent)
+      .div(100);
     const outToInDecimals = ConvertDecimals(outputTokenInfo.decimals, inputTokenInfo.decimals);
     const gasFeeTotal = gasFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
@@ -571,16 +575,22 @@ export class RelayFeeCalculator {
       inputTokenInfo.symbol,
       deposit.originChainId.toString(),
       deposit.destinationChainId.toString()
-    );
+    )
+      .mul(100 - this.capitalDiscountPercent)
+      .div(100);
     const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
 
-    const { auxFeesInToken, auxNativeFeePercent } = await this.resolveAuxNativeFee(
+    const { auxFeesInToken, auxNativeFeePercent: _auxNativeFeePercent } = await this.resolveAuxNativeFee(
       deposit,
       outputAmount,
       outputTokenInfo,
       tokenPrice
     );
-    const auxFeesInInputDecimals = toBN(outToInDecimals(auxFeesInToken.toString()));
+    // Auxiliary native fees share the gas discount (see auxNativeDiscountPercent).
+    const auxNativeFeePercent = _auxNativeFeePercent.mul(100 - this.gasDiscountPercent).div(100);
+    const auxFeesInInputDecimals = toBN(outToInDecimals(auxFeesInToken.toString()))
+      .mul(100 - this.gasDiscountPercent)
+      .div(100);
     const auxNativeFeeTotal = auxNativeFeePercent
       .mul(outToInDecimals(outputAmount.toString()))
       .div(fixedPointAdjustment);
