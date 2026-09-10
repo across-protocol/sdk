@@ -16,8 +16,15 @@ const CALLDATA = "0xdeadbeef";
 type Transfer = { to: string; amount: number; owner: string };
 type ContractCall = { to: string; selector: string; options: Record<string, unknown>; owner: string };
 // `code` is widened to accept a number: TronWeb's typings declare the numeric enum, even though a
-// TRON HTTP node returns the name.
-type BroadcastResponse = { result?: boolean; txid?: string; code?: string | number; message?: string };
+// TRON HTTP node returns the name. `Error` is TRON's bare-error shape, which the declared
+// BroadcastReturn has no room for but `sendRawTransaction` passes through regardless.
+type BroadcastResponse = {
+  result?: boolean;
+  txid?: string;
+  code?: string | number;
+  message?: string;
+  Error?: string;
+};
 
 type FakeTronWeb = {
   tronWeb: TronWeb;
@@ -161,13 +168,42 @@ describe("TVM TransactionUtils", function () {
     });
 
     it("Reports a failed transfer broadcast", async function () {
-      const { tronWeb } = fakeTronWeb({ result: false });
+      const { tronWeb } = fakeTronWeb({ result: false, code: "CONTRACT_VALIDATE_ERROR" });
 
       const populatedTx = { to: RECIPIENT } as PopulatedTransaction;
       const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 1);
 
       // The local txID is the fallback when the node rejects the broadcast and returns no txid.
-      expect(result).to.deep.equal({ txid: TXID, result: false });
+      expect(result).to.deep.equal({ txid: TXID, result: false, code: "CONTRACT_VALIDATE_ERROR" });
+    });
+
+    // A response that names no response_code has not rejected anything: the node may have taken the
+    // transaction and failed to say so. Reporting a definite failure would invite the resubmit that,
+    // with no nonce to replace through, executes a second time - so the outcome is unknown, not
+    // failed, and it is raised as the error that says exactly that.
+    it("Treats a broadcast response with no code as unknown rather than failed", async function () {
+      const { tronWeb } = fakeTronWeb({ result: false });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const error = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0).catch((error: unknown) => error);
+
+      expect(isTronBroadcastError(error)).to.be.true;
+      expect((error as TronBroadcastError).txid).to.equal(TXID);
+      expect((error as TronBroadcastError).message).to.contain("no response code");
+    });
+
+    // TRON reports some failures as a bare { Error: "..." }, which TronWeb checks for when building
+    // a transaction but not in sendRawTransaction - it hands the body back verbatim. The diagnostic
+    // is surfaced rather than swallowed.
+    it("Surfaces a bare Error body on a code-less broadcast response", async function () {
+      const { tronWeb } = fakeTronWeb({ Error: "validate signature error" });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const error = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0).catch((error: unknown) => error);
+
+      expect(isTronBroadcastError(error)).to.be.true;
+      expect((error as TronBroadcastError).txid).to.equal(TXID);
+      expect((error as TronBroadcastError).message).to.contain("validate signature error");
     });
 
     it("Reports the node's code and decoded message on a rejected broadcast", async function () {

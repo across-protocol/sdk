@@ -34,16 +34,21 @@ export interface TronTransactionSuccess {
   result: true;
 }
 
-/** A broadcast the node rejected, annotated with whatever reason it gave. */
+/** A broadcast the node rejected, with the reason it gave for doing so. */
 export interface TronTransactionFailure {
   txid: string;
   result: false;
   /**
-   * TRON `response_code`, resolved to its name (e.g. "TAPOS_ERROR"). Optional because a node need
-   * not send one — a rejection is never inferred from its absence, only from `result: false`.
+   * TRON `response_code`, resolved to its name (e.g. "TAPOS_ERROR"). Always present: a response
+   * that names no code does not establish a rejection, and is raised as a
+   * {@link TronBroadcastError} rather than reported here.
    */
-  code?: string;
-  /** The node's rejection reason, utf8-decoded where TRON hex-encoded it. */
+  code: string;
+  /**
+   * The node's rejection reason, utf8-decoded where TRON hex-encoded it. Optional even here: the
+   * protocol's `Return.message` is empty for some rejections, and it is prose for a human rather
+   * than something to branch on — that is what `code` is for.
+   */
   message?: string;
 }
 
@@ -110,14 +115,15 @@ export interface TronSimulationResult {
  * encodes a `receive`/`fallback` invocation.
  *
  * Both paths sign before broadcasting, so from that point on the txid is known locally and is
- * always reported: on a rejected send it accompanies `result: false`, and on a send that throws it
- * is carried by the {@link TronBroadcastError}. See {@link broadcastSignedTransaction}.
+ * always reported: on a rejected send it accompanies `result: false`, and where the outcome cannot
+ * be established it is carried by the {@link TronBroadcastError}. Only an outright rejection, named
+ * by a `response_code`, is reported as a failure. See {@link broadcastSignedTransaction}.
  *
  * @param tronWeb An authenticated TronWeb instance (with private key set).
  * @param populatedTx The populated transaction containing `to`, and `data` for a contract call.
  * @param feeLimit The maximum TRX to burn for energy consumption, in SUN (1 TRX = 1,000,000 SUN).
- * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
- * @throws {TronBroadcastError} If the broadcast throws after signing; the transaction may be live.
+ * @returns The transaction ID and, on a rejection, the node's code and any message.
+ * @throws {TronBroadcastError} If the outcome is unknown after signing; the transaction may be live.
  */
 export async function submitTransaction(
   tronWeb: TronWeb,
@@ -179,7 +185,7 @@ export async function submitTransaction(
  * @param owner Base58 sender address.
  * @param recipient Base58 recipient address.
  * @param amount Transfer amount in SUN (1 TRX = 1,000,000 SUN); must be a positive whole number.
- * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
+ * @returns The transaction ID and, on a rejection, the node's code and any message.
  */
 async function transferNative(
   tronWeb: TronWeb,
@@ -208,15 +214,20 @@ async function transferNative(
 /**
  * Broadcast an already-signed transaction and translate the node's response.
  *
- * The txid is fixed at signing, so it survives every exit from this function: a send that throws is
- * rethrown as a {@link TronBroadcastError} carrying it, and a rejected send returns it alongside
- * the node's code. Dropping it would strand a transaction that may well be on-chain and — TRON
- * having no nonce to replace through — the resubmission would execute a second time.
+ * The txid is fixed at signing, so it survives every exit from this function: a rejected send
+ * returns it alongside the node's code, and anything short of a definite verdict throws a
+ * {@link TronBroadcastError} carrying it. Dropping it would strand a transaction that may well be
+ * on-chain and — TRON having no nonce to replace through — the resubmission would execute a second
+ * time.
+ *
+ * The three outcomes are kept distinct, since only the middle one is safe to retry blindly:
+ * accepted (including a duplicate the node already holds), definitely rejected with a reason, and
+ * unknown — a send that threw, or a response naming no `response_code` to reject it by.
  *
  * @param tronWeb An authenticated TronWeb instance.
  * @param signedTx The signed transaction to broadcast.
- * @returns The transaction ID, result status, and the node's code/message on a rejected broadcast.
- * @throws {TronBroadcastError} If the send throws; the transaction may or may not have been sent.
+ * @returns The transaction ID and, on a rejection, the node's code and any message.
+ * @throws {TronBroadcastError} If the outcome is unknown; the transaction may or may not be live.
  */
 async function broadcastSignedTransaction<T extends Types.SignedTransaction>(
   tronWeb: TronWeb,
@@ -247,8 +258,39 @@ async function broadcastSignedTransaction<T extends Types.SignedTransaction>(
     return { txid, result: true };
   }
 
+  // No response code means the node never named a reason to reject it. `sendRawTransaction` hands
+  // back the HTTP body verbatim, so this is what an `{ Error: ... }` body, an empty response or
+  // anything a proxy mangled arrives as. None of those establish that the transaction was
+  // rejected — the node may have taken it and failed to say so — and reporting a definite failure
+  // would invite the resubmit that, absent a nonce, executes a second time. Indeterminate, so it
+  // is raised as the error that says so and carries the txid to reconcile with.
+  if (!isDefined(code)) {
+    throw new TronBroadcastError(
+      `TRON broadcast for ${txID} returned no response code, so its outcome is unknown: ${describeCodelessRejection(
+        broadcast
+      )}`,
+      txID
+    );
+  }
+
   const message = decodeBroadcastMessage(broadcast.message);
-  return { txid, result: false, ...(isDefined(code) && { code }), ...(isDefined(message) && { message }) };
+  return { txid, result: false, code, ...(isDefined(message) && { message }) };
+}
+
+/**
+ * Best-effort diagnostic for a broadcast response that carries no `response_code`.
+ *
+ * TRON reports some failures as a bare `{ Error: "..." }` — a shape TronWeb checks for on its
+ * transaction-building paths but not on `sendRawTransaction` — so that field is read here even
+ * though the declared type has no room for it.
+ */
+function describeCodelessRejection(broadcast: object): string {
+  const { Error: error } = broadcast as { Error?: unknown };
+  if (isDefined(error)) {
+    return String(error);
+  }
+
+  return decodeBroadcastMessage((broadcast as { message?: string }).message) ?? "the node gave no reason";
 }
 
 /**
