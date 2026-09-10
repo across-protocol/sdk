@@ -28,14 +28,30 @@ const BROADCAST_RESPONSE_CODES: Record<number, string> = {
   20: "OTHER_ERROR",
 };
 
-export interface TronTransactionResult {
+/** A broadcast the node accepted: it holds this txid, in its mempool or already in a block. */
+export interface TronTransactionSuccess {
   txid: string;
-  result: boolean;
-  /** TRON `response_code` for a rejected broadcast (e.g. "TAPOS_ERROR"); absent on success. */
+  result: true;
+}
+
+/** A broadcast the node rejected, annotated with whatever reason it gave. */
+export interface TronTransactionFailure {
+  txid: string;
+  result: false;
+  /**
+   * TRON `response_code`, resolved to its name (e.g. "TAPOS_ERROR"). Optional because a node need
+   * not send one — a rejection is never inferred from its absence, only from `result: false`.
+   */
   code?: string;
-  /** The node's rejection reason, utf8-decoded where TRON hex-encoded it; absent on success. */
+  /** The node's rejection reason, utf8-decoded where TRON hex-encoded it. */
   message?: string;
 }
+
+/**
+ * Discriminated on `result`, so `code` and `message` are reachable only where they can exist. The
+ * txid is common to both: it is fixed at signing and is reported whatever the node decides.
+ */
+export type TronTransactionResult = TronTransactionSuccess | TronTransactionFailure;
 
 /**
  * Thrown when an already-signed transaction could not be handed to the network: the send itself

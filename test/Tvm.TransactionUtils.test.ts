@@ -189,6 +189,23 @@ describe("TVM TransactionUtils", function () {
       });
     });
 
+    // `result` discriminates TronTransactionResult, so `code` is reachable only once the failure
+    // branch is narrowed. That is a compile-time contract, and this reads it through the narrowing
+    // deliberately: flattening the union back into one optional-field interface would still pass
+    // the deep-equality assertions above, but would stop this from type-checking.
+    it("Narrows to the failure branch, exposing the code", async function () {
+      const { tronWeb } = fakeTronWeb({ result: false, txid: TXID, code: "SIGERROR" });
+
+      const populatedTx = { to: RECIPIENT, data: CALLDATA } as PopulatedTransaction;
+      const result = await submitTransaction(tronWeb, populatedTx, FEE_LIMIT, 0);
+
+      if (result.result) {
+        throw new Error("expected the broadcast to be rejected");
+      }
+      expect(result.code).to.equal("SIGERROR");
+      expect(result.message).to.be.undefined;
+    });
+
     // DUP_TRANSACTION_ERROR is TRON's "already known": the node is holding this exact transaction,
     // so the send succeeded. Reporting it as a failure would invite a resubmission, and - TRON
     // having no nonce to replace through - that would be a second, independent transaction.
