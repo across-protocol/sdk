@@ -238,6 +238,69 @@ describe("RelayFeeCalculator", () => {
     assert.equal(details.minDeposit, probeDetails.minDeposit);
   });
 
+  it("relayerFeeDetails applies configured gas and capital discount percents", async () => {
+    const amount = 1000e6;
+    const deposit = buildDepositForRelayerFeeTest(amount, "usdc", 10, 1);
+
+    const baselineClient = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
+    const baseline = await baselineClient.relayerFeeDetails(deposit, amount);
+
+    // Mid-range gas discount: fees are multiplied by (100 - discount) / 100 (round down).
+    const halfGasClient = new RelayFeeCalculator({
+      queries,
+      gasDiscountPercent: 50,
+      capitalCostsConfig: testCapitalCostsConfig,
+    });
+    const halfGas = await halfGasClient.relayerFeeDetails(deposit, amount);
+    const expectedHalfGasPercent = toBN(baseline.gasFeePercent).mul(50).div(100);
+    const expectedHalfGasTotal = expectedHalfGasPercent.mul(amount).div(fixedPointAdjustment);
+    assert.equal(halfGas.gasDiscountPercent, 50);
+    assert.equal(halfGas.gasFeePercent, expectedHalfGasPercent.toString());
+    assert.equal(halfGas.gasFeeTotal, expectedHalfGasTotal.toString());
+    assert.equal(halfGas.relayFeeTotal, expectedHalfGasTotal.toString()); // USDC capital fee is 0
+    assert.ok(toBN(halfGas.gasFeeTotal).lt(toBN(baseline.gasFeeTotal)));
+
+    // 100% gas discount zeroes the gas (and therefore relay) fee for USDC.
+    const fullGasClient = new RelayFeeCalculator({
+      queries,
+      gasDiscountPercent: 100,
+      capitalCostsConfig: testCapitalCostsConfig,
+    });
+    const fullGas = await fullGasClient.relayerFeeDetails(deposit, amount);
+    assert.equal(fullGas.gasFeePercent, "0");
+    assert.equal(fullGas.gasFeeTotal, "0");
+    assert.equal(fullGas.relayFeeTotal, "0");
+
+    // Capital discount with a flat capital fee so the effect is observable.
+    const flatCapitalConfig = {
+      USDC: {
+        lowerBound: toBNWei("0.01").toString(),
+        upperBound: toBNWei("0.01").toString(),
+        cutoff: "0",
+        decimals: 6,
+      },
+    };
+    const capitalBaselineClient = new RelayFeeCalculator({
+      queries,
+      capitalCostsConfig: flatCapitalConfig,
+    });
+    const capitalBaseline = await capitalBaselineClient.relayerFeeDetails(deposit, amount);
+    assert.ok(toBN(capitalBaseline.capitalFeeTotal).gt(bnZero));
+
+    const halfCapitalClient = new RelayFeeCalculator({
+      queries,
+      capitalDiscountPercent: 50,
+      capitalCostsConfig: flatCapitalConfig,
+    });
+    const halfCapital = await halfCapitalClient.relayerFeeDetails(deposit, amount);
+    const expectedHalfCapitalPercent = toBN(capitalBaseline.capitalFeePercent).mul(50).div(100);
+    const expectedHalfCapitalTotal = expectedHalfCapitalPercent.mul(amount).div(fixedPointAdjustment);
+    assert.equal(halfCapital.capitalDiscountPercent, 50);
+    assert.equal(halfCapital.capitalFeePercent, expectedHalfCapitalPercent.toString());
+    assert.equal(halfCapital.capitalFeeTotal, expectedHalfCapitalTotal.toString());
+    assert.ok(toBN(halfCapital.capitalFeeTotal).lt(toBN(capitalBaseline.capitalFeeTotal)));
+  });
+
   it("capitalFeePercent", () => {
     // Invalid capital cost configs throws on construction:
     assert.throws(
