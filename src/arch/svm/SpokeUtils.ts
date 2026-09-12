@@ -1,4 +1,4 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterV2Client, SvmSpokeClient, TokenMessengerMinterV2Client } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
@@ -12,6 +12,9 @@ import {
 } from "@solana-program/token";
 import {
   Account,
+  AccountMeta,
+  AccountRole,
+  compressTransactionMessageUsingAddressLookupTables,
   Address,
   FetchAccountConfig,
   Instruction,
@@ -22,9 +25,11 @@ import {
   getAddressEncoder,
   getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
+  getSignatureFromTransaction,
   getU32Encoder,
   getU64Encoder,
   pipe,
+  signTransactionMessageWithSigners,
   some,
   compileTransaction,
   type TransactionSigner,
@@ -34,11 +39,13 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
-import { arrayify } from "ethers/lib/utils";
+import { SpokePool__factory } from "../../typechain";
+import { arrayify, hexlify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import {
   BigNumber,
+  CCTPV2_FINALITY_THRESHOLD_STANDARD,
   EvmAddress,
   Address as SdkAddress,
   SvmAddress,
@@ -56,11 +63,20 @@ import {
 } from "../../utils";
 import {
   createDefaultTransaction,
+  getCCTPNoncePda,
+  decodeCCTPV2Message,
+  decodeCCTPV2BurnMessage,
+  getCCTPMessageBytes,
+  isRelayRootBundleMessageBody,
+  isEmergencyDeleteRootBundleMessageBody,
+  getEmergencyDeleteRootBundleRootBundleId,
   getEventAuthority,
   getFillStatusPda,
+  getSelfAuthority,
   getStatePda,
   toAddress,
   unwrapEventData,
+  getRootBundlePda,
   getAcrossPlusMessageDecoder,
   getAccountMeta,
   getInstructionParamsPda,
@@ -69,7 +85,7 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { SVMEventNames, SVMProvider, SolanaTransaction } from "./types";
+import { AttestedCCTPV2Message, SVMEventNames, SVMProvider, SolanaTransaction } from "./types";
 import { getNearestSlotTime } from "./utils";
 
 /**
@@ -929,6 +945,19 @@ export const createCloseFillPdaInstruction = async (
   );
 };
 
+export const createReceiveMessageInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  input: MessageTransmitterV2Client.ReceiveMessageInput,
+  remainingAccounts: AccountMeta<string>[]
+): Promise<SolanaTransaction> => {
+  const receiveMessageIx = MessageTransmitterV2Client.getReceiveMessageInstruction(input);
+  (receiveMessageIx.accounts as AccountMeta<string>[]).push(...remainingAccounts);
+  return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    appendTransactionMessageInstruction(receiveMessageIx, tx)
+  );
+};
+
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
@@ -1253,6 +1282,90 @@ export async function getFillRelayDelegatePda(
   return pda;
 }
 
+/** Checks the V2 per-message nonce account; no signer or transaction simulation is required. */
+export const hasCCTPV2MessageBeenProcessed = async (
+  solanaClient: SVMProvider,
+  nonce: string | ReadonlyUint8Array
+): Promise<boolean> => {
+  const account = await MessageTransmitterV2Client.fetchMaybeUsedNonce(solanaClient, await getCCTPNoncePda(nonce), {
+    commitment: "confirmed",
+  });
+  return account.exists && account.data.isUsed;
+};
+
+/**
+ * Returns the account metas for a tokenless message.
+ * @returns The account metas for a tokenless message.
+ */
+export async function getAccountMetasForTokenlessMessage(
+  solanaClient: SVMProvider,
+  signer: TransactionSigner,
+  messageBytes: string
+): Promise<AccountMeta<string>[]> {
+  const messageHeader = decodeCCTPV2Message(messageBytes);
+  const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+  assert(
+    messageHeader.recipient === programAddress && messageHeader.destinationDomain === 5,
+    "Message is not addressed to the Solana spoke"
+  );
+  assert(
+    messageHeader.finalityThresholdExecuted >= CCTPV2_FINALITY_THRESHOLD_STANDARD,
+    "Spoke messages require finalized attestations"
+  );
+  const statePda = await getStatePda(programAddress);
+  const { data: state } = await SvmSpokeClient.fetchState(solanaClient, statePda, { commitment: "confirmed" });
+  assert(
+    messageHeader.sourceDomain === state.remoteDomain && messageHeader.sender === state.crossDomainAdmin,
+    "Message does not match the spoke's remote domain and admin"
+  );
+  const call = SpokePool__factory.createInterface().parseTransaction({ data: hexlify(messageHeader.messageBody) });
+  const selfAuthority = await getSelfAuthority();
+  const eventAuthority = await getEventAuthority(programAddress);
+
+  const base: AccountMeta<string>[] = [
+    { address: statePda, role: AccountRole.READONLY },
+    { address: selfAuthority, role: AccountRole.READONLY },
+    { address: programAddress, role: AccountRole.READONLY },
+  ];
+
+  if (isRelayRootBundleMessageBody(messageHeader.messageBody)) {
+    const rootBundle = await getRootBundlePda(programAddress, state.rootBundleId);
+
+    return [
+      ...base,
+      { address: signer.address, role: AccountRole.WRITABLE_SIGNER },
+      { address: statePda, role: AccountRole.WRITABLE },
+      { address: rootBundle, role: AccountRole.WRITABLE },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: eventAuthority, role: AccountRole.READONLY },
+      { address: programAddress, role: AccountRole.READONLY },
+    ];
+  }
+
+  if (isEmergencyDeleteRootBundleMessageBody(messageHeader.messageBody)) {
+    const rootBundleId = getEmergencyDeleteRootBundleRootBundleId(messageHeader.messageBody);
+    assert(rootBundleId >= 0 && rootBundleId <= 0xffffffff, "Root bundle ID must fit in u32");
+    const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
+
+    return [
+      ...base,
+      { address: signer.address, role: AccountRole.WRITABLE },
+      { address: statePda, role: AccountRole.READONLY },
+      { address: rootBundle, role: AccountRole.WRITABLE },
+      { address: eventAuthority, role: AccountRole.READONLY },
+      { address: programAddress, role: AccountRole.READONLY },
+    ];
+  }
+
+  assert(["pauseDeposits", "pauseFills", "setCrossDomainAdmin"].includes(call.name), "Unsupported Spoke receiver call");
+  return [
+    ...base,
+    { address: statePda, role: AccountRole.WRITABLE },
+    { address: eventAuthority, role: AccountRole.READONLY },
+    { address: programAddress, role: AccountRole.READONLY },
+  ];
+}
+
 /**
  * Returns the required PDAs for a deposit message.
  * @param hubChainId The chain ID of the corresponding Across hub.
@@ -1359,6 +1472,176 @@ export function calculateFillSizeBytes(fillTx: SolanaTransaction): number {
   const signedTransaction = compileTransaction(fillTx);
   const serializedTx = getBase64EncodedWireTransaction(signedTransaction);
   return base64StrToByteSize(serializedTx);
+}
+
+/** Token delivery uses Circle's mapping and the attested recipient, including the separate fee account. */
+async function getAccountMetasForDepositMessage(
+  solanaClient: SVMProvider,
+  messageBytes: string,
+  expectedRecipient?: Address
+): Promise<AccountMeta[]> {
+  const tokenMessenger = TokenMessengerMinterV2Client.TOKEN_MESSENGER_MINTER_V2_PROGRAM_ADDRESS;
+  const addressEncoder = getAddressEncoder();
+  const header = decodeCCTPV2Message(messageBytes);
+  assert(
+    header.recipient === tokenMessenger && header.destinationDomain === 5,
+    "Message is not addressed to Solana TokenMessengerV2"
+  );
+  const body = decodeCCTPV2BurnMessage(header.messageBody);
+  if (expectedRecipient !== undefined)
+    assert(body.mintRecipient === expectedRecipient, "Unexpected CCTP mint recipient");
+  const pda = async (name: string, ...seeds: (string | ReadonlyUint8Array)[]) =>
+    (await getProgramDerivedAddress({ programAddress: tokenMessenger, seeds: [name, ...seeds] }))[0];
+  const domain = String(header.sourceDomain);
+  const [tokenPair, messenger] = await Promise.all([
+    pda("token_pair", domain, addressEncoder.encode(body.burnToken)),
+    pda("token_messenger"),
+  ]);
+  const [pair, messengerAccount] = await Promise.all([
+    TokenMessengerMinterV2Client.fetchTokenPair(solanaClient, tokenPair, { commitment: "confirmed" }),
+    TokenMessengerMinterV2Client.fetchTokenMessenger(solanaClient, messenger, { commitment: "confirmed" }),
+  ]);
+  const { data: localToken } = await TokenMessengerMinterV2Client.fetchLocalToken(solanaClient, pair.data.localToken, {
+    commitment: "confirmed",
+  });
+  const feeRecipient = await getAssociatedTokenAddress(
+    SvmAddress.from(messengerAccount.data.feeRecipient),
+    SvmAddress.from(localToken.mint)
+  );
+  const accounts: [Address, AccountRole][] = [
+    [messenger, AccountRole.READONLY],
+    [await pda("remote_token_messenger", domain), AccountRole.READONLY],
+    [await pda("token_minter"), AccountRole.READONLY],
+    [pair.data.localToken, AccountRole.WRITABLE],
+    [tokenPair, AccountRole.READONLY],
+    [feeRecipient, AccountRole.WRITABLE],
+    [body.mintRecipient, AccountRole.WRITABLE],
+    [localToken.custody, AccountRole.WRITABLE],
+    [TOKEN_PROGRAM_ADDRESS, AccountRole.READONLY],
+    [await getEventAuthority(tokenMessenger), AccountRole.READONLY],
+    [tokenMessenger, AccountRole.READONLY],
+  ];
+  return accounts.map(([address, role]) => ({ address, role }));
+}
+
+/**
+ * Returns the CCTP v2 receive message transaction.
+ * @param solanaClient The Solana client.
+ * @param signer The signer of the transaction.
+ * @param message The CCTP message.
+ * @param expectedTokenRecipient Optional expected destination token account for token finalizations.
+ * @returns The CCTP v2 receive message transaction.
+ */
+export async function getCCTPV2ReceiveMessageTx(
+  solanaClient: SVMProvider,
+  signer: TransactionSigner,
+  message: AttestedCCTPV2Message,
+  expectedTokenRecipient?: Address
+): Promise<SolanaTransaction> {
+  const messageHeader = decodeCCTPV2Message(message.messageBytes);
+  assert(messageHeader.destinationDomain === 5, "CCTP message destination must be Solana");
+  assert(
+    messageHeader.destinationCaller === SYSTEM_PROGRAM_ADDRESS || messageHeader.destinationCaller === signer.address,
+    "Signer does not match CCTP destination caller"
+  );
+  const cctpMessageReceiver = messageHeader.recipient;
+  assert(
+    cctpMessageReceiver === SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS ||
+      cctpMessageReceiver === TokenMessengerMinterV2Client.TOKEN_MESSENGER_MINTER_V2_PROGRAM_ADDRESS,
+    "Unsupported CCTP receiver"
+  );
+  const [messageTransmitterPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS,
+    seeds: ["message_transmitter"],
+  });
+
+  const [eventAuthorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS,
+    seeds: ["__event_authority"],
+  });
+
+  const [authorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS,
+    seeds: ["message_transmitter_authority", bs58.decode(cctpMessageReceiver)],
+  });
+
+  const usedNonce = await getCCTPNoncePda(messageHeader.nonce);
+  const accountMetas: AccountMeta<string>[] =
+    cctpMessageReceiver === TokenMessengerMinterV2Client.TOKEN_MESSENGER_MINTER_V2_PROGRAM_ADDRESS
+      ? await getAccountMetasForDepositMessage(solanaClient, message.messageBytes, expectedTokenRecipient)
+      : await getAccountMetasForTokenlessMessage(solanaClient, signer, message.messageBytes);
+
+  const input: MessageTransmitterV2Client.ReceiveMessageInput = {
+    program: MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS,
+    payer: signer,
+    caller: signer,
+    authorityPda,
+    messageTransmitter: messageTransmitterPda,
+    eventAuthority: eventAuthorityPda,
+    usedNonce,
+    receiver: cctpMessageReceiver,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    message: getCCTPMessageBytes(message.messageBytes),
+    attestation: getCCTPMessageBytes(message.attestation),
+  };
+
+  return createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
+}
+
+/** Deliver in input order, confirming each message before resolving the next one's mutable Spoke state.
+ * Returns null for an already processed nonce (including races with another finalizer), and "" for simulation.
+ * Callers can use getCCTPV2ReceiveMessageTx with their own signing/submission infrastructure instead.
+ */
+export async function finalizeCCTPV2Messages(
+  solanaClient: SVMProvider,
+  attestedMessages: AttestedCCTPV2Message[],
+  signer: TransactionSigner,
+  options: { simulate?: boolean; expectedTokenRecipient?: Address; lookupTables?: Record<string, Address[]> } = {}
+): Promise<(string | null)[]> {
+  const signatures: (string | null)[] = [];
+  for (const message of attestedMessages) {
+    const { nonce } = decodeCCTPV2Message(message.messageBytes);
+    const processed = () => hasCCTPV2MessageBeenProcessed(solanaClient, nonce);
+    // Admin updates and deleted roots must be replay-safe even when the receiver's state has changed.
+    if (await processed()) {
+      signatures.push(null);
+      continue;
+    }
+    try {
+      let tx = await getCCTPV2ReceiveMessageTx(solanaClient, signer, message, options.expectedTokenRecipient);
+      if (options.lookupTables) tx = compressTransactionMessageUsingAddressLookupTables(tx, options.lookupTables);
+      const signed = await signTransactionMessageWithSigners(tx);
+      const encoded = getBase64EncodedWireTransaction(signed);
+      if (options.simulate) {
+        const { value } = await solanaClient
+          .simulateTransaction(encoded, { encoding: "base64", commitment: "confirmed" })
+          .send();
+        assert(!value.err, `CCTP simulation failed: ${JSON.stringify(value.err)}`);
+        signatures.push("");
+        continue;
+      }
+      const signature = getSignatureFromTransaction(signed);
+      await solanaClient.sendTransaction(encoded, { encoding: "base64", preflightCommitment: "confirmed" }).send();
+      let confirmed = false;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const {
+          value: [status],
+        } = await solanaClient.getSignatureStatuses([signature]).send();
+        assert(!status?.err, `CCTP delivery failed: ${JSON.stringify(status?.err)}`);
+        if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+          confirmed = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      assert(confirmed, `CCTP transaction ${signature} was not confirmed; retry the message`);
+      signatures.push(signature);
+    } catch (error) {
+      if (!(await processed())) throw error;
+      signatures.push(null);
+    }
+  }
+  return signatures;
 }
 
 export async function getMintInfo(

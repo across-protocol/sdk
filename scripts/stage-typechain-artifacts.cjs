@@ -26,11 +26,9 @@ function stageArtifacts() {
     process.exit(1);
   }
 
-  fs.mkdirSync(STAGE_DIR, { recursive: true });
-  for (const name of fs.readdirSync(STAGE_DIR)) {
-    if (name.endsWith(".json")) fs.rmSync(path.join(STAGE_DIR, name));
+  if (!fs.existsSync(STAGE_DIR)) {
+    fs.mkdirSync(STAGE_DIR, { recursive: true });
   }
-  fs.rmSync(TYPECHAIN_DIR, { recursive: true, force: true });
 
   // Discover all contract directories
   const entries = fs.readdirSync(CONTRACTS_ABI_DIR, { withFileTypes: true });

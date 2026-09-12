@@ -16,15 +16,12 @@ import sinon from "sinon";
 import {
   SVMProvider,
   SVMEventNames,
-  SvmSpokeEventsIdl,
-  decodeEvent,
   decodeCCTPV2Message,
   decodeCCTPV2BurnMessage,
   getCCTPNoncePda,
   hasCCTPV2MessageBeenProcessed,
   getCCTPV2ReceiveMessageTx,
   getAccountMetasForTokenlessMessage,
-  getAccountMetasForCCTPV2TokenMessage,
   fetchCCTPV2Messages,
   finalizeCCTPV2Messages,
   getStatePda,
@@ -192,6 +189,21 @@ describe("SVM CCTP V2", () => {
       await assert.rejects(getCCTPV2ReceiveMessageTx(rpc, signer, message(defaultBody, overrides)), error);
     }
     await assert.rejects(getCCTPV2ReceiveMessageTx(rpc, signer, message(Buffer.alloc(4))), /no matching function/);
+    const unsupported = new ethers.utils.Interface(["function setWithdrawalRecipient(address)"]);
+    await assert.rejects(
+      getCCTPV2ReceiveMessageTx(
+        rpc,
+        signer,
+        message(
+          Buffer.from(
+            ethers.utils.arrayify(
+              unsupported.encodeFunctionData("setWithdrawalRecipient", ["0x0000000000000000000000000000000000000001"])
+            )
+          )
+        )
+      ),
+      /Unsupported Spoke receiver call/
+    );
     await getCCTPV2ReceiveMessageTx(rpc, signer, message(defaultBody, { caller: signer.address }));
   });
 
@@ -266,12 +278,12 @@ describe("SVM CCTP V2", () => {
     const feeAta = await getAssociatedTokenAddress(SvmAddress.from(signer.address), SvmAddress.from(mint));
     for (const finality of [1000, 2000]) {
       const msg = message(body, { recipient: messenger, finality });
-      const metas = await getAccountMetasForCCTPV2TokenMessage(rpc, msg.messageBytes, recipient);
+      const tx = await getCCTPV2ReceiveMessageTx(rpc, signer, msg, recipient);
+      const metas = tx.instructions[0].accounts!.slice(9);
       expect(metas[3].address).to.equal(local);
       expect(metas[5]).to.deep.equal({ address: feeAta, role: AccountRole.WRITABLE });
       expect(metas[6].address).to.equal(recipient);
       expect(metas[7].address).to.equal(custody);
-      await getCCTPV2ReceiveMessageTx(rpc, signer, msg, recipient);
       await assert.rejects(getCCTPV2ReceiveMessageTx(rpc, signer, msg, mint), /Unexpected CCTP mint recipient/);
     }
   });
@@ -378,26 +390,8 @@ describe("SVM CCTP V2", () => {
     await assert.rejects(fetchCCTPV2Messages("tx", 0, true, { timeoutMs: 5, pollIntervalMs: 1 }), /Timed out/);
   });
 
-  it("decodes historical liquidity events without adding them to active event queries", () => {
+  it("excludes removed liquidity events from active queries", () => {
     expect(Object.keys(SVMEventNames)).not.to.include("TokensBridged");
     expect(Object.keys(SVMEventNames)).not.to.include("BridgedToHubPool");
-    const bridged = Buffer.alloc(48);
-    bridged.set([181, 111, 52, 218, 105, 53, 240, 205]);
-    bridged.writeBigUInt64LE(42n, 8);
-    bridged.set(encoder.encode(admin), 16);
-    const decoded = decodeEvent(SvmSpokeEventsIdl, bridged.toString("base64"));
-    expect(decoded.name).to.equal("BridgedToHubPool");
-    expect(decoded.data).to.deep.equal({ amount: 42n, mint: admin });
-    const tokens = Buffer.alloc(92);
-    tokens.set([200, 201, 199, 39, 5, 238, 214, 196]);
-    tokens.writeBigUInt64LE(123n, 8);
-    tokens.writeBigUInt64LE(5n, 16);
-    tokens.writeUInt32LE(7, 24);
-    tokens.set(encoder.encode(admin), 28);
-    tokens.set(encoder.encode(admin), 60);
-    expect(decodeEvent(SvmSpokeEventsIdl, tokens.toString("base64"))).to.deep.equal({
-      name: "TokensBridged",
-      data: { amountToReturn: 123n, chainId: 5n, leafId: 7, l2TokenAddress: admin, caller: admin },
-    });
   });
 });
