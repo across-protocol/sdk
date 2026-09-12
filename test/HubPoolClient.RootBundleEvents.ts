@@ -466,6 +466,77 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(hubPoolClient.getNextBundleStartBlockNumber(secondChainIdList, 0, secondChainIdList[0])).to.equal(0);
   });
 
+  it("returns optimistic root bundle end block while a proposal is in liveness", async function () {
+    const { tree: tree1, leaves: leaves1 } = await constructSimpleTree(toBNWei(100));
+    const { tree: tree2, leaves: leaves2 } = await constructSimpleTree(toBNWei(100));
+
+    await configStoreClient.update();
+    await hubPoolClient.update();
+
+    const chainIdList = [leaves1[0].chainId.toNumber()];
+    const chainId = chainIdList[0];
+
+    // Propose and fully execute a first root bundle, so that there is a latest fully executed bundle to fall back on.
+    const firstBundleEndBlock = 11;
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([firstBundleEndBlock], 1, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves1[0]), tree1.getHexProof(leaves1[0]));
+    await hubPoolClient.update();
+
+    let latestMainnetBlock = await hubPool.provider.getBlockNumber();
+    expect(hubPoolClient.hasPendingProposal()).to.equal(false);
+
+    // With no proposal in liveness, the optimistic reference matches the fully executed one.
+    expect(hubPoolClient.getLatestBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      firstBundleEndBlock
+    );
+    expect(hubPoolClient.getOptimisticBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      firstBundleEndBlock
+    );
+
+    // Propose a second root bundle and leave it in liveness: proposed, but not yet executed.
+    const secondBundleEndBlock = 66;
+    await hubPool
+      .connect(dataworker)
+      .proposeRootBundle([secondBundleEndBlock], 1, tree2.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await hubPoolClient.update();
+    latestMainnetBlock = await hubPool.provider.getBlockNumber();
+    expect(hubPoolClient.hasPendingProposal()).to.equal(true);
+
+    // The fully executed reference still points at the first bundle, but the optimistic reference advances to the
+    // pending proposal. A paused chain frozen at the former would regress against the pending bundle's end block.
+    expect(hubPoolClient.getLatestBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      firstBundleEndBlock
+    );
+    expect(hubPoolClient.getOptimisticBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      secondBundleEndBlock
+    );
+
+    // Each start block stays consistent with the end block reference it is derived from.
+    expect(hubPoolClient.getNextBundleStartBlockNumber(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      firstBundleEndBlock + 1
+    );
+    expect(hubPoolClient.getOptimisticBundleStartBlockNumber(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      secondBundleEndBlock + 1
+    );
+
+    // Once the pending proposal is executed, both references agree again.
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves2[0]), tree2.getHexProof(leaves2[0]));
+    await hubPoolClient.update();
+    latestMainnetBlock = await hubPool.provider.getBlockNumber();
+
+    expect(hubPoolClient.hasPendingProposal()).to.equal(false);
+    expect(hubPoolClient.getLatestBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      secondBundleEndBlock
+    );
+    expect(hubPoolClient.getOptimisticBundleEndBlockForChain(chainIdList, latestMainnetBlock, chainId)).to.equal(
+      secondBundleEndBlock
+    );
+  });
+
   it("gets most recent CrossChainContractsSet event for chainID", async function () {
     const adapter = randomAddress();
     const spokePool1 = randomAddress();
