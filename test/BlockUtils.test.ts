@@ -13,30 +13,39 @@ const GENESIS_TIMESTAMP = 1_700_000_000;
 type FakeProvider = {
   provider: Provider;
   chainId: number;
-  requestedBlocks: number[];
+  requestedBlocks: number[]; // Numeric block tags requested, i.e. the sample window.
+  headRequests: string[]; // "latest" requests, i.e. head resolution.
 };
 
 /**
  * A provider backed by a synthetic chain of `height + 1` blocks, spaced BLOCK_TIME apart. Supply a chainId
- * to present a second view of a chain already seen by averageBlockTime.
+ * to present a second view of a chain already seen by averageBlockTime. Supply a reportedHeight above
+ * `height` to model a provider whose block number runs ahead of the blocks it will serve.
  */
-function fakeProvider(height: number, chainId = nextChainId++): FakeProvider {
+function fakeProvider(height: number, chainId = nextChainId++, reportedHeight = height): FakeProvider {
   const requestedBlocks: number[] = [];
+  const headRequests: string[] = [];
+
+  const blockAt = (number: number) => ({ number, timestamp: GENESIS_TIMESTAMP + number * BLOCK_TIME });
 
   const provider = {
     getNetwork: () => Promise.resolve({ chainId, name: `chain-${chainId}` }),
-    getBlockNumber: () => Promise.resolve(height),
-    getBlock: (blockTag: number) => {
+    getBlockNumber: () => Promise.resolve(reportedHeight),
+    getBlock: (blockTag: number | string) => {
+      if (typeof blockTag === "string") {
+        headRequests.push(blockTag);
+        return Promise.resolve(blockAt(height));
+      }
       requestedBlocks.push(blockTag);
 
       // Mirror ethers, which does not reject a negative block number but resolves it relative to the head,
       // clamping at genesis.
       const number = blockTag < 0 ? Math.max(height + blockTag, 0) : blockTag;
-      return Promise.resolve(number > height ? null : { number, timestamp: GENESIS_TIMESTAMP + number * BLOCK_TIME });
+      return Promise.resolve(number > height ? null : blockAt(number));
     },
   } as unknown as Provider;
 
-  return { provider, chainId, requestedBlocks };
+  return { provider, chainId, requestedBlocks, headRequests };
 }
 
 describe("BlockUtils: averageBlockTime", () => {
@@ -52,13 +61,30 @@ describe("BlockUtils: averageBlockTime", () => {
   });
 
   it("honours an explicit highBlock and blockRange", async () => {
-    const { provider, requestedBlocks } = fakeProvider(5000);
+    const { provider, requestedBlocks, headRequests } = fakeProvider(5000);
 
     const { average, blockRange } = await averageBlockTime(provider, { highBlock: 1000, blockRange: 50 });
 
     expect(average).to.equal(BLOCK_TIME);
     expect(blockRange).to.equal(50);
     expect(requestedBlocks).to.have.members([950, 1000]);
+    expect(headRequests).to.be.empty; // The caller supplied the head, so there is nothing to resolve.
+  });
+
+  it("takes the head from a block the provider can serve, not from its reported height", async () => {
+    // ethers memoises the block number as a monotonic high-water mark, so once a chain rolls back -- a
+    // reorg, or evm_revert against a test chain -- getBlockNumber() keeps reporting the pre-rollback
+    // height. A load-balanced RPC pool has the same shape: eth_blockNumber answered by a synced node,
+    // eth_getBlockByNumber by a lagging one. Either way the window lands above the served height and the
+    // whole computation fails on a block that cannot be fetched.
+    const { provider, requestedBlocks, headRequests } = fakeProvider(60, nextChainId++, 200);
+
+    const { average, blockRange } = await averageBlockTime(provider);
+
+    expect(average).to.equal(BLOCK_TIME);
+    expect(blockRange).to.equal(50);
+    expect(headRequests).to.have.length(1);
+    expect(requestedBlocks).to.have.members([0, 50]); // Off the served head of 60, not the reported 200.
   });
 
   it("starts the window at genesis and divides by the range actually sampled", async () => {
@@ -120,12 +146,13 @@ describe("BlockUtils: averageBlockTime", () => {
   });
 
   it("memoises per chain", async () => {
-    const { provider, requestedBlocks } = fakeProvider(5000);
+    const { provider, requestedBlocks, headRequests } = fakeProvider(5000);
 
     const first = await averageBlockTime(provider);
     const second = await averageBlockTime(provider);
 
     expect(second).to.deep.equal(first);
     expect(requestedBlocks.length).to.equal(2); // Only the first call reached the provider.
+    expect(headRequests.length).to.equal(1);
   });
 });

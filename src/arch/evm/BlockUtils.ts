@@ -61,7 +61,17 @@ export async function averageBlockTime(
   // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
   // to account for various RPC provider sync issues that might occur when querting the latest block.
   if (!isDefined(highBlock)) {
-    const latestBlock = await provider.getBlockNumber();
+    // Take the head from a block rather than from a block number. getBlockNumber() is clamped to a
+    // monotonic high-water mark (BaseProvider._maxInternalBlockNumber, never lowered for the life of the
+    // provider): across a pool of backends at different heights it settles on the furthest-ahead one ever
+    // seen and so outruns whichever backend serves the follow-up eth_getBlockByNumber, and it survives the
+    // chain moving backwards underneath it (evm_revert in tests). getBlock("latest") is not clamped, so the
+    // number on the block it returns is a height the backend that answered actually served.
+    const latest = await provider.getBlock("latest");
+    if (!isDefined(latest?.number)) {
+      throw new Error(`BlockFinder: Failed to fetch the latest block on ${getNetworkName(chainId)}`);
+    }
+    const latestBlock = latest.number;
     highBlock = latestBlock - (highBlockOffset ?? defaultHighBlockOffset);
 
     // The offset presumes a chain with more blocks than the offset itself. Below that it puts the entire
