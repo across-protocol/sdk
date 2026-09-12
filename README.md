@@ -2,6 +2,8 @@
 
 Across is a system that quickly moves tokens across chains. This repository contains shareable code and libraries for Across.
 
+The contracts beta migration is documented in [CCTP V2 compatibility](docs/cctp-v2-migration.md).
+
 ## Modules
 | Name | Description | README | Source Code |
 |---|---|---|---|

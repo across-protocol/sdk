@@ -1,29 +1,32 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { encodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { getProgramDerivedAddress, getU64Encoder, signature } from "@solana/kit";
+import { encodeMessageHeaderV2 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { Address, appendTransactionMessageInstruction, getProgramDerivedAddress, getU64Encoder } from "@solana/kit";
 import { PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
+import { BN } from "@coral-xyz/anchor";
 import { ethers } from "ethers";
 import {
-  AttestedCCTPMessage,
+  AttestedCCTPV2Message,
   SVM_SPOKE_SEED,
-  finalizeCCTPV1Messages,
+  finalizeCCTPV2Messages,
   getStatePda,
-  hasCCTPV1MessageBeenProcessed,
+  hasCCTPV2MessageBeenProcessed,
   getAssociatedTokenAddress,
+  createDefaultTransaction,
+  getEventAuthority,
 } from "../src/arch/svm";
 import { SvmAddress } from "../src/utils";
 import { signer } from "./Solana.setup";
 import {
   createDefaultSolanaClient,
+  signAndSendTransaction,
   encodeEmergencyDeleteRootBundleMessageBody,
   encodePauseDepositsMessageBody,
   encodeRelayRootBundleMessageBody,
 } from "./utils/svm/utils";
 import { TOKEN_SYMBOLS_MAP, CHAIN_IDs } from "../src/constants";
 
-let nextCctpNonce = 1;
-const takeNonce = () => nextCctpNonce++;
+const takeNonce = () => Buffer.from(ethers.utils.randomBytes(32));
 
 interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClient> {
   chainId: number;
@@ -33,19 +36,21 @@ const USDC = SvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.SOLANA])
 
 const buildAttestedMessage = async (
   messageBody: Buffer,
-  nonce: number,
+  nonce: Buffer,
   sourceDomain = 0,
   destinationDomain = 5,
   messageBytesToHex = true
-): Promise<AttestedCCTPMessage[]> => {
+): Promise<AttestedCCTPV2Message[]> => {
   const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  const stateData = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+  const stateData = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda, { commitment: "confirmed" });
 
-  const messageBytes = encodeMessageHeader({
-    version: 0,
+  const messageBytes = encodeMessageHeaderV2({
+    version: 1,
     sourceDomain,
     destinationDomain,
-    nonce: BigInt(nonce),
+    nonce: new BN(nonce),
+    minFinalityThreshold: 2000,
+    finalityThresholdExecuted: 2000,
     sender: new PublicKey(stateData.data.crossDomainAdmin),
     recipient: new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     destinationCaller: new PublicKey(new Uint8Array(32)),
@@ -56,53 +61,40 @@ const buildAttestedMessage = async (
 
   return [
     {
-      sourceDomain,
       messageBytes: messageBytesStringPrefix + messageBytes.toString("hex"),
       attestation: "0x",
-      nonce,
-      type: "message",
     },
   ];
 };
 
 describe("Svm Cctp Messages (integration)", () => {
-  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const finalize = (msgs: AttestedCCTPMessage[], recipient: SvmAddress, simulate = false) =>
-    finalizeCCTPV1Messages(solanaClient.rpc, msgs, signer, recipient, simulate, 0);
-  const sendAndConfirm = async (sigs: string[]) => {
-    await solanaClient.rpc
-      .getTransaction(signature(sigs[0]), {
-        commitment: "finalized",
-        maxSupportedTransactionVersion: 0,
-      })
-      .send();
-    await wait(1_000); // give the chain time to settle
-  };
+  const finalize = (msgs: AttestedCCTPV2Message[], recipient: Address, simulate = false) =>
+    finalizeCCTPV2Messages(solanaClient.rpc, msgs, signer, { expectedTokenRecipient: recipient, simulate });
 
   it("pauses and unpauses deposits remotely", async () => {
     const pauseNonce = takeNonce();
-    const unpauseNonce = takeNonce(); // next nonce in sequence
+    const unpauseNonce = takeNonce();
     const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
     const stateAta = await getAssociatedTokenAddress(SvmAddress.from(statePda.toString()), USDC);
 
     /* ---- pause ---- */
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, pauseNonce, 0)).to.equal(false);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, pauseNonce)).to.equal(false);
 
     let msgs = await buildAttestedMessage(encodePauseDepositsMessageBody(true), pauseNonce);
     await finalize(msgs, stateAta, /* simulate = */ true);
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, pauseNonce, 0)).to.equal(false);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, pauseNonce)).to.equal(false);
 
-    await sendAndConfirm(await finalize(msgs, stateAta));
+    await finalize(msgs, stateAta);
 
-    let state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+    let state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda, { commitment: "confirmed" });
     expect(state.data.pausedDeposits).to.equal(true);
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, pauseNonce, 0)).to.equal(true);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, pauseNonce)).to.equal(true);
 
     /* ---- unpause ---- */
     msgs = await buildAttestedMessage(encodePauseDepositsMessageBody(false), unpauseNonce);
-    await sendAndConfirm(await finalize(msgs, stateAta));
+    await finalize(msgs, stateAta);
 
-    state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+    state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda, { commitment: "confirmed" });
     expect(state.data.pausedDeposits).to.equal(false);
   });
 
@@ -116,7 +108,7 @@ describe("Svm Cctp Messages (integration)", () => {
     const slowRelayRoot = ethers.utils.formatBytes32String("slowRelayRoot");
 
     /* ---- relay root bundle ---- */
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, relayNonce, 0)).to.equal(false);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, relayNonce)).to.equal(false);
 
     const relayMsgs = await buildAttestedMessage(
       encodeRelayRootBundleMessageBody(relayerRefundRoot, slowRelayRoot),
@@ -127,17 +119,17 @@ describe("Svm Cctp Messages (integration)", () => {
     );
 
     await finalize(relayMsgs, stateAta, /* simulate = */ true);
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, relayNonce, 0)).to.equal(false);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, relayNonce)).to.equal(false);
 
     const {
       data: { rootBundleId: beforeRootBundleId },
-    } = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+    } = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda, { commitment: "confirmed" });
 
-    await sendAndConfirm(await finalize(relayMsgs, stateAta));
+    await finalize(relayMsgs, stateAta);
 
     const {
       data: { rootBundleId: afterRootBundleId },
-    } = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+    } = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda, { commitment: "confirmed" });
 
     expect(afterRootBundleId).to.equal(beforeRootBundleId + 1);
 
@@ -159,11 +151,61 @@ describe("Svm Cctp Messages (integration)", () => {
       false
     );
 
-    await sendAndConfirm(await finalize(emergencyMsgs, stateAta));
+    await finalize(emergencyMsgs, stateAta);
 
-    expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, emergencyNonce, 0)).to.equal(true);
+    expect(await hasCCTPV2MessageBeenProcessed(solanaClient.rpc, emergencyNonce)).to.equal(true);
 
-    const bundleAccountInfo = await solanaClient.rpc.getAccountInfo(rootBundlePda).send();
+    const bundleAccountInfo = await solanaClient.rpc.getAccountInfo(rootBundlePda, { commitment: "confirmed" }).send();
     expect(bundleAccountInfo.value).to.equal(null);
+    expect(await finalize(emergencyMsgs, stateAta)).to.deep.equal([null]);
+  });
+  it("pauses and unpauses fills in order", async () => {
+    const iface = new ethers.utils.Interface(["function pauseFills(bool)"]);
+    const pause = await buildAttestedMessage(
+      Buffer.from(ethers.utils.arrayify(iface.encodeFunctionData("pauseFills", [true]))),
+      takeNonce()
+    );
+    const unpause = await buildAttestedMessage(
+      Buffer.from(ethers.utils.arrayify(iface.encodeFunctionData("pauseFills", [false]))),
+      takeNonce()
+    );
+    await finalizeCCTPV2Messages(solanaClient.rpc, [...pause, ...unpause], signer);
+    const state = await SvmSpokeClient.fetchState(
+      solanaClient.rpc,
+      await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+      { commitment: "confirmed" }
+    );
+    expect(state.data.pausedFills).to.equal(false);
+  });
+
+  it("changes the remote admin and can replay the old message after the change", async () => {
+    const iface = new ethers.utils.Interface(["function setCrossDomainAdmin(address)"]);
+    const newAdmin = "0x0000000000000000000000000000000000000123";
+    const msgs = await buildAttestedMessage(
+      Buffer.from(ethers.utils.arrayify(iface.encodeFunctionData("setCrossDomainAdmin", [newAdmin]))),
+      takeNonce()
+    );
+    await finalizeCCTPV2Messages(solanaClient.rpc, msgs, signer);
+    expect(await finalizeCCTPV2Messages(solanaClient.rpc, msgs, signer)).to.deep.equal([null]);
+    const state = await SvmSpokeClient.fetchState(
+      solanaClient.rpc,
+      await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+      { commitment: "confirmed" }
+    );
+    expect(state.data.crossDomainAdmin).to.equal(
+      new PublicKey(ethers.utils.arrayify(ethers.utils.hexZeroPad(newAdmin, 32))).toBase58()
+    );
+    const program = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+    const restoreAdmin = SvmSpokeClient.getSetCrossDomainAdminInstruction({
+      signer,
+      state: await getStatePda(program),
+      crossDomainAdmin: signer.address,
+      eventAuthority: await getEventAuthority(program),
+      program,
+    });
+    await signAndSendTransaction(
+      solanaClient,
+      appendTransactionMessageInstruction(restoreAdmin, await createDefaultTransaction(solanaClient.rpc, signer))
+    );
   });
 });

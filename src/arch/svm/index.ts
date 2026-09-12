@@ -7,3 +7,4 @@ export * from "./BlockUtils";
 export * from "./provider";
 export * from "./encoders";
 export * from "./MessageUtils";
+export * from "./CCTPUtils";

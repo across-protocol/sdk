@@ -16,6 +16,15 @@ import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
 import assert from "assert";
+import legacySpokeEvents from "./legacySpokeEvents.json";
+
+// Event-only definitions from contracts 5.0.26 keep ranges spanning the upgrade readable.
+// They are deliberately absent from SVMEventNames and active SpokePool queries.
+export const SvmSpokeEventsIdl: Idl = {
+  ...SvmSpokeIdl,
+  events: [...(SvmSpokeIdl.events ?? []), ...legacySpokeEvents.events],
+  types: [...(SvmSpokeIdl.types ?? []), ...((legacySpokeEvents.types as Idl["types"]) ?? [])],
+};
 
 /**
  * Anchor emits CPI events (`emit_cpi!`) as a *self*-invocation of the program that targets its
@@ -70,7 +79,7 @@ export class SvmCpiEventsClient {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
-    return this.createFor(rpc, programId, SvmSpokeIdl);
+    return this.createFor(rpc, programId, SvmSpokeEventsIdl);
   }
 
   public static async createFor(rpc: SVMProvider, programId: string, idl: Idl): Promise<SvmCpiEventsClient> {
@@ -92,7 +101,7 @@ export class SvmCpiEventsClient {
    * @returns A promise that resolves to an array of events matching the eventName.
    */
   public async queryEvents(
-    eventName: EventName,
+    eventName: EventName | "TokensBridged" | "BridgedToHubPool",
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }

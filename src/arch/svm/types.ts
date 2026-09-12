@@ -25,8 +25,6 @@ export type SolanaTransaction = Extract<TransactionMessage, { version: 0 }> &
   TransactionMessageWithFeePayer;
 
 export type EventData =
-  | SvmSpokeClient.BridgedToHubPool
-  | SvmSpokeClient.TokensBridged
   | SvmSpokeClient.ExecutedRelayerRefundRoot
   | SvmSpokeClient.RelayedRootBundle
   | SvmSpokeClient.PausedDeposits
@@ -44,14 +42,12 @@ export enum SVMEventNames {
   FundsDeposited = "FundsDeposited",
   RelayedRootBundle = "RelayedRootBundle",
   ExecutedRelayerRefundRoot = "ExecutedRelayerRefundRoot",
-  BridgedToHubPool = "BridgedToHubPool",
   PausedDeposits = "PausedDeposits",
   PausedFills = "PausedFills",
   SetXDomainAdmin = "SetXDomainAdmin",
   EmergencyDeletedRootBundle = "EmergencyDeletedRootBundle",
   RequestedSlowFill = "RequestedSlowFill",
   ClaimedRelayerRefund = "ClaimedRelayerRefund",
-  TokensBridged = "TokensBridged",
   TransferredOwnership = "TransferredOwnership",
 }
 
@@ -75,12 +71,9 @@ export type RpcClient = {
   rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
 
-export type AttestedCCTPMessage = {
-  nonce: number;
-  sourceDomain: number;
+export type AttestedCCTPV2Message = {
   messageBytes: string;
   attestation: string;
-  type: "transfer" | "message";
 };
 
 export type LatestBlockhash = {

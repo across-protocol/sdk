@@ -1,0 +1,58 @@
+{
+  "events": [
+    {
+      "name": "BridgedToHubPool",
+      "discriminator": [181, 111, 52, 218, 105, 53, 240, 205]
+    },
+    {
+      "name": "TokensBridged",
+      "discriminator": [200, 201, 199, 39, 5, 238, 214, 196]
+    }
+  ],
+  "types": [
+    {
+      "name": "BridgedToHubPool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokensBridged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount_to_return",
+            "type": "u64"
+          },
+          {
+            "name": "chain_id",
+            "type": "u64"
+          },
+          {
+            "name": "leaf_id",
+            "type": "u32"
+          },
+          {
+            "name": "l2_token_address",
+            "type": "pubkey"
+          },
+          {
+            "name": "caller",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}

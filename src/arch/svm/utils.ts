@@ -1,4 +1,4 @@
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { SvmSpokeClient } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
@@ -27,14 +27,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
-import {
-  AttestedCCTPMessage,
-  EventName,
-  SVMEventNames,
-  SVMProvider,
-  LatestBlockhash,
-  SolanaTransaction,
-} from "./types";
+import { EventName, SVMEventNames, SVMProvider, LatestBlockhash, SolanaTransaction } from "./types";
 import winston from "winston";
 /**
  * Basic void TransactionSigner type
@@ -298,20 +291,6 @@ export async function getRoutePda(originToken: Address, seed: bigint, routeChain
 }
 
 /**
- * Returns the PDA for the SVM Spoke's transfer liability account.
- * @param programId the address of the spoke pool.
- * @param originToken the address of the corresponding token.
- */
-export async function getTransferLiabilityPda(programId: Address, originToken: Address): Promise<Address> {
-  const addressEncoder = getAddressEncoder();
-  const [pda] = await getProgramDerivedAddress({
-    programAddress: programId,
-    seeds: ["transfer_liability", addressEncoder.encode(originToken)],
-  });
-  return pda;
-}
-
-/**
  * Returns the PDA for the SVM Spoke's root bundle account.
  * @param programId the address of the spoke pool.
  * @param rootBundleId the associated root bundle ID.
@@ -476,50 +455,6 @@ export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
     exclusiveRelayer: address(relayData.exclusiveRelayer.toBase58()),
     exclusivityDeadline: relayData.exclusivityDeadline,
   };
-}
-
-/**
- * Returns the PDA for the CCTP nonce.
- * @param solanaClient The Solana client.
- * @param signer The signer of the transaction.
- * @param nonce The nonce to get the PDA for.
- * @param sourceDomain The source domain.
- * @returns The PDA for the CCTP nonce.
- */
-export const getCCTPNoncePda = async (
-  solanaClient: SVMProvider,
-  signer: KeyPairSigner,
-  nonce: number,
-  sourceDomain: number,
-  latestBlockhash?: LatestBlockhash
-) => {
-  const [messageTransmitterPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: ["message_transmitter"],
-  });
-  const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
-    messageTransmitter: messageTransmitterPda,
-    nonce,
-    sourceDomain: sourceDomain,
-  });
-
-  const parserFunction = (buf: Buffer): Address => {
-    if (buf.length === 32) {
-      return address(bs58.encode(buf));
-    }
-    throw new Error("Invalid buffer");
-  };
-
-  return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction, latestBlockhash);
-};
-
-/**
- * Checks if a CCTP message is a deposit for burn event.
- * @param event The CCTP message event.
- * @returns True if the message is a deposit for burn event, false otherwise.
- */
-export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
-  return event.type === "transfer";
 }
 
 /**

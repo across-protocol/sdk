@@ -105,10 +105,6 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
     return this.mockEventsClient.requestSlowFill(request);
   }
 
-  setTokensBridged(_tokensBridged: SvmSpokeClient.TokensBridged & Partial<EventWithData>): EventWithData {
-    throw new Error("MockSvmSpokePoolClient#setTokensBridged not implemented");
-  }
-
   executeSlowRelayLeaf(_leaf: Omit<SlowFillLeaf, "messageHash">): Log {
     throw new Error("MockSvmSpokePoolClient#executeV3SlowRelayLeaf not implemented");
   }

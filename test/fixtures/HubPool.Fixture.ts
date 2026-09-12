@@ -317,7 +317,7 @@ export async function deployHubPool(
   const mockSpoke = await hre.upgrades.deployProxy(
     await getContractFactory(spokePoolName, signer),
     [0, crossChainAdmin.address, hubPool.address],
-    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address] }
+    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address, hre.ethers.constants.AddressZero] }
   );
   await hubPool.setCrossChainContracts(repaymentChainId, mockAdapter.address, mockSpoke.address);
   await hubPool.setCrossChainContracts(defaultOriginChainId, mockAdapter.address, mockSpoke.address);
@@ -328,7 +328,7 @@ export async function deployHubPool(
   const mockSpokeMainnet = await hre.upgrades.deployProxy(
     await getContractFactory(spokePoolName, signer),
     [0, crossChainAdmin.address, hubPool.address],
-    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address] }
+    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address, hre.ethers.constants.AddressZero] }
   );
   await hubPool.setCrossChainContracts(mainnetChainId, mockAdapterMainnet.address, mockSpokeMainnet.address);
 
