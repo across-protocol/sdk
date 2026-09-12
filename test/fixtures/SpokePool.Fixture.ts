@@ -403,7 +403,7 @@ export async function deploySpokePool(
   const spokePool = await hre.upgrades.deployProxy(
     await getContractFactory(spokePoolName, deployerWallet),
     [0, crossChainAdmin.address, hubPool.address],
-    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address] }
+    { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [weth.address, hre.ethers.constants.AddressZero] }
   );
   await spokePool.setChainId(destinationChainId);
 

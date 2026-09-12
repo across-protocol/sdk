@@ -7,22 +7,17 @@
   resolved "https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz#bd9154aec9983f77b3a034ecaa015c2e4201f6cf"
   integrity sha512-1Yjs2SvM8TflER/OD3cOjhWWOZb58A2t7wpE2S9XfBYTiIl+XFhQG2bjy4Pu1I+EAlCNUzRDYDdFwFYUKvXcIA==
 
-"@across-protocol/constants@^3.1.118":
-  version "3.1.118"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.118.tgz#3d82d1e162dc1803d0ed6cb11f3865598f46cf70"
-  integrity sha512-JIUzkl285Oyfs1nnqubUlb4p5gCPh6RcirPR6o2MWUShSwq99sh1z62wDfOBheiCDnYfqgMoC2iVjDbFJWISXA==
-
-"@across-protocol/constants@^3.1.125":
+"@across-protocol/constants@^3.1.124", "@across-protocol/constants@^3.1.125":
   version "3.1.125"
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.125.tgz#0f17e71ee7be27ef93ba0c8dece41e9ed8438bd8"
   integrity sha512-JAq4fqvdF5RDsZrFTnINVxzBH+UP+HT+JQb2QiBeyHRSElHSondpSPCVnoQkR3I/bPVrx2j27jRc+kvfBdEjqw==
 
-"@across-protocol/contracts@5.0.26":
-  version "5.0.26"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-5.0.26.tgz#8d1811fc5799945f2ca898f4aec5e4d227c978ee"
-  integrity sha512-YVdEtv4esbAjlqlsd1CP11h7qon1Xlv6B8BQ4aqPOjPXBQqJfZxpUPuVKC2D8emWlDi19hFFfnlbekIZjerRrA==
+"@across-protocol/contracts@6.0.0-beta.2":
+  version "6.0.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-6.0.0-beta.2.tgz#6d7fd81b7c0264b2b85daf7d7e975e8381c5fa54"
+  integrity sha512-GuBiEGWFgySfJ6U0hZb6ewlSB8JjoVQqlhsdYGogJFiSRWz5JcrQkzsYeQOtOU+0gGNdtzhE3TDAijp0+8Vgrg==
   dependencies:
-    "@across-protocol/constants" "^3.1.118"
+    "@across-protocol/constants" "^3.1.124"
     "@coral-xyz/anchor" "^0.31.1"
     "@eth-optimism/contracts" "^0.5.40"
     "@ethersproject/bignumber" "5.7.0"
@@ -32,7 +27,6 @@
     "@openzeppelin/contracts-upgradeable" "5.5.0"
     "@openzeppelin/contracts-upgradeable-v4" "npm:@openzeppelin/contracts-upgradeable@4.9.6"
     "@openzeppelin/contracts-v4" "npm:@openzeppelin/contracts@4.9.6"
-    "@scroll-tech/contracts" "^0.1.0"
     "@solana-program/address-lookup-table" "0.10.0"
     "@solana/kit" "^5.4.0"
     "@solana/web3.js" "1.98.2"
@@ -1410,11 +1404,6 @@
   integrity sha512-K9hEyUi7G8tqOp7kWIALJLVbGCByhilcy6123WfcorxWwiE1sbQupPyIU5f3YdQK6wMjBsyTWiLW52ZBMp7sXA==
   dependencies:
     "@randlabs/communication-bridge" "1.0.1"
-
-"@scroll-tech/contracts@^0.1.0":
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/@scroll-tech/contracts/-/contracts-0.1.1.tgz#7d9a99c4af1e8a313600f22f20db303b15f3b55f"
-  integrity sha512-oUPtrTp9fXdMLEwQ3jq2RSSeg6EdE/zHkgGIpmWwbIeuYjtSBqOA7FiwkQhEdqVQ46xdI+7NA6wP6/3CS+IqfQ==
 
 "@scure/base@~1.1.0":
   version "1.1.1"

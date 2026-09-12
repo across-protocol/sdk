@@ -1,15 +1,15 @@
 import {
   SvmSpokeClient,
   MulticallHandlerClient,
-  MessageTransmitterClient,
-  TokenMessengerMinterClient,
+  MessageTransmitterV2Client,
+  TokenMessengerMinterV2Client,
 } from "@across-protocol/contracts";
 import { Address } from "@solana/kit";
 import { spawn } from "child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import tar from "tar";
-import contractsPkg from "@across-protocol/contracts/package.json" assert { type: "json" };
+import contractsPkg from "@across-protocol/contracts/package.json";
 
 // Helper function to get the @across-protocol/contracts version from the package.json
 const getContractsVersion = (): string => {
@@ -21,8 +21,8 @@ const LEDGER_DIR = path.resolve(__dirname, "..", ".ledger");
 const TARGET_DIR = path.resolve(__dirname, "..", "..", "..");
 const SVM_SPOKE_SO_PATH = path.resolve(TARGET_DIR, "target", "deploy", "svm_spoke.so");
 const MULTICALL_HANDLER_PATH = path.resolve(TARGET_DIR, "target", "deploy", "multicall_handler.so");
-const MESSAGE_TRANSMITTER_CONFIG_OVERRIDE_PATH = path.resolve(__dirname, "accounts", "message_transmitter.json");
-const TOKEN_MESSENGER_MINTER_CONFIG_OVERRIDE_PATH = path.resolve(__dirname, "accounts", "token_minter.json");
+const MESSAGE_TRANSMITTER_CONFIG_OVERRIDE_PATH = path.resolve(__dirname, "accounts", "message_transmitter_v2.json");
+const TOKEN_MESSENGER_MINTER_CONFIG_OVERRIDE_PATH = path.resolve(__dirname, "accounts", "token_minter_v2.json");
 const BINARY_RELEASE_TAG = process.env.SVM_BINARY_RELEASE_TAG || getContractsVersion();
 const BINARY_ARCHIVE_NAME = process.env.SVM_BINARY_ARCHIVE_NAME || "svm-verified-test-binaries.tar.gz";
 const BINARY_DOWNLOAD_URL = `https://github.com/across-protocol/contracts/releases/download/${BINARY_RELEASE_TAG}/${BINARY_ARCHIVE_NAME}`;
@@ -72,19 +72,19 @@ export async function validatorSetup(upgradeAuthority: Address): Promise<void> {
     MULTICALL_HANDLER_PATH,
     upgradeAuthority,
     "--clone-upgradeable-program",
-    MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS,
     "--clone-upgradeable-program",
-    TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
+    TokenMessengerMinterV2Client.TOKEN_MESSENGER_MINTER_V2_PROGRAM_ADDRESS,
     "--account",
-    "BWrwSWjbikT3H7qHAkUEbLmwDQoB4ZDJ4wcSEhSPTZCu",
+    "W1k5ijkaSTo5iA5zChNpfzcy796fLhkBxfmJuR8W8HU",
     MESSAGE_TRANSMITTER_CONFIG_OVERRIDE_PATH,
     "--account",
-    "DBD8hAwLDRQkTsu6EqviaYNGKPnsAMmQonxf7AH8ZcFY",
+    "E1bQJ8eMMn3zmeSewW3HQ8zmJr7KR75JonbwAtWx2bux",
     TOKEN_MESSENGER_MINTER_CONFIG_OVERRIDE_PATH,
     "--clone",
-    "Afgq3BHEfCE7d78D2XE9Bfyu2ieDqvE24xX8KDwreBms",
+    "AawthJCGRmggpfv9MMWV6Jmo9cue4gL9wUZgRBShg58W",
     "--clone",
-    "Hazwi3jFQtLKc2ughi7HFXPkpDeso7DQaMR9Ks4afh3j",
+    "3EzN2mcmdfSNGXRCAixSpTteK6ywdmFDZZWvkMnznFt9",
     "--ledger",
     LEDGER_DIR,
     "--reset",

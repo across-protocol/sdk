@@ -1,8 +1,9 @@
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterV2Client, SvmSpokeClient, TokenMessengerMinterV2Client } from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
+  ReadonlyUint8Array,
   Instruction,
   KeyPairSigner,
   address,
@@ -28,7 +29,7 @@ import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces"
 import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
-  AttestedCCTPMessage,
+  AttestedCCTPV2Message,
   EventName,
   SVMEventNames,
   SVMProvider,
@@ -36,6 +37,12 @@ import {
   SolanaTransaction,
 } from "./types";
 import winston from "winston";
+import {
+  decodeMessageHeaderV2,
+  decodeTokenMessengerV2MessageBody,
+} from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { array, create, number, string, type } from "superstruct";
+import { fetchWithTimeout, isHttpError } from "../../utils/FetchUtils";
 /**
  * Basic void TransactionSigner type
  */
@@ -298,20 +305,6 @@ export async function getRoutePda(originToken: Address, seed: bigint, routeChain
 }
 
 /**
- * Returns the PDA for the SVM Spoke's transfer liability account.
- * @param programId the address of the spoke pool.
- * @param originToken the address of the corresponding token.
- */
-export async function getTransferLiabilityPda(programId: Address, originToken: Address): Promise<Address> {
-  const addressEncoder = getAddressEncoder();
-  const [pda] = await getProgramDerivedAddress({
-    programAddress: programId,
-    seeds: ["transfer_liability", addressEncoder.encode(originToken)],
-  });
-  return pda;
-}
-
-/**
  * Returns the PDA for the SVM Spoke's root bundle account.
  * @param programId the address of the spoke pool.
  * @param rootBundleId the associated root bundle ID.
@@ -478,48 +471,53 @@ export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
   };
 }
 
-/**
- * Returns the PDA for the CCTP nonce.
- * @param solanaClient The Solana client.
- * @param signer The signer of the transaction.
- * @param nonce The nonce to get the PDA for.
- * @param sourceDomain The source domain.
- * @returns The PDA for the CCTP nonce.
- */
-export const getCCTPNoncePda = async (
-  solanaClient: SVMProvider,
-  signer: KeyPairSigner,
-  nonce: number,
-  sourceDomain: number,
-  latestBlockhash?: LatestBlockhash
-) => {
-  const [messageTransmitterPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: ["message_transmitter"],
-  });
-  const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
-    messageTransmitter: messageTransmitterPda,
-    nonce,
-    sourceDomain: sourceDomain,
-  });
-
-  const parserFunction = (buf: Buffer): Address => {
-    if (buf.length === 32) {
-      return address(bs58.encode(buf));
-    }
-    throw new Error("Invalid buffer");
-  };
-
-  return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction, latestBlockhash);
+/** V2 has one used_nonce PDA per message; no source domain, sequence or RPC simulation is involved. */
+export const getCCTPNoncePda = async (nonce: string | ReadonlyUint8Array): Promise<Address> => {
+  const transmitter = MessageTransmitterV2Client.MESSAGE_TRANSMITTER_V2_PROGRAM_ADDRESS;
+  const seed = getCCTPMessageBytes(nonce);
+  assert(seed.length === 32, "CCTP V2 nonce must be 32 bytes");
+  const [pda] = await getProgramDerivedAddress({ programAddress: transmitter, seeds: ["used_nonce", seed] });
+  return pda;
 };
 
-/**
- * Checks if a CCTP message is a deposit for burn event.
- * @param event The CCTP message event.
- * @returns True if the message is a deposit for burn event, false otherwise.
- */
-export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
-  return event.type === "transfer";
+/** Validate hex input before passing message bytes to the contracts decoders. */
+export function getCCTPMessageBytes(value: string | ReadonlyUint8Array): Buffer {
+  if (typeof value !== "string") return Buffer.from(value);
+  const hex = value.replace(/^0x/, "");
+  assert(/^(?:[\da-fA-F]{2})*$/.test(hex), "Invalid CCTP hex bytes");
+  return Buffer.from(hex, "hex");
+}
+
+/** Adapt the contracts V2 header decoder to Kit addresses and the full 32-byte nonce seed. */
+export function decodeCCTPV2Message(message: string | ReadonlyUint8Array) {
+  const data = getCCTPMessageBytes(message);
+  assert(data.length >= 148, "Invalid CCTP V2 message header");
+  const header = decodeMessageHeaderV2(data);
+  assert(header.version === 1, "Expected CCTP V2 wire version 1");
+  return {
+    ...header,
+    nonce: data.subarray(12, 44),
+    sender: address(header.sender.toBase58()),
+    recipient: address(header.recipient.toBase58()),
+    destinationCaller: address(header.destinationCaller.toBase58()),
+  };
+}
+
+export function decodeCCTPV2BurnMessage(messageBody: string | ReadonlyUint8Array) {
+  const data = getCCTPMessageBytes(messageBody);
+  assert(data.length >= 228, "Invalid CCTP V2 burn message body");
+  const body = decodeTokenMessengerV2MessageBody(data);
+  assert(body.version === 1, "Invalid CCTP V2 burn message body");
+  return {
+    ...body,
+    burnToken: address(body.burnToken.toBase58()),
+    mintRecipient: address(body.mintRecipient.toBase58()),
+    messageSender: address(body.messageSender.toBase58()),
+    amount: BigInt(body.amount.toString()),
+    maxFee: BigInt(body.maxFee.toString()),
+    feeExecuted: BigInt(body.feeExecuted.toString()),
+    expirationBlock: BigInt(body.expirationBlock.toString()),
+  };
 }
 
 /**
@@ -535,7 +533,7 @@ export const isRelayRootBundleMessageBody = (body: Buffer): boolean => {
 };
 
 /**
- * True if `body` encodes a `emergencyDeleteRootBundle(uint32)` call.
+ * True if `body` encodes a `emergencyDeleteRootBundle(uint256)` call.
  */
 export const isEmergencyDeleteRootBundleMessageBody = (body: Buffer): boolean => {
   if (body.length < 4) return false;
@@ -574,3 +572,79 @@ export const bigToU8a32 = (bn: bigint | BigNumber) =>
   bigintToU8a32(typeof bn === "bigint" ? bn : BigInt(bn.toString()));
 
 export const numberToU8a32 = (n: number) => bigintToU8a32(BigInt(n));
+
+const attestationResponse = type({
+  messages: array(
+    type({
+      cctpVersion: number(),
+      status: string(),
+      message: string(),
+      attestation: string(),
+    })
+  ),
+});
+
+/** Poll Iris for V2 attestations. Select by attested bytes, never Iris's decoded metadata. */
+export async function fetchCCTPV2Messages(
+  transactionHash: string,
+  sourceDomain: number,
+  isMainnet: boolean,
+  options: { timeoutMs?: number; pollIntervalMs?: number; recipient?: Address; nonce?: string } = {}
+): Promise<AttestedCCTPV2Message[]> {
+  const spoke = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+  const tokenMessenger = TokenMessengerMinterV2Client.TOKEN_MESSENGER_MINTER_V2_PROGRAM_ADDRESS;
+  const { timeoutMs = 120_000, pollIntervalMs = 2000 } = options;
+  assert(transactionHash.length > 0, "Source transaction hash is required");
+  assert(
+    Number.isInteger(sourceDomain) && sourceDomain >= 0 && sourceDomain <= 0xffffffff,
+    "Invalid CCTP source domain"
+  );
+  assert(
+    Number.isFinite(timeoutMs) && timeoutMs > 0 && Number.isFinite(pollIntervalMs) && pollIntervalMs > 0,
+    "Invalid polling timeout or interval"
+  );
+  const selectedNonce = options.nonce === undefined ? undefined : getCCTPMessageBytes(options.nonce);
+  assert(selectedNonce === undefined || selectedNonce.length === 32, "CCTP V2 nonce must be 32 bytes");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    let response: unknown;
+    try {
+      response = await fetchWithTimeout(
+        `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/v2/messages/${sourceDomain}`,
+        { transactionHash },
+        {},
+        Math.min(10_000, Math.max(1, deadline - Date.now()))
+      );
+    } catch (error) {
+      if (!isHttpError(error) || (error.status !== 404 && error.status !== 429 && error.status < 500)) throw error;
+    }
+    if (response !== undefined) {
+      const { messages } = create(response, attestationResponse);
+      const v2 = messages.filter((message) => message.cctpVersion === 2);
+      assert(!messages.length || v2.length, "Source transaction contains no CCTP V2 messages");
+      // A pending message may have no attested bytes yet. Do not decode it or mistake it for a completed message.
+      if (v2.length && v2.every((message) => message.status === "complete")) {
+        const matching = v2.filter((message) => {
+          const header = decodeCCTPV2Message(message.message);
+          return (
+            header.sourceDomain === sourceDomain &&
+            header.destinationDomain === 5 &&
+            (options.recipient === undefined
+              ? header.recipient === spoke || header.recipient === tokenMessenger
+              : header.recipient === options.recipient) &&
+            (selectedNonce === undefined || header.nonce.equals(selectedNonce))
+          );
+        });
+        assert(matching.length, "No matching CCTP V2 messages addressed to the selected Solana receiver");
+        return matching.map(({ message, attestation }) => {
+          assert(getCCTPMessageBytes(attestation).length > 0, "Missing completed CCTP attestation");
+          return { messageBytes: message, attestation };
+        });
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.min(pollIntervalMs, Math.max(0, deadline - Date.now()))));
+  }
+  throw new Error(
+    `Timed out waiting for CCTP V2 attestations for ${transactionHash}; retry the same source transaction`
+  );
+}
