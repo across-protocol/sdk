@@ -1,4 +1,11 @@
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import {
+  MessageTransmitterClient,
+  MessageTransmitterIdl,
+  SvmSpokeClient,
+  SvmSpokeIdl,
+  TokenMessengerMinterClient,
+  TokenMessengerMinterIdl,
+} from "@across-protocol/contracts";
 import { SpokePool__factory } from "../../typechain";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
@@ -10,6 +17,7 @@ import {
   createTransactionMessage,
   getAddressEncoder,
   getBase64EncodedWireTransaction,
+  getBase64Encoder,
   getProgramDerivedAddress,
   getU32Encoder,
   getU64Encoder,
@@ -19,6 +27,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Commitment,
+  type Decoder,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
@@ -29,6 +38,7 @@ import { BigNumber, Address as SdkAddress, getMessageHash, isDefined, isUint8Arr
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import {
   AttestedCCTPMessage,
+  EventData,
   EventName,
   SVMEventNames,
   SVMProvider,
@@ -121,12 +131,192 @@ export function parseEventData(eventData: any): any {
   return eventData;
 }
 
+// Codama decoders generated from the SvmSpoke program, keyed by event name. Decoding with these (rather than the
+// generic Anchor BorshEventCoder) yields data that actually satisfies the generated event types: base58 Address
+// strings, bigint integers, Uint8Array byte arrays and numeric enums, with camelCase field names.
+const svmSpokeEventDecoders: Record<EventName, (payload: Uint8Array) => { name: string; data: EventData }> = {
+  BridgedToHubPool: (payload) => ({
+    name: SVMEventNames.BridgedToHubPool,
+    data: SvmSpokeClient.getBridgedToHubPoolDecoder().decode(payload),
+  }),
+  TokensBridged: (payload) => ({
+    name: SVMEventNames.TokensBridged,
+    data: SvmSpokeClient.getTokensBridgedDecoder().decode(payload),
+  }),
+  ExecutedRelayerRefundRoot: (payload) => ({
+    name: SVMEventNames.ExecutedRelayerRefundRoot,
+    data: SvmSpokeClient.getExecutedRelayerRefundRootDecoder().decode(payload),
+  }),
+  RelayedRootBundle: (payload) => ({
+    name: SVMEventNames.RelayedRootBundle,
+    data: SvmSpokeClient.getRelayedRootBundleDecoder().decode(payload),
+  }),
+  PausedDeposits: (payload) => ({
+    name: SVMEventNames.PausedDeposits,
+    data: SvmSpokeClient.getPausedDepositsDecoder().decode(payload),
+  }),
+  PausedFills: (payload) => ({
+    name: SVMEventNames.PausedFills,
+    data: SvmSpokeClient.getPausedFillsDecoder().decode(payload),
+  }),
+  SetXDomainAdmin: (payload) => ({
+    name: SVMEventNames.SetXDomainAdmin,
+    data: SvmSpokeClient.getSetXDomainAdminDecoder().decode(payload),
+  }),
+  FilledRelay: (payload) => ({
+    name: SVMEventNames.FilledRelay,
+    data: SvmSpokeClient.getFilledRelayDecoder().decode(payload),
+  }),
+  FundsDeposited: (payload) => ({
+    name: SVMEventNames.FundsDeposited,
+    data: SvmSpokeClient.getFundsDepositedDecoder().decode(payload),
+  }),
+  EmergencyDeletedRootBundle: (payload) => ({
+    name: SVMEventNames.EmergencyDeletedRootBundle,
+    data: SvmSpokeClient.getEmergencyDeletedRootBundleDecoder().decode(payload),
+  }),
+  RequestedSlowFill: (payload) => ({
+    name: SVMEventNames.RequestedSlowFill,
+    data: SvmSpokeClient.getRequestedSlowFillDecoder().decode(payload),
+  }),
+  ClaimedRelayerRefund: (payload) => ({
+    name: SVMEventNames.ClaimedRelayerRefund,
+    data: SvmSpokeClient.getClaimedRelayerRefundDecoder().decode(payload),
+  }),
+  TransferredOwnership: (payload) => ({
+    name: SVMEventNames.TransferredOwnership,
+    data: SvmSpokeClient.getTransferredOwnershipDecoder().decode(payload),
+  }),
+};
+
 /**
- * Decodes a raw event according to a supplied IDL.
+ * Decodes a raw SvmSpoke event.
+ *
+ * The event name is resolved from the IDL's event discriminator table and the payload is decoded with the
+ * corresponding decoder generated from the program, so the decoded data matches the generated event types.
+ * Events that cannot be identified are rejected.
  */
+// Per-program maps of CCTP event name to the event data type generated from the program. The decoder tables
+// below are typed against these maps, so a decoder registered under the wrong name is a compile error (up to
+// structural identity), and the completeness of each table against its IDL is pinned by a unit test.
+interface TokenMessengerMinterEvents {
+  OwnershipTransferStarted: TokenMessengerMinterClient.OwnershipTransferStarted;
+  OwnershipTransferred: TokenMessengerMinterClient.OwnershipTransferred;
+  DepositForBurn: TokenMessengerMinterClient.DepositForBurn;
+  MintAndWithdraw: TokenMessengerMinterClient.MintAndWithdraw;
+  RemoteTokenMessengerAdded: TokenMessengerMinterClient.RemoteTokenMessengerAdded;
+  RemoteTokenMessengerRemoved: TokenMessengerMinterClient.RemoteTokenMessengerRemoved;
+  SetTokenController: TokenMessengerMinterClient.SetTokenController;
+  PauserChanged: TokenMessengerMinterClient.PauserChanged;
+  SetBurnLimitPerMessage: TokenMessengerMinterClient.SetBurnLimitPerMessage;
+  LocalTokenAdded: TokenMessengerMinterClient.LocalTokenAdded;
+  LocalTokenRemoved: TokenMessengerMinterClient.LocalTokenRemoved;
+  TokenPairLinked: TokenMessengerMinterClient.TokenPairLinked;
+  TokenPairUnlinked: TokenMessengerMinterClient.TokenPairUnlinked;
+  Pause: TokenMessengerMinterClient.Pause;
+  Unpause: TokenMessengerMinterClient.Unpause;
+  TokenCustodyBurned: TokenMessengerMinterClient.TokenCustodyBurned;
+}
+
+interface MessageTransmitterEvents {
+  OwnershipTransferStarted: MessageTransmitterClient.OwnershipTransferStarted;
+  OwnershipTransferred: MessageTransmitterClient.OwnershipTransferred;
+  PauserChanged: MessageTransmitterClient.PauserChanged;
+  AttesterManagerUpdated: MessageTransmitterClient.AttesterManagerUpdated;
+  MessageReceived: MessageTransmitterClient.MessageReceived;
+  SignatureThresholdUpdated: MessageTransmitterClient.SignatureThresholdUpdated;
+  AttesterEnabled: MessageTransmitterClient.AttesterEnabled;
+  AttesterDisabled: MessageTransmitterClient.AttesterDisabled;
+  MaxMessageBodySizeUpdated: MessageTransmitterClient.MaxMessageBodySizeUpdated;
+  Pause: MessageTransmitterClient.Pause;
+  Unpause: MessageTransmitterClient.Unpause;
+}
+
+const tokenMessengerMinterEventDecoders: {
+  [N in keyof TokenMessengerMinterEvents]: () => Decoder<TokenMessengerMinterEvents[N]>;
+} = {
+  OwnershipTransferStarted: TokenMessengerMinterClient.getOwnershipTransferStartedDecoder,
+  OwnershipTransferred: TokenMessengerMinterClient.getOwnershipTransferredDecoder,
+  DepositForBurn: TokenMessengerMinterClient.getDepositForBurnDecoder,
+  MintAndWithdraw: TokenMessengerMinterClient.getMintAndWithdrawDecoder,
+  RemoteTokenMessengerAdded: TokenMessengerMinterClient.getRemoteTokenMessengerAddedDecoder,
+  RemoteTokenMessengerRemoved: TokenMessengerMinterClient.getRemoteTokenMessengerRemovedDecoder,
+  SetTokenController: TokenMessengerMinterClient.getSetTokenControllerDecoder,
+  PauserChanged: TokenMessengerMinterClient.getPauserChangedDecoder,
+  SetBurnLimitPerMessage: TokenMessengerMinterClient.getSetBurnLimitPerMessageDecoder,
+  LocalTokenAdded: TokenMessengerMinterClient.getLocalTokenAddedDecoder,
+  LocalTokenRemoved: TokenMessengerMinterClient.getLocalTokenRemovedDecoder,
+  TokenPairLinked: TokenMessengerMinterClient.getTokenPairLinkedDecoder,
+  TokenPairUnlinked: TokenMessengerMinterClient.getTokenPairUnlinkedDecoder,
+  Pause: TokenMessengerMinterClient.getPauseDecoder,
+  Unpause: TokenMessengerMinterClient.getUnpauseDecoder,
+  TokenCustodyBurned: TokenMessengerMinterClient.getTokenCustodyBurnedDecoder,
+};
+
+const messageTransmitterEventDecoders: {
+  [N in keyof MessageTransmitterEvents]: () => Decoder<MessageTransmitterEvents[N]>;
+} = {
+  OwnershipTransferStarted: MessageTransmitterClient.getOwnershipTransferStartedDecoder,
+  OwnershipTransferred: MessageTransmitterClient.getOwnershipTransferredDecoder,
+  PauserChanged: MessageTransmitterClient.getPauserChangedDecoder,
+  AttesterManagerUpdated: MessageTransmitterClient.getAttesterManagerUpdatedDecoder,
+  MessageReceived: MessageTransmitterClient.getMessageReceivedDecoder,
+  SignatureThresholdUpdated: MessageTransmitterClient.getSignatureThresholdUpdatedDecoder,
+  AttesterEnabled: MessageTransmitterClient.getAttesterEnabledDecoder,
+  AttesterDisabled: MessageTransmitterClient.getAttesterDisabledDecoder,
+  MaxMessageBodySizeUpdated: MessageTransmitterClient.getMaxMessageBodySizeUpdatedDecoder,
+  Pause: MessageTransmitterClient.getPauseDecoder,
+  Unpause: MessageTransmitterClient.getUnpauseDecoder,
+};
+
+// Codama decoders for the CCTP programs consumed through SvmCpiEventsClient, keyed by program (IDL) address,
+// alongside the bundled IDL each decoder set was generated from. Exported for the table-completeness unit tests.
+export const cctpPrograms: Record<
+  string,
+  { idl: Idl; eventDecoders: Record<string, () => Decoder<unknown>> } | undefined
+> = {
+  [TokenMessengerMinterIdl.address]: { idl: TokenMessengerMinterIdl, eventDecoders: tokenMessengerMinterEventDecoders },
+  [MessageTransmitterIdl.address]: { idl: MessageTransmitterIdl, eventDecoders: messageTransmitterEventDecoders },
+};
+
 export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
+  // The generated decoders only apply to SvmSpoke events; any other program's events (e.g. the CCTP
+  // TokenMessengerMinter and MessageTransmitter programs) are decoded generically below.
+  if (idl.address === SvmSpokeIdl.address) {
+    // Decode to a plain Uint8Array, not a Buffer: the generated decoders slice their input to populate byte-array
+    // fields, and slicing a Buffer yields a Buffer, whose toString() and JSON serialisation differ from the
+    // Uint8Array that the generated types promise.
+    const rawEventData = getBase64Encoder().encode(rawEvent);
+    const discriminator = rawEventData.subarray(0, 8);
+    const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
+    assert(
+      isDefined(name) && isEventName(name),
+      `decodeEvent: unknown SvmSpoke event ${name ?? ethers.utils.hexlify(discriminator)}`
+    );
+
+    // Skip the discriminator; the event data follows it. subarray() of a Uint8Array remains a Uint8Array.
+    return svmSpokeEventDecoders[name](rawEventData.subarray(discriminator.length));
+  }
+
+  // CCTP programs: decode with the generated codama decoders so that the decoded data matches the generated
+  // event types. The bundled decoders only apply when the caller supplied the exact bundled IDL instance: a
+  // program address is retained across IDL upgrades, so a different instance (e.g. from a skewed
+  // @across-protocol/contracts version) may carry updated event layouts that the bundled decoders would
+  // silently mis-decode. Any other IDL instance, and any event missing from a decoder table, falls through to
+  // the generic Anchor path below, which decodes per the supplied IDL.
+  const cctpProgram = cctpPrograms[idl.address];
+  if (isDefined(cctpProgram) && idl === cctpProgram.idl) {
+    const rawEventData = getBase64Encoder().encode(rawEvent);
+    const discriminator = rawEventData.subarray(0, 8);
+    const name = (idl.events ?? []).find((event) => Buffer.from(event.discriminator).equals(discriminator))?.name;
+    const decoder = isDefined(name) ? cctpProgram.eventDecoders[name] : undefined;
+    if (isDefined(name) && isDefined(decoder)) {
+      return { name, data: decoder().decode(rawEventData, discriminator.length) };
+    }
+  }
+
   const event = new BorshEventCoder(idl).decode(rawEvent);
-  if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
+  if (!event) throw new Error(`decodeEvent: malformed event for IDL ${idl.address}: ${rawEvent}`);
   return {
     name: event.name,
     data: parseEventData(event.data),
