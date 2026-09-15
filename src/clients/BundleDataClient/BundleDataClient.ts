@@ -155,12 +155,6 @@ function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBloc
     return;
   }
 
-  // Protocol rule: never slow fill deposits with blocked recipients; the deposit instead expires and is
-  // refunded to the depositor.
-  if (BLOCKED_ADDRESSES.some((blockedAddress) => blockedAddress.eq(deposit.recipient))) {
-    return;
-  }
-
   const { destinationChainId, outputToken } = deposit;
   dict[destinationChainId] ??= {};
   dict[destinationChainId][outputToken.toBytes32()] ??= [];
@@ -539,7 +533,10 @@ export class BundleDataClient {
         ) &&
         // Cannot slow fill from or to a lite chain.
         !deposit.fromLiteChain &&
-        !deposit.toLiteChain
+        !deposit.toLiteChain &&
+        // Protocol rule: never slow fill deposits with blocked recipients. Checked here so that slow fill
+        // leaf creation and unexecutable-slow-fill excess accounting stay consistent.
+        !BLOCKED_ADDRESSES.some((blockedAddress) => blockedAddress.eq(deposit.recipient))
       );
     };
 
