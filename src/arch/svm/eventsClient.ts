@@ -31,6 +31,21 @@ import assert from "assert";
  */
 const ANCHOR_CPI_EVENT_DISCRIMINATOR = Buffer.from([0xe4, 0x45, 0xa5, 0x2e, 0x51, 0xcb, 0x9a, 0x1d]);
 
+/**
+ * The highest transaction version we ask the RPC to deserialize for us. Solana activated the v1
+ * transaction format (SIMD-0296 / SIMD-0385) on mainnet at epoch 1035, and `getTransaction` fails
+ * the *whole request* with JSON-RPC error -32015 if the transaction it would return is newer than
+ * this number. That makes the ceiling a property of what we can *read*, not of what we choose to
+ * send: these clients query shared programs (Circle's TokenMessengerMinter and MessageTransmitter
+ * as well as our own SpokePool), so a v1 transaction sent by an unrelated third party is enough to
+ * fail the call. Keep this at the newest format mainnet can produce, independently of the version
+ * we build our own transactions as.
+ *
+ * Raising this is safe for the decoding below: v1 removes address lookup tables, so `loadedAddresses`
+ * comes back empty and the static account keys are the whole set.
+ */
+const MAX_SUPPORTED_TRANSACTION_VERSION = 1;
+
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
 type ExtractJsonOverload<T> = T extends (signature: infer _S, config: infer C) => infer R
@@ -193,7 +208,11 @@ export class SvmCpiEventsClient {
    */
   async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
-      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0, encoding: "json" })
+      .getTransaction(txSignature, {
+        commitment,
+        maxSupportedTransactionVersion: MAX_SUPPORTED_TRANSACTION_VERSION,
+        encoding: "json",
+      })
       .send();
 
     return this.processEventFromTx(txResult);
@@ -268,7 +287,7 @@ export class SvmCpiEventsClient {
       this.rpc
         .getTransaction(txSignature, {
           commitment,
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion: MAX_SUPPORTED_TRANSACTION_VERSION,
           encoding: "json",
         })
         .send(),
@@ -328,7 +347,7 @@ export class SvmCpiEventsClient {
       this.rpc
         .getTransaction(txSignature, {
           commitment,
-          maxSupportedTransactionVersion: 0,
+          maxSupportedTransactionVersion: MAX_SUPPORTED_TRANSACTION_VERSION,
           encoding: "json",
         })
         .send(),
