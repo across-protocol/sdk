@@ -46,7 +46,7 @@ export interface QueryInterface {
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getNativeGasCost: (deposit: RelayData & { destinationChainId: number }, relayer: Address) => Promise<BigNumber>;
-  getAuxiliaryNativeTokenCost(deposit: RelayData & { destinationChainId: number }): Promise<BigNumber>;
+  getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -314,7 +314,7 @@ export class RelayFeeCalculator {
   ): Promise<{ auxFeesInToken: BigNumber; auxNativeFeePercent: BigNumber }> {
     let auxNativeCost = bnZero;
     try {
-      auxNativeCost = await this.queries.getAuxiliaryNativeTokenCost(deposit);
+      auxNativeCost = this.queries.getAuxiliaryNativeTokenCost(deposit);
     } catch (error) {
       this.logger.error({
         at: "sdk/auxNativeFeePercent",

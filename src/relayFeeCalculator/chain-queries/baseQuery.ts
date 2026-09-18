@@ -32,29 +32,6 @@ export type SymbolMappingType = Record<
   }
 >;
 
-type EvmOrTvmRelayData = {
-  recipient: EvmAddress | TvmAddress;
-  outputToken: EvmAddress | TvmAddress;
-  exclusiveRelayer: EvmAddress | TvmAddress;
-};
-
-/**
- * Asserts that `relayData`'s address fields are EVM- or TVM-like, narrowing them for
- * `getUnsignedTxFromDeposit`/`populateV3Relay`, which don't accept SVM addresses. A single
- * assertion on the whole object (rather than one per field) is what lets TypeScript narrow
- * `relayData` itself, since narrowing doesn't propagate out of a loop or callback back to the
- * variable it closed over.
- */
-export function assertEvmOrTvmRelayData<T extends RelayData>(relayData: T): asserts relayData is T & EvmOrTvmRelayData {
-  const { recipient, outputToken, exclusiveRelayer } = relayData;
-  assert(recipient.isEVM() || recipient.isTVM(), `recipient not an EVM-like address (${recipient})`);
-  assert(outputToken.isEVM() || outputToken.isTVM(), `outputToken not an EVM-like address (${outputToken})`);
-  assert(
-    exclusiveRelayer.isEVM() || exclusiveRelayer.isTVM(),
-    `exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
-  );
-}
-
 /**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
  * on a blockchain.
@@ -108,8 +85,18 @@ export class QueryBase implements QueryInterface {
   ): Promise<TransactionCostEstimate> {
     const { gasPrice = this.fixedGasPrice, gasUnits, opStackL1GasCostMultiplier } = options;
 
-    assertEvmOrTvmRelayData(relayData);
-    const tx = await this.getUnsignedTxFromDeposit(relayData, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = relayData;
+    assert(recipient.isEVM() || recipient.isTVM(), `getGasCosts: recipient not an EVM-like address (${recipient})`);
+    assert(
+      outputToken.isEVM() || outputToken.isTVM(),
+      `getGasCosts: outputToken not an EVM-like address (${outputToken})`
+    );
+    assert(
+      exclusiveRelayer.isEVM() || exclusiveRelayer.isTVM(),
+      `getGasCosts: exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
+    );
+
+    const tx = await this.getUnsignedTxFromDeposit({ ...relayData, recipient, outputToken, exclusiveRelayer }, relayer);
     const {
       nativeGasCost,
       tokenGasCost,
@@ -157,8 +144,24 @@ export class QueryBase implements QueryInterface {
     relayData: RelayData & { destinationChainId: number },
     relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<BigNumber> {
-    assertEvmOrTvmRelayData(relayData);
-    const unsignedTx = await this.getUnsignedTxFromDeposit(relayData, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = relayData;
+    assert(
+      recipient.isEVM() || recipient.isTVM(),
+      `getNativeGasCost: recipient not an EVM-like address (${recipient})`
+    );
+    assert(
+      outputToken.isEVM() || outputToken.isTVM(),
+      `getNativeGasCost: outputToken not an EVM-like address (${outputToken})`
+    );
+    assert(
+      exclusiveRelayer.isEVM() || exclusiveRelayer.isTVM(),
+      `getNativeGasCost: exclusiveRelayer not an EVM-like address (${exclusiveRelayer})`
+    );
+
+    const unsignedTx = await this.getUnsignedTxFromDeposit(
+      { ...relayData, recipient, outputToken, exclusiveRelayer },
+      relayer
+    );
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     return voidSigner.estimateGas(unsignedTx);
   }
@@ -169,8 +172,8 @@ export class QueryBase implements QueryInterface {
    * @param deposit RelayData associated with Deposit we're estimating for
    * @returns Native token cost
    */
-  getAuxiliaryNativeTokenCost(_deposit: RelayData): Promise<BigNumber> {
-    return Promise.resolve(arch.evm.getAuxiliaryNativeTokenCost(_deposit));
+  getAuxiliaryNativeTokenCost(_deposit: RelayData): BigNumber {
+    return arch.evm.getAuxiliaryNativeTokenCost(_deposit);
   }
 
   /**

@@ -108,8 +108,8 @@ class ExampleQueries implements QueryInterface {
     return Promise.resolve(toBN(this.defaultGas));
   }
 
-  getAuxiliaryNativeTokenCost(): Promise<BigNumber> {
-    return Promise.resolve(bnZero);
+  getAuxiliaryNativeTokenCost(): BigNumber {
+    return bnZero;
   }
 }
 describe("RelayFeeCalculator", () => {
@@ -205,10 +205,10 @@ describe("RelayFeeCalculator", () => {
     // otherwise viable route. Solving for `minDeposit` directly from the absolute
     // aux cost keeps the result finite.
     class FixedAuxQueries extends ExampleQueries {
-      override getAuxiliaryNativeTokenCost(): Promise<BigNumber> {
+      override getAuxiliaryNativeTokenCost(): BigNumber {
         // Arbitrary non-zero native-token cost; magnitude is large enough to have
         // exploded the legacy closed-form against the tiny outputAmount below.
-        return Promise.resolve(toBN("1000000000"));
+        return toBN("1000000000");
       }
     }
 
@@ -755,7 +755,7 @@ describe("QueryBase", function () {
 });
 
 describe("getAuxiliaryNativeTokenCost", function () {
-  it("returns 0 for EVM queries regardless of message", async function () {
+  it("returns 0 for EVM queries regardless of message", function () {
     const evmQueries = QueryBase__factory.create(
       1, // EVM chain
       getDefaultProvider()
@@ -764,11 +764,11 @@ describe("getAuxiliaryNativeTokenCost", function () {
     const deposit = buildDepositForRelayerFeeTest(1e6, "USDC", 1, 10);
     deposit.message = "0x1234";
 
-    const fee = await evmQueries.getAuxiliaryNativeTokenCost(deposit as unknown as RelayData);
+    const fee = evmQueries.getAuxiliaryNativeTokenCost(deposit as unknown as RelayData);
     expect(fee.eq(bnZero)).to.equal(true);
   });
 
-  it("returns value_amount for SVM queries when AcrossPlusMessage has value_amount", async function () {
+  it("returns value_amount for SVM queries when AcrossPlusMessage has value_amount", function () {
     const { rpc } = createDefaultSolanaClient();
     const svmQueries = QueryBase__factory.create(
       CHAIN_IDs.SOLANA,
@@ -808,11 +808,11 @@ describe("getAuxiliaryNativeTokenCost", function () {
       exclusivityDeadline: 0,
     };
 
-    const fee = await svmQueries.getAuxiliaryNativeTokenCost(deposit);
+    const fee = svmQueries.getAuxiliaryNativeTokenCost(deposit);
     expect(fee.eq(BigNumber.from(valueAmount))).to.equal(true);
   });
 
-  it("throws for SVM queries when message is not AcrossPlus-encoded", async function () {
+  it("throws for SVM queries when message is not AcrossPlus-encoded", function () {
     const { rpc } = createDefaultSolanaClient();
     const svmQueries = QueryBase__factory.create(
       CHAIN_IDs.SOLANA,
@@ -840,7 +840,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       exclusivityDeadline: 0,
     };
 
-    await assertPromiseError(svmQueries.getAuxiliaryNativeTokenCost(deposit));
+    expect(() => svmQueries.getAuxiliaryNativeTokenCost(deposit)).to.throw();
   });
 
   describe("TVM bandwidth cost", function () {
@@ -859,10 +859,10 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
     });
 
-    // TvmQuery builds the real fillRelay/fillRelayWithUpdatedDeposit transaction and measures
-    // its actual calldata, rather than modeling calldata size from a hand-counted ABI layout —
-    // these tests exercise that real encoding path end to end.
-    describe("TvmQuery#getAuxiliaryNativeTokenCost (measured from the real populated transaction)", function () {
+    // TvmQuery computes calldata from the real fillRelay/fillRelayWithUpdatedDeposit ABI
+    // encoding (getV3RelayCalldata), rather than modeling calldata size from a hand-counted
+    // ABI layout — these tests exercise that real encoding path end to end.
+    describe("TvmQuery#getAuxiliaryNativeTokenCost (measured from the real ABI-encoded calldata)", function () {
       let tvmQuery: TvmQuery;
 
       beforeEach(() => {
@@ -896,50 +896,50 @@ describe("getAuxiliaryNativeTokenCost", function () {
         };
       }
 
-      it("matches the full onchain history for an empty-message fillRelay", async function () {
+      it("matches the full onchain history for an empty-message fillRelay", function () {
         // 670 real fillRelay fills, zero variance: overhead 279, calldata 516 -> 795 bytes
         // total. 280 is used for the overhead constant (a one-byte margin over 279), so
         // this reproduces 796,000 SUN exactly.
-        const fee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+        const fee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
         expect(fee.eq(796_000)).to.equal(true);
       });
 
-      it("returns the same cost for 0x and fully-empty messages", async function () {
-        const emptyFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
-        const zeroXFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit("0x"));
+      it("returns the same cost for 0x and fully-empty messages", function () {
+        const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+        const zeroXFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit("0x"));
         expect(zeroXFee.eq(emptyFee)).to.equal(true);
       });
 
-      it("matches the observed onchain bandwidth for a 2112-byte multicall message", async function () {
+      it("matches the observed onchain bandwidth for a 2112-byte multicall message", function () {
         // Reproduces the fill for deposit #3984372 (Mainnet -> Tron). Onchain net_fee was
         // 2,908,000 SUN exactly — an independent, hardcoded ground-truth value, not derived
         // from the constants under test.
         const message = "0x" + "00".repeat(2112);
-        const fee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(message));
+        const fee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(message));
         expect(fee.eq(2_908_000)).to.equal(true);
       });
 
-      it("scales with padded message length", async function () {
-        const baseFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+      it("scales with padded message length", function () {
+        const baseFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
 
         // 16 bytes pads up to a single 32-byte word.
         const sixteenBytes = "0x" + "ab".repeat(16);
-        const oneWordFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(sixteenBytes));
+        const oneWordFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(sixteenBytes));
         expect(oneWordFee.eq(baseFee.add(32 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
 
         // 64 bytes spans exactly two 32-byte words.
         const sixtyFourBytes = "0x" + "ab".repeat(64);
-        const twoWordFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(sixtyFourBytes));
+        const twoWordFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(sixtyFourBytes));
         expect(twoWordFee.eq(baseFee.add(64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
       });
 
-      it("adds the fillRelayWithUpdatedDeposit overhead when a speed-up signature is present", async function () {
+      it("adds the fillRelayWithUpdatedDeposit overhead when a speed-up signature is present", function () {
         const speedUpSignature = "0x" + "11".repeat(65);
-        const plainFee = await tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+        const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
 
         // Empty original + empty updated message: only the fixed speed-up extra applies.
-        // `updatedRecipient` must be non-zero — `populateV3Relay` rejects speeding up into
-        // the zero address, a real validation the old formula-based estimate never exercised.
+        // `updatedRecipient` must be non-zero — the real fillRelayWithUpdatedDeposit encoder
+        // rejects speeding up into the zero address.
         const emptySpeedUp = {
           ...makeDeposit(EMPTY_MESSAGE),
           updatedRecipient: EvmAddress.from(randomAddress()),
@@ -947,21 +947,21 @@ describe("getAuxiliaryNativeTokenCost", function () {
           updatedMessage: EMPTY_MESSAGE,
           speedUpSignature,
         };
-        const emptyFee = await tvmQuery.getAuxiliaryNativeTokenCost(emptySpeedUp);
+        const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(emptySpeedUp);
         // Real fillRelayWithUpdatedDeposit ABI overhead beyond plain fillRelay: 288 bytes.
         expect(emptyFee.eq(plainFee.add(288 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
 
         // 48-byte updated message -> pads to 64 bytes (two 32-byte words).
         const updatedMessage = "0x" + "ab".repeat(48);
         const withUpdatedMessage = { ...emptySpeedUp, updatedMessage };
-        const updatedFee = await tvmQuery.getAuxiliaryNativeTokenCost(withUpdatedMessage);
+        const updatedFee = tvmQuery.getAuxiliaryNativeTokenCost(withUpdatedMessage);
         expect(updatedFee.eq(emptyFee.add(64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
 
         // Original message bytes are still charged on top, since V3RelayData still carries
         // the original `message` field inside fillRelayWithUpdatedDeposit.
         const originalMessage = "0x" + "cd".repeat(32);
         const both = { ...withUpdatedMessage, message: originalMessage };
-        const bothFee = await tvmQuery.getAuxiliaryNativeTokenCost(both);
+        const bothFee = tvmQuery.getAuxiliaryNativeTokenCost(both);
         expect(bothFee.eq(updatedFee.add(32 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
       });
     });

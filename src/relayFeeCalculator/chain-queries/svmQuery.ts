@@ -204,14 +204,8 @@ export class SvmQuery implements QueryInterface {
    * @throws If deposit.message is malformed (unable to be deserialized into `AcrossPlusMessage`)
    * @returns Native token cost
    */
-  getAuxiliaryNativeTokenCost(deposit: RelayData): Promise<BigNumber> {
-    // Not `async`: `arch.svm.getAuxiliaryNativeTokenCost` can throw synchronously (malformed
-    // message), and this converts that into a rejection rather than a synchronous throw.
-    try {
-      return Promise.resolve(arch.svm.getAuxiliaryNativeTokenCost(deposit));
-    } catch (error) {
-      return Promise.reject(error);
-    }
+  getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
+    return arch.svm.getAuxiliaryNativeTokenCost(deposit);
   }
 
   /**
