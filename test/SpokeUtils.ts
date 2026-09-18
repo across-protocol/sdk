@@ -200,19 +200,52 @@ describe("SpokeUtils", function () {
       expect(invalidFills).to.be.an("array").that.is.empty;
     });
 
-    it("skips fills with unsafe deposit IDs", async function () {
+    it("skips recent fills with unsafe deposit IDs within the grace period", async function () {
       const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
+      const blockNumber = 5_000;
+      mockSpokePoolClient.latestHeightSearched = blockNumber;
       mockSpokePoolClient.getFills = () => [
         {
           ...sampleData,
           depositId: unsafeDepositId,
           messageHash,
           ...dummyFillProps,
+          blockNumber,
         },
       ];
 
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
       expect(invalidFills).to.be.an("array").that.is.empty;
+    });
+
+    it("detects fills with unsafe deposit IDs after the grace period using in-memory lookup only", async function () {
+      const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
+      let findDepositCalled = false;
+      const blockNumber = 0;
+      mockSpokePoolClient.latestHeightSearched = 1_000_000;
+      mockSpokePoolClient.getFills = () => [
+        {
+          ...sampleData,
+          depositId: unsafeDepositId,
+          messageHash,
+          ...dummyFillProps,
+          blockNumber,
+        },
+      ];
+      mockSpokePoolClient.getDeposit = () => undefined;
+      mockSpokePoolClient.findDeposit = () => {
+        findDepositCalled = true;
+        return Promise.resolve({
+          found: false,
+          code: InvalidFill.DepositIdNotFound,
+          reason: "Deposit not found",
+        });
+      };
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(findDepositCalled).to.be.false;
+      expect(invalidFills).to.have.lengthOf(1);
+      expect(invalidFills[0].reason).to.include("deposit with depositId");
     });
 
     it("detects fills with no matching deposits", async function () {
