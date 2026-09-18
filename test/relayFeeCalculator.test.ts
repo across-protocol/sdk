@@ -846,15 +846,15 @@ describe("getAuxiliaryNativeTokenCost", function () {
   describe("TVM bandwidth cost", function () {
     // Pure arithmetic on an already-known calldata length: overhead + calldata bytes,
     // at Tron's per-byte bandwidth rate.
-    describe("arch.tvm.getAuxiliaryNativeTokenCost(calldata)", function () {
+    describe("arch.tvm.bandwidthCostForCalldata(calldata)", function () {
       it("returns overhead-only cost for empty calldata", function () {
-        const fee = tvmArch.getAuxiliaryNativeTokenCost("0x");
+        const fee = tvmArch.bandwidthCostForCalldata("0x");
         expect(fee.eq(tvmArch.TVM_RAW_DATA_OVERHEAD_BYTES * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE)).to.equal(true);
       });
 
       it("scales linearly with calldata length", function () {
         const calldata = "0x" + "ab".repeat(100);
-        const fee = tvmArch.getAuxiliaryNativeTokenCost(calldata);
+        const fee = tvmArch.bandwidthCostForCalldata(calldata);
         expect(fee.eq((tvmArch.TVM_RAW_DATA_OVERHEAD_BYTES + 100) * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE)).to.equal(true);
       });
     });
@@ -896,23 +896,14 @@ describe("getAuxiliaryNativeTokenCost", function () {
         };
       }
 
-      // The real envelope overhead measured on-chain is ±1 byte depending on context (most
-      // likely fee_limit's own varint encoding length, not message size — see
-      // TVM_RAW_DATA_OVERHEAD_BYTES's own comment): 279 bytes with zero variance across 670
-      // real empty-message fillRelay fills, but 280 for the message-bearing fill reproduced
-      // below. TVM_RAW_DATA_OVERHEAD_BYTES=280 is the deliberate, conservative choice that
-      // covers both: it overshoots the empty-message case by exactly 1,000 SUN (~$0.0003,
-      // immaterial) and matches the message-bearing case exactly.
-      it("matches the full onchain history for an empty-message fillRelay", function () {
-        const fee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
-        expect(fee.eq(796_000)).to.equal(true);
-      });
-
-      it("normalizes a blank message the same as the canonical 0x", function () {
-        // "" and "0x" are both "no message" elsewhere in this codebase (see
-        // isMessageEmpty), but the real ABI encoder rejects "" outright — this exercises
-        // the normalization in TvmQuery that keeps that equivalence true here too.
+      // 796,000 matches 670 real empty-message fillRelay fills exactly (see
+      // TVM_RAW_DATA_OVERHEAD_BYTES's comment for why it's 280, not the on-chain 279).
+      // "" and "0x" are both "no message" elsewhere in this codebase (isMessageEmpty), so
+      // TvmQuery's normalization should cost them identically despite the real ABI encoder
+      // rejecting "" outright.
+      it("costs an empty or blank message the fixed envelope, matching onchain history", function () {
         const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
+        expect(emptyFee.eq(796_000)).to.equal(true);
         const blankFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(""));
         expect(blankFee.eq(emptyFee)).to.equal(true);
       });
@@ -973,12 +964,8 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
 
       it("treats a present-but-empty speedUpSignature as not sped up", function () {
-        // An upstream producer can set speedUpSignature to "0x" (defined, but not a real
-        // signature) rather than leaving it undefined. The real fillRelayWithUpdatedDeposit
-        // encoder has no such convention and would reject the missing updatedRecipient this
-        // deposit doesn't otherwise carry — this exercises the normalization in TvmQuery
-        // that routes it through plain fillRelay instead, matching the pre-existing
-        // convention this replaces (deposit.speedUpSignature !== "0x").
+        // speedUpSignature: "0x" means not-sped-up by convention (mirrors the deleted
+        // calldata model); check TvmQuery still degrades to plain fillRelay.
         const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
         const notActuallySpedUp = { ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "0x" };
         const fee = tvmQuery.getAuxiliaryNativeTokenCost(notActuallySpedUp);

@@ -37,6 +37,6 @@ export class TvmQuery extends CustomGasTokenQueries {
       { ...deposit, message, speedUpSignature },
       getDefaultRelayer(deposit.destinationChainId)
     );
-    return arch.tvm.getAuxiliaryNativeTokenCost(calldata);
+    return arch.tvm.bandwidthCostForCalldata(calldata);
   }
 }
