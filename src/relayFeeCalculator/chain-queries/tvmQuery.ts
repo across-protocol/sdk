@@ -1,7 +1,7 @@
 import { arch } from "../..";
 import { getV3RelayCalldata } from "../../arch/evm";
 import { RelayData, SpeedUpCommon } from "../../interfaces";
-import { BigNumber, isDefined, isMessageEmpty } from "../../utils";
+import { BigNumber, isMessageEmpty } from "../../utils";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { getDefaultRelayer } from "../relayFeeCalculator";
 
@@ -19,8 +19,7 @@ export class TvmQuery extends CustomGasTokenQueries {
     // The real ABI encoder rejects two inputs this codebase otherwise treats as no-ops:
     // message "" instead of "0x" (isMessageEmpty), and a present-but-empty speedUpSignature.
     const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
-    const speedUpSignature =
-      isDefined(deposit.speedUpSignature) && deposit.speedUpSignature !== "0x" ? deposit.speedUpSignature : undefined;
+    const speedUpSignature = !isMessageEmpty(deposit.speedUpSignature) ? deposit.speedUpSignature : undefined;
 
     const calldata = getV3RelayCalldata(
       this.spokePool,

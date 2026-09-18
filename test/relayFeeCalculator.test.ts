@@ -893,8 +893,9 @@ describe("getAuxiliaryNativeTokenCost", function () {
         };
       }
 
-      // 796,000 matches 670 real empty-message fillRelay fills exactly. "" and "0x" both
-      // mean "no message" (isMessageEmpty), so both should cost the same here too.
+      // 796,000 — one byte conservative over the 795,000 observed onchain across 670 real
+      // empty-message fillRelay fills. "" and "0x" both mean "no message" (isMessageEmpty),
+      // so both should cost the same here too.
       it("costs an empty or blank message the fixed envelope, matching onchain history", function () {
         const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
         expect(emptyFee.eq(796_000)).to.equal(true);
@@ -953,11 +954,15 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
 
       it("treats a present-but-empty speedUpSignature as not sped up", function () {
-        // "0x" means not-sped-up by convention; check it still degrades to plain fillRelay.
+        // "0x" and "" both mean not-sped-up by convention; check both degrade to plain fillRelay.
         const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
-        const notActuallySpedUp = { ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "0x" };
-        const fee = tvmQuery.getAuxiliaryNativeTokenCost(notActuallySpedUp);
-        expect(fee.eq(plainFee)).to.equal(true);
+        const zeroXFee = tvmQuery.getAuxiliaryNativeTokenCost({
+          ...makeDeposit(EMPTY_MESSAGE),
+          speedUpSignature: "0x",
+        });
+        expect(zeroXFee.eq(plainFee)).to.equal(true);
+        const blankFee = tvmQuery.getAuxiliaryNativeTokenCost({ ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "" });
+        expect(blankFee.eq(plainFee)).to.equal(true);
       });
     });
   });

@@ -7,7 +7,8 @@ import { BigNumber, toBN } from "../../utils";
 export const TVM_BANDWIDTH_SUN_PER_BYTE = 1000;
 
 // Tron raw_data envelope (contract type, ref_block, timestamp, expiration, fee_limit)
-// plus a single ECDSA signature. Measured at 280 bytes.
+// plus a single ECDSA signature. 670 empty-message fills measured 279 bytes with zero
+// variance; rounded up to 280 so the estimate stays conservative.
 export const TVM_RAW_DATA_OVERHEAD_BYTES = 280;
 
 /**
