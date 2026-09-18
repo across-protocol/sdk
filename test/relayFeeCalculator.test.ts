@@ -844,8 +844,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
   });
 
   describe("TVM bandwidth cost", function () {
-    // Pure arithmetic on an already-known calldata length: overhead + calldata bytes,
-    // at Tron's per-byte bandwidth rate.
+    // Pure arithmetic: overhead + calldata bytes, at Tron's per-byte bandwidth rate.
     describe("arch.tvm.bandwidthCostForCalldata(calldata)", function () {
       it("returns overhead-only cost for empty calldata", function () {
         const fee = tvmArch.bandwidthCostForCalldata("0x");
@@ -859,9 +858,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
     });
 
-    // TvmQuery computes calldata from the real fillRelay/fillRelayWithUpdatedDeposit ABI
-    // encoding (getV3RelayCalldata), rather than modeling calldata size from a hand-counted
-    // ABI layout — these tests exercise that real encoding path end to end.
+    // Exercises the real fillRelay/fillRelayWithUpdatedDeposit ABI encoding end to end.
     describe("TvmQuery#getAuxiliaryNativeTokenCost (measured from the real ABI-encoded calldata)", function () {
       let tvmQuery: TvmQuery;
 
@@ -896,11 +893,8 @@ describe("getAuxiliaryNativeTokenCost", function () {
         };
       }
 
-      // 796,000 matches 670 real empty-message fillRelay fills exactly (see
-      // TVM_RAW_DATA_OVERHEAD_BYTES's comment for why it's 280, not the on-chain 279).
-      // "" and "0x" are both "no message" elsewhere in this codebase (isMessageEmpty), so
-      // TvmQuery's normalization should cost them identically despite the real ABI encoder
-      // rejecting "" outright.
+      // 796,000 matches 670 real empty-message fillRelay fills exactly. "" and "0x" both
+      // mean "no message" (isMessageEmpty), so both should cost the same here too.
       it("costs an empty or blank message the fixed envelope, matching onchain history", function () {
         const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
         expect(emptyFee.eq(796_000)).to.equal(true);
@@ -909,9 +903,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
 
       it("matches the observed onchain bandwidth for a 2112-byte multicall message", function () {
-        // Reproduces the fill for deposit #3984372 (Mainnet -> Tron). Onchain net_fee was
-        // 2,908,000 SUN exactly — an independent, hardcoded ground-truth value, not derived
-        // from the constants under test.
+        // Reproduces deposit #3984372 (Mainnet -> Tron); 2,908,000 is its real onchain net_fee.
         const message = "0x" + "00".repeat(2112);
         const fee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(message));
         expect(fee.eq(2_908_000)).to.equal(true);
@@ -935,9 +927,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
         const speedUpSignature = "0x" + "11".repeat(65);
         const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
 
-        // Empty original + empty updated message: only the fixed speed-up extra applies.
-        // `updatedRecipient` must be non-zero — the real fillRelayWithUpdatedDeposit encoder
-        // rejects speeding up into the zero address.
+        // updatedRecipient must be non-zero — the real encoder rejects the zero address.
         const emptySpeedUp = {
           ...makeDeposit(EMPTY_MESSAGE),
           updatedRecipient: EvmAddress.from(randomAddress()),
@@ -955,8 +945,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
         const updatedFee = tvmQuery.getAuxiliaryNativeTokenCost(withUpdatedMessage);
         expect(updatedFee.eq(emptyFee.add(64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
 
-        // Original message bytes are still charged on top, since V3RelayData still carries
-        // the original `message` field inside fillRelayWithUpdatedDeposit.
+        // The original message is still charged on top, alongside the updated one.
         const originalMessage = "0x" + "cd".repeat(32);
         const both = { ...withUpdatedMessage, message: originalMessage };
         const bothFee = tvmQuery.getAuxiliaryNativeTokenCost(both);
@@ -964,8 +953,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       });
 
       it("treats a present-but-empty speedUpSignature as not sped up", function () {
-        // speedUpSignature: "0x" means not-sped-up by convention (mirrors the deleted
-        // calldata model); check TvmQuery still degrades to plain fillRelay.
+        // "0x" means not-sped-up by convention; check it still degrades to plain fillRelay.
         const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
         const notActuallySpedUp = { ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "0x" };
         const fee = tvmQuery.getAuxiliaryNativeTokenCost(notActuallySpedUp);

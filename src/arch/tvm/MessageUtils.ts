@@ -11,15 +11,9 @@ export const TVM_BANDWIDTH_SUN_PER_BYTE = 1000;
 export const TVM_RAW_DATA_OVERHEAD_BYTES = 280;
 
 /**
- * Estimate the bandwidth cost (in SUN) of a Tron transaction whose calldata is `calldata`.
- *
- * On Tron, transaction bytes consume bandwidth — distinct from energy (paid via the tx
- * fee limit and modeled in `nativeGasCost`). When the relayer has no free bandwidth
- * staked, every byte burns 1,000 SUN.
- *
- * The estimate is conservative — it assumes zero free bandwidth (worst case). Relayers
- * that stake TRX for bandwidth pay 0 onchain; this still represents the true marginal
- * cost of consuming that staked allowance.
+ * Bandwidth cost (in SUN) of a Tron transaction whose calldata is `calldata`. Assumes zero
+ * free bandwidth (worst case); relayers with staked bandwidth pay 0 onchain, but this is
+ * still the true marginal cost of consuming that stake.
  *
  * @throws if `calldata` isn't a valid `0x`-prefixed, even-length hex string.
  */

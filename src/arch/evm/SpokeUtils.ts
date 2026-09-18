@@ -28,12 +28,8 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
     outputToken: Address;
   };
 
-/**
- * Resolves the fillRelay/fillRelayWithUpdatedDeposit method name and ABI-encodable args for
- * `relayData`, shared by `populateV3Relay` (builds a full unsigned transaction) and
- * `getV3RelayCalldata` (encodes calldata only, without the async round trip through ethers'
- * `populateTransaction`, for callers that only need calldata size or content).
- */
+// Picks fillRelay vs. fillRelayWithUpdatedDeposit and assembles its args, shared by
+// populateV3Relay and getV3RelayCalldata below.
 function resolveV3RelayCall(
   relayData: ProtoFill,
   repaymentAddress: Address,
@@ -95,11 +91,8 @@ export function populateV3Relay(
   return spokePool.populateTransaction[method](...args);
 }
 
-/**
- * Synchronous calldata-only counterpart to `populateV3Relay`, for callers that only need the
- * ABI-encoded calldata (e.g. estimating Tron bandwidth cost from its real size) without paying
- * for a full populated transaction.
- */
+// Synchronous calldata-only counterpart to populateV3Relay, for callers that only need the
+// ABI-encoded calldata, not a full populated transaction.
 export function getV3RelayCalldata(
   spokePool: Contract,
   relayData: ProtoFill,
