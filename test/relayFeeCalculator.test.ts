@@ -844,10 +844,12 @@ describe("getAuxiliaryNativeTokenCost", function () {
   });
 
   describe("TVM bandwidth cost", function () {
-    // Tron bandwidth burns at 1000 SUN/byte. The fixed-tx cost (no message) is the
-    // raw-data envelope + the static portion of the fillRelay ABI calldata: 290 + 4 +
-    // 96 + 384 + 32 = 806 bytes → 806,000 SUN.
-    const FIXED_BANDWIDTH_SUN = 806_000;
+    // Fixed-tx cost (no message) is the raw-data envelope + the static portion of the
+    // fillRelay ABI calldata, at Tron's per-byte bandwidth rate. Derived from the same
+    // constants MessageUtils.ts uses, so this stays in sync if either one changes.
+    const FIXED_BANDWIDTH_SUN =
+      (tvmArch.TVM_RAW_DATA_OVERHEAD_BYTES + tvmArch.TVM_FILL_RELAY_FIXED_CALLDATA_BYTES) *
+      tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE;
 
     function makeDeposit(message: string): RelayData {
       return {
@@ -880,21 +882,22 @@ describe("getAuxiliaryNativeTokenCost", function () {
       // Two 16-byte payloads should each pad up to a single 32-byte word.
       const sixteenBytes = "0x" + "ab".repeat(16);
       const oneWordFee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(sixteenBytes));
-      expect(oneWordFee.eq(FIXED_BANDWIDTH_SUN + 32 * 1000)).to.equal(true);
+      expect(oneWordFee.eq(FIXED_BANDWIDTH_SUN + 32 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE)).to.equal(true);
 
-      // 64 bytes spans exactly two 32-byte words → +64 * 1000 SUN.
+      // 64 bytes spans exactly two 32-byte words → +64 bytes of bandwidth.
       const sixtyFourBytes = "0x" + "ab".repeat(64);
       const twoWordFee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(sixtyFourBytes));
-      expect(twoWordFee.eq(FIXED_BANDWIDTH_SUN + 64 * 1000)).to.equal(true);
+      expect(twoWordFee.eq(FIXED_BANDWIDTH_SUN + 64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE)).to.equal(true);
     });
 
     it("matches the observed onchain bandwidth for a 2112-byte multicall message", function () {
       // Reproduces the fill for deposit #3984372 (Mainnet → Tron). Onchain net_fee was
-      // 2,908,000 SUN; our estimate should be within ~1% of that.
+      // 2,908,000 SUN; our estimate should be within ~1% of that (matches exactly at
+      // the current overhead constant).
       const messageBytes = 2112;
       const message = "0x" + "00".repeat(messageBytes);
       const fee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(message));
-      const expected = FIXED_BANDWIDTH_SUN + messageBytes * 1000;
+      const expected = FIXED_BANDWIDTH_SUN + messageBytes * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE;
       expect(fee.eq(expected)).to.equal(true);
       // Match to actual onchain 2,908,000 SUN within 1%.
       const observedSun = 2_908_000;
@@ -903,10 +906,11 @@ describe("getAuxiliaryNativeTokenCost", function () {
     });
 
     it("adds the fillRelayWithUpdatedDeposit overhead when a speed-up signature is present", function () {
-      // Speed-up fills carry 4 extra ABI head slots (128) + updatedMessage length
-      // header (32) + speedUpSignature length header (32) + padded 65-byte sig (96)
-      // = 288 fixed extra bytes, plus the padded updatedMessage body.
-      const SPEED_UP_FIXED_EXTRA_SUN = 288 * 1000;
+      // Speed-up fills carry 4 extra ABI head slots + updatedMessage length header +
+      // speedUpSignature length header + padded 65-byte sig, plus the padded
+      // updatedMessage body. Derived from the same constant MessageUtils.ts uses.
+      const SPEED_UP_FIXED_EXTRA_SUN =
+        tvmArch.TVM_SPEED_UP_FIXED_CALLDATA_EXTRA_BYTES * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE;
       const speedUpSignature = "0x" + "11".repeat(65);
 
       // Empty original + empty updated message: only the fixed speed-up extra applies.
@@ -924,14 +928,23 @@ describe("getAuxiliaryNativeTokenCost", function () {
       const updatedMessage = "0x" + "ab".repeat(48);
       const withUpdatedMessage = { ...emptySpeedUp, updatedMessage };
       const updatedFee = tvmArch.getAuxiliaryNativeTokenCost(withUpdatedMessage);
-      expect(updatedFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN + 64 * 1000)).to.equal(true);
+      expect(
+        updatedFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN + 64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE)
+      ).to.equal(true);
 
       // Original message bytes are still charged on top, since V3RelayData still carries
       // the original `message` field inside fillRelayWithUpdatedDeposit.
       const originalMessage = "0x" + "cd".repeat(32);
       const both = { ...withUpdatedMessage, message: originalMessage };
       const bothFee = tvmArch.getAuxiliaryNativeTokenCost(both);
-      expect(bothFee.eq(FIXED_BANDWIDTH_SUN + SPEED_UP_FIXED_EXTRA_SUN + 64 * 1000 + 32 * 1000)).to.equal(true);
+      expect(
+        bothFee.eq(
+          FIXED_BANDWIDTH_SUN +
+            SPEED_UP_FIXED_EXTRA_SUN +
+            64 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE +
+            32 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE
+        )
+      ).to.equal(true);
     });
   });
 

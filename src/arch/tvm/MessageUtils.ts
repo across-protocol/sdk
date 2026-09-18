@@ -4,36 +4,42 @@ import { BigNumber, bnZero, isDefined, isMessageEmpty, toBN } from "../../utils"
 // Tron prices each byte of a transaction's serialized raw_data + signature at this many
 // SUN of bandwidth when the relayer's free bandwidth allowance has been exhausted. The
 // rate is set by Tron governance; refresh from `wallet/getchainparameters` if it drifts.
-const TVM_BANDWIDTH_SUN_PER_BYTE = 1000;
+export const TVM_BANDWIDTH_SUN_PER_BYTE = 1000;
 
 // Tron raw_data envelope (contract type, ref_block, timestamp, expiration, fee_limit)
-// plus a single ECDSA signature. Measured empirically against `fillRelay` transactions
-// emitted by the production relayer; varies by ~10 bytes between calls.
-const TVM_RAW_DATA_OVERHEAD_BYTES = 290;
+// plus a single ECDSA signature. Measured at 280 bytes.
+export const TVM_RAW_DATA_OVERHEAD_BYTES = 280;
 
-// `fillRelay(V3RelayData, uint256 repaymentChainId, bytes32 repaymentAddress)` ABI
-// encoding, excluding the `message` payload (which is dynamic).
-//   4   selector
-//  96   top-level head: offset(V3RelayData) + repaymentChainId + repaymentAddress
-// 384   V3RelayData struct head: 11 static fields inline + 1 offset(message)
-//  32   message length header
-const TVM_FILL_RELAY_FIXED_CALLDATA_BYTES = 4 + 96 + 384 + 32;
+const ABI_WORD_BYTES = 32;
+const ABI_SELECTOR_BYTES = 4;
 
-// Extra ABI footprint when a speed-up signature is present and the relayer must call
-// `fillRelayWithUpdatedDeposit(V3RelayData, ..., uint256 updatedOutputAmount, bytes32
-// updatedRecipient, bytes updatedMessage, bytes speedUpSignature)`. The original
-// `message` still lives inside V3RelayData and is already counted above; this constant
-// captures only what's *additional* to the plain `fillRelay` encoding.
-//  128   4 extra head slots: updatedOutputAmount + updatedRecipient + offset(updatedMessage) + offset(speedUpSignature)
-//   32   updatedMessage length header (the padded body is added per-call below)
-//   32   speedUpSignature length header
-//   96   65-byte ECDSA signature padded to 3 EVM words
-const TVM_SPEED_UP_FIXED_CALLDATA_EXTRA_BYTES = 128 + 32 + 32 + 96;
+// fillRelay(V3RelayData, uint256 repaymentChainId, bytes32 repaymentAddress) calldata,
+// excluding the `message` payload (dynamic, added separately).
+const FILL_RELAY_TOP_LEVEL_HEAD_BYTES = 3 * ABI_WORD_BYTES; // offset(V3RelayData) + repaymentChainId + repaymentAddress
+const V3_RELAY_DATA_HEAD_BYTES = 12 * ABI_WORD_BYTES; // 11 static fields + offset(message)
+const MESSAGE_LENGTH_HEADER_BYTES = ABI_WORD_BYTES;
+
+export const TVM_FILL_RELAY_FIXED_CALLDATA_BYTES =
+  ABI_SELECTOR_BYTES + FILL_RELAY_TOP_LEVEL_HEAD_BYTES + V3_RELAY_DATA_HEAD_BYTES + MESSAGE_LENGTH_HEADER_BYTES;
+
+// Extra fillRelayWithUpdatedDeposit(V3RelayData, ..., uint256 updatedOutputAmount, bytes32
+// updatedRecipient, bytes updatedMessage, bytes speedUpSignature) calldata beyond the
+// plain fillRelay encoding above (the original `message` is already counted there).
+const SPEED_UP_EXTRA_HEAD_BYTES = 4 * ABI_WORD_BYTES; // updatedOutputAmount + updatedRecipient + offset(updatedMessage) + offset(speedUpSignature)
+const UPDATED_MESSAGE_LENGTH_HEADER_BYTES = ABI_WORD_BYTES;
+const SPEED_UP_SIGNATURE_LENGTH_HEADER_BYTES = ABI_WORD_BYTES;
+const PADDED_ECDSA_SIGNATURE_BYTES = 3 * ABI_WORD_BYTES; // 65-byte signature, padded up to full words
+
+export const TVM_SPEED_UP_FIXED_CALLDATA_EXTRA_BYTES =
+  SPEED_UP_EXTRA_HEAD_BYTES +
+  UPDATED_MESSAGE_LENGTH_HEADER_BYTES +
+  SPEED_UP_SIGNATURE_LENGTH_HEADER_BYTES +
+  PADDED_ECDSA_SIGNATURE_BYTES;
 
 function paddedMessageByteLength(message: string | undefined): number {
   if (!isDefined(message) || isMessageEmpty(message)) return 0;
   const bytes = Math.max(0, Math.floor((message.length - 2) / 2));
-  return Math.ceil(bytes / 32) * 32;
+  return Math.ceil(bytes / ABI_WORD_BYTES) * ABI_WORD_BYTES;
 }
 
 /**
