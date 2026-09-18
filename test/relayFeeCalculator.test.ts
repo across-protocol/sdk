@@ -892,17 +892,14 @@ describe("getAuxiliaryNativeTokenCost", function () {
 
     it("matches the observed onchain bandwidth for a 2112-byte multicall message", function () {
       // Reproduces the fill for deposit #3984372 (Mainnet → Tron). Onchain net_fee was
-      // 2,908,000 SUN; our estimate should be within ~1% of that (matches exactly at
-      // the current overhead constant).
+      // 2,908,000 SUN exactly. This is an independent, hardcoded ground-truth value
+      // (not derived from the constants under test), so it's the one check in this
+      // file that would fail if TVM_RAW_DATA_OVERHEAD_BYTES regressed to a wrong value.
       const messageBytes = 2112;
       const message = "0x" + "00".repeat(messageBytes);
       const fee = tvmArch.getAuxiliaryNativeTokenCost(makeDeposit(message));
-      const expected = FIXED_BANDWIDTH_SUN + messageBytes * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE;
-      expect(fee.eq(expected)).to.equal(true);
-      // Match to actual onchain 2,908,000 SUN within 1%.
       const observedSun = 2_908_000;
-      const deltaPct = Math.abs(fee.toNumber() - observedSun) / observedSun;
-      expect(deltaPct).to.be.lessThan(0.01);
+      expect(fee.eq(observedSun)).to.equal(true);
     });
 
     it("adds the fillRelayWithUpdatedDeposit overhead when a speed-up signature is present", function () {
