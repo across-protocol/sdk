@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.4.20",
+  "version": "4.4.21",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "repository": {
@@ -86,11 +86,11 @@
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
     "@nktkas/hyperliquid": "^0.25.9",
-    "@solana-program/compute-budget": "^0.11.0",
-    "@solana-program/system": "^0.10.0",
-    "@solana-program/token": "^0.9.0",
-    "@solana-program/token-2022": "^0.6.1",
-    "@solana/kit": "^5.4.0",
+    "@solana-program/compute-budget": "^0.18.1",
+    "@solana-program/system": "^0.14.1",
+    "@solana-program/token": "^0.16.1",
+    "@solana-program/token-2022": "^0.17.0",
+    "@solana/kit": "^8.3.0",
     "@uma/contracts-node": "^0.4.0",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
@@ -143,7 +143,8 @@
     }
   },
   "resolutions": {
-    "**/@solana/codecs": "5.4.0",
-    "**/@solana/codecs-numbers": "5.4.0"
+    "**/@solana/codecs": "8.3.0",
+    "**/@solana/codecs-numbers": "8.3.0",
+    "**/@solana/kit": "8.3.0"
   }
 }

@@ -53,10 +53,11 @@ describe("SvmCpiEventsClient (forged event rejection)", () => {
     internal = client as unknown as typeof internal;
   });
 
-  const makeTx = (instructionPrefix: Buffer) => ({
+  const makeTx = (instructionPrefix: Buffer, meta: { loadedAddresses?: unknown } = {}) => ({
     meta: {
       err: null,
       loadedAddresses: { writable: [], readonly: [] },
+      ...meta,
       innerInstructions: [
         {
           index: 0,
@@ -83,5 +84,13 @@ describe("SvmCpiEventsClient (forged event rejection)", () => {
   it("ignores a forged event emitted via an arbitrary CPI into the program", () => {
     const events = internal.processEventFromTx(makeTx(GET_UNSAFE_DEPOSIT_ID_DISCRIMINATOR));
     expect(events).to.have.lengthOf(0);
+  });
+
+  // v1 transactions (mainnet from epoch 1035) drop address lookup tables entirely, so the RPC omits
+  // `meta.loadedAddresses` and the static account keys are the whole set. Decoding must not depend
+  // on that field being present.
+  it("decodes a genuine emitted event when loadedAddresses is absent (v1 transaction)", () => {
+    const events = internal.processEventFromTx(makeTx(ANCHOR_EVENT_DISCRIMINATOR, { loadedAddresses: undefined }));
+    expect(events.map((e) => e.name)).to.deep.equal(["FundsDeposited"]);
   });
 });
