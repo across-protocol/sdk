@@ -1,7 +1,7 @@
 import { arch } from "../..";
 import { getV3RelayCalldata } from "../../arch/evm";
 import { RelayData, SpeedUpCommon } from "../../interfaces";
-import { BigNumber, isMessageEmpty } from "../../utils";
+import { BigNumber, isDefined, isMessageEmpty } from "../../utils";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { getDefaultRelayer } from "../relayFeeCalculator";
 
@@ -15,9 +15,11 @@ export class TvmQuery extends CustomGasTokenQueries {
     deposit: RelayData & Partial<SpeedUpCommon> & { destinationChainId: number; speedUpSignature?: string }
   ): BigNumber {
     // The real ABI encoder rejects "" where this codebase treats it as a no-op: message,
-    // updatedMessage (both via isMessageEmpty), and a present-but-empty speedUpSignature.
+    // updatedMessage (isMessageEmpty), and a present-but-empty speedUpSignature. updatedMessage
+    // skips undefined so a malformed partial speed-up still fails the isDefined assert below.
     const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
-    const updatedMessage = isMessageEmpty(deposit.updatedMessage) ? "0x" : deposit.updatedMessage;
+    const updatedMessage =
+      isDefined(deposit.updatedMessage) && isMessageEmpty(deposit.updatedMessage) ? "0x" : deposit.updatedMessage;
     const speedUpSignature = !isMessageEmpty(deposit.speedUpSignature) ? deposit.speedUpSignature : undefined;
 
     const calldata = getV3RelayCalldata(

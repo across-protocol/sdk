@@ -977,6 +977,17 @@ describe("getAuxiliaryNativeTokenCost", function () {
         const blankFee = tvmQuery.getAuxiliaryNativeTokenCost({ ...speedUpBase, updatedMessage: "" });
         expect(blankFee.eq(zeroXFee)).to.equal(true);
       });
+
+      it("still throws on a malformed speed-up missing updatedMessage entirely", function () {
+        // Missing updatedMessage must still fail the isDefined assert, not default to "0x".
+        const malformed = {
+          ...makeDeposit(EMPTY_MESSAGE),
+          updatedRecipient: EvmAddress.from(randomAddress()),
+          updatedOutputAmount: BigNumber.from(1),
+          speedUpSignature: "0x" + "11".repeat(65),
+        };
+        expect(() => tvmQuery.getAuxiliaryNativeTokenCost(malformed)).to.throw();
+      });
     });
   });
 

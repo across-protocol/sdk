@@ -5,8 +5,8 @@ import { BigNumber, toBN } from "../../utils";
 // refresh from `wallet/getchainparameters` if it drifts.
 export const TVM_BANDWIDTH_SUN_PER_BYTE = 1000;
 
-// Tron raw_data envelope + one ECDSA signature. 670 empty-message fills measured 279 bytes
-// with zero variance; rounded up to 280 to stay conservative.
+// Tron raw_data envelope + one ECDSA signature. Varies with protobuf varint widths: 279
+// bytes for 670 empty-message fills, 280 for the 2112-byte test fill — 280 is the observed max.
 export const TVM_RAW_DATA_OVERHEAD_BYTES = 280;
 
 /**
