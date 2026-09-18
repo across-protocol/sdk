@@ -897,7 +897,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       // mean "no message" (isMessageEmpty), so both cost the same here.
       it("costs an empty or blank message the fixed envelope, matching onchain history", function () {
         const emptyFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
-        expect(emptyFee.eq(796_000)).to.equal(true);
+        expect(emptyFee.toNumber()).to.equal(796_000);
         const blankFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(""));
         expect(blankFee.eq(emptyFee)).to.equal(true);
       });
@@ -906,7 +906,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
         // Reproduces deposit #3984372 (Mainnet -> Tron); 2,908,000 is its real onchain net_fee.
         const message = "0x" + "00".repeat(2112);
         const fee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(message));
-        expect(fee.eq(2_908_000)).to.equal(true);
+        expect(fee.toNumber()).to.equal(2_908_000);
       });
 
       it("scales with padded message length", function () {

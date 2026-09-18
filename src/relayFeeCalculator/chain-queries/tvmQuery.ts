@@ -14,17 +14,16 @@ export class TvmQuery extends CustomGasTokenQueries {
   override getAuxiliaryNativeTokenCost(
     deposit: RelayData & Partial<SpeedUpCommon> & { destinationChainId: number; speedUpSignature?: string }
   ): BigNumber {
-    // The real ABI encoder rejects "" where this codebase treats it as a no-op: message,
-    // updatedMessage (isMessageEmpty), and a present-but-empty speedUpSignature. updatedMessage
-    // skips undefined so a malformed partial speed-up still fails the isDefined assert below.
+    // The real ABI encoder rejects "" where this codebase treats it as a no-op: message and
+    // updatedMessage. updatedMessage skips undefined so a malformed partial speed-up still
+    // fails the isDefined assert in resolveV3RelayCall (speedUpSignature is normalized there).
     const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
     const updatedMessage =
       isDefined(deposit.updatedMessage) && isMessageEmpty(deposit.updatedMessage) ? "0x" : deposit.updatedMessage;
-    const speedUpSignature = !isMessageEmpty(deposit.speedUpSignature) ? deposit.speedUpSignature : undefined;
 
     const calldata = getV3RelayCalldata(
       this.spokePool,
-      { ...deposit, message, updatedMessage, speedUpSignature },
+      { ...deposit, message, updatedMessage },
       getDefaultRelayer(deposit.destinationChainId)
     );
     return arch.tvm.bandwidthCostForCalldata(calldata);

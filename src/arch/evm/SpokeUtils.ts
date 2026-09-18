@@ -10,6 +10,7 @@ import {
   chunk,
   getRelayDataHash,
   isDefined,
+  isMessageEmpty,
   isUnsafeDepositId,
   getNetworkName,
   paginatedEventQuery,
@@ -54,7 +55,9 @@ function resolveV3RelayCall(
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
 
-  if (isDefined(relayData.speedUpSignature)) {
+  // "0x"/"" can never be a valid ECDSA signature, so fillRelayWithUpdatedDeposit would revert
+  // onchain on one anyway — treat it the same as absent rather than attempt that branch.
+  if (isDefined(relayData.speedUpSignature) && !isMessageEmpty(relayData.speedUpSignature)) {
     assert(isDefined(relayData.updatedRecipient) && !relayData.updatedRecipient.isZeroAddress());
     assert(isDefined(relayData.updatedOutputAmount));
     assert(isDefined(relayData.updatedMessage));
