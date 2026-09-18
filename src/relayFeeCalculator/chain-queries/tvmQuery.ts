@@ -1,7 +1,7 @@
 import { arch } from "../..";
 import { getV3RelayCalldata } from "../../arch/evm";
-import { RelayData } from "../../interfaces";
-import { BigNumber } from "../../utils";
+import { RelayData, SpeedUpCommon } from "../../interfaces";
+import { BigNumber, isDefined, isMessageEmpty } from "../../utils";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { getDefaultRelayer } from "../relayFeeCalculator";
 
@@ -19,8 +19,24 @@ import { getDefaultRelayer } from "../relayFeeCalculator";
  * regardless of content), so a default placeholder is fine here.
  */
 export class TvmQuery extends CustomGasTokenQueries {
-  override getAuxiliaryNativeTokenCost(deposit: RelayData & { destinationChainId: number }): BigNumber {
-    const calldata = getV3RelayCalldata(this.spokePool, deposit, getDefaultRelayer(deposit.destinationChainId));
+  override getAuxiliaryNativeTokenCost(
+    deposit: RelayData & Partial<SpeedUpCommon> & { destinationChainId: number; speedUpSignature?: string }
+  ): BigNumber {
+    // getV3RelayCalldata (via the real ABI encoder) is stricter than this estimate needs to
+    // be about two conventions this codebase otherwise treats as "no-ops": a message given
+    // as "" rather than the canonical "0x" (see `isMessageEmpty`), and a speedUpSignature
+    // that's present but empty as "not actually sped up" (mirrored from the calldata model
+    // this replaces). Left unnormalized, either would make getV3RelayCalldata throw instead
+    // of returning the ordinary fixed-fill estimate.
+    const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
+    const speedUpSignature =
+      isDefined(deposit.speedUpSignature) && deposit.speedUpSignature !== "0x" ? deposit.speedUpSignature : undefined;
+
+    const calldata = getV3RelayCalldata(
+      this.spokePool,
+      { ...deposit, message, speedUpSignature },
+      getDefaultRelayer(deposit.destinationChainId)
+    );
     return arch.tvm.getAuxiliaryNativeTokenCost(calldata);
   }
 }

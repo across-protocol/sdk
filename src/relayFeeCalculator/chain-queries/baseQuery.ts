@@ -172,7 +172,7 @@ export class QueryBase implements QueryInterface {
    * @param deposit RelayData associated with Deposit we're estimating for
    * @returns Native token cost
    */
-  getAuxiliaryNativeTokenCost(_deposit: RelayData): BigNumber {
+  getAuxiliaryNativeTokenCost(_deposit: RelayData & { destinationChainId: number }): BigNumber {
     return arch.evm.getAuxiliaryNativeTokenCost(_deposit);
   }
 
