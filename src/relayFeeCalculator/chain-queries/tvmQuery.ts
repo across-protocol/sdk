@@ -16,7 +16,8 @@ export class TvmQuery extends CustomGasTokenQueries {
   ): BigNumber {
     // The real ABI encoder rejects "" where this codebase treats it as a no-op: message and
     // updatedMessage. updatedMessage skips undefined so a malformed partial speed-up still
-    // fails the isDefined assert in resolveV3RelayCall (speedUpSignature is normalized there).
+    // fails the isDefined assert in resolveV3RelayCall (which also rejects an empty
+    // speedUpSignature outright, so it needs no normalization here).
     const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
     const updatedMessage =
       isDefined(deposit.updatedMessage) && isMessageEmpty(deposit.updatedMessage) ? "0x" : deposit.updatedMessage;
