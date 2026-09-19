@@ -952,16 +952,15 @@ describe("getAuxiliaryNativeTokenCost", function () {
         expect(bothFee.eq(updatedFee.add(32 * tvmArch.TVM_BANDWIDTH_SUN_PER_BYTE))).to.equal(true);
       });
 
-      it("treats a present-but-empty speedUpSignature as not sped up", function () {
-        // "0x" and "" both mean not-sped-up by convention; check both degrade to plain fillRelay.
-        const plainFee = tvmQuery.getAuxiliaryNativeTokenCost(makeDeposit(EMPTY_MESSAGE));
-        const zeroXFee = tvmQuery.getAuxiliaryNativeTokenCost({
-          ...makeDeposit(EMPTY_MESSAGE),
-          speedUpSignature: "0x",
-        });
-        expect(zeroXFee.eq(plainFee)).to.equal(true);
-        const blankFee = tvmQuery.getAuxiliaryNativeTokenCost({ ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "" });
-        expect(blankFee.eq(plainFee)).to.equal(true);
+      it("still throws on a malformed speed-up with an empty speedUpSignature", function () {
+        // "0x"/"" can't be a real signature; treating it as absent would silently pay the
+        // original recipient/amount instead of the updated ones, so this must throw instead.
+        expect(() =>
+          tvmQuery.getAuxiliaryNativeTokenCost({ ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "0x" })
+        ).to.throw();
+        expect(() =>
+          tvmQuery.getAuxiliaryNativeTokenCost({ ...makeDeposit(EMPTY_MESSAGE), speedUpSignature: "" })
+        ).to.throw();
       });
 
       it("costs a blank updatedMessage the same as an empty one on a speed-up fill", function () {

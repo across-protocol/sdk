@@ -55,9 +55,11 @@ function resolveV3RelayCall(
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
 
-  // "0x"/"" can never be a valid ECDSA signature, so fillRelayWithUpdatedDeposit would revert
-  // onchain on one anyway — treat it the same as absent rather than attempt that branch.
-  if (isDefined(relayData.speedUpSignature) && !isMessageEmpty(relayData.speedUpSignature)) {
+  if (isDefined(relayData.speedUpSignature)) {
+    // "0x"/"" can never be a valid ECDSA signature. Reject loudly here rather than fall back
+    // to a plain fillRelay: that would silently pay the original recipient/amount instead of
+    // the updated ones, diverging from isDepositSpedUp (which treats this as sped up).
+    assert(!isMessageEmpty(relayData.speedUpSignature), "Empty speedUpSignature on a sped-up deposit");
     assert(isDefined(relayData.updatedRecipient) && !relayData.updatedRecipient.isZeroAddress());
     assert(isDefined(relayData.updatedOutputAmount));
     assert(isDefined(relayData.updatedMessage));
