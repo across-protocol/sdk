@@ -10,6 +10,7 @@ import {
   chunk,
   getRelayDataHash,
   isDefined,
+  isMessageEmpty,
   isUnsafeDepositId,
   getNetworkName,
   paginatedEventQuery,
@@ -28,18 +29,13 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
     outputToken: Address;
   };
 
-/**
- * @param spokePool SpokePool Contract instance.
- * @param relayData RelayData instance, supplemented with destinationChainId
- * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
- * @returns An Ethers UnsignedTransaction instance.
- */
-export function populateV3Relay(
-  spokePool: Contract,
+// Picks fillRelay vs. fillRelayWithUpdatedDeposit and assembles its args, shared by
+// populateV3Relay and getV3RelayCalldata below.
+function resolveV3RelayCall(
   relayData: ProtoFill,
   repaymentAddress: Address,
   repaymentChainId = relayData.destinationChainId
-): Promise<PopulatedTransaction> {
+): { method: "fillRelay" | "fillRelayWithUpdatedDeposit"; args: unknown[] } {
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
     `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
@@ -60,21 +56,56 @@ export function populateV3Relay(
   };
 
   if (isDefined(relayData.speedUpSignature)) {
+    // "0x"/"" can never be a valid ECDSA signature. Reject loudly here rather than fall back
+    // to a plain fillRelay: that would silently pay the original recipient/amount instead of
+    // the updated ones, diverging from isDepositSpedUp (which treats this as sped up).
+    assert(!isMessageEmpty(relayData.speedUpSignature), "Empty speedUpSignature on a sped-up deposit");
     assert(isDefined(relayData.updatedRecipient) && !relayData.updatedRecipient.isZeroAddress());
     assert(isDefined(relayData.updatedOutputAmount));
     assert(isDefined(relayData.updatedMessage));
-    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      evmRelayData,
-      repaymentChainId,
-      repaymentAddress.toBytes32(),
-      relayData.updatedOutputAmount,
-      relayData.updatedRecipient.toBytes32(),
-      relayData.updatedMessage,
-      relayData.speedUpSignature
-    );
+    return {
+      method: "fillRelayWithUpdatedDeposit",
+      args: [
+        evmRelayData,
+        repaymentChainId,
+        repaymentAddress.toBytes32(),
+        relayData.updatedOutputAmount,
+        relayData.updatedRecipient.toBytes32(),
+        relayData.updatedMessage,
+        relayData.speedUpSignature,
+      ],
+    };
   }
 
-  return spokePool.populateTransaction.fillRelay(evmRelayData, repaymentChainId, repaymentAddress.toBytes32());
+  return { method: "fillRelay", args: [evmRelayData, repaymentChainId, repaymentAddress.toBytes32()] };
+}
+
+/**
+ * @param spokePool SpokePool Contract instance.
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
+ * @returns An Ethers UnsignedTransaction instance.
+ */
+export function populateV3Relay(
+  spokePool: Contract,
+  relayData: ProtoFill,
+  repaymentAddress: Address,
+  repaymentChainId = relayData.destinationChainId
+): Promise<PopulatedTransaction> {
+  const { method, args } = resolveV3RelayCall(relayData, repaymentAddress, repaymentChainId);
+  return spokePool.populateTransaction[method](...args);
+}
+
+// Synchronous calldata-only counterpart to populateV3Relay, for callers that only need the
+// ABI-encoded calldata, not a full populated transaction.
+export function getV3RelayCalldata(
+  spokePool: Contract,
+  relayData: ProtoFill,
+  repaymentAddress: Address,
+  repaymentChainId = relayData.destinationChainId
+): string {
+  const { method, args } = resolveV3RelayCall(relayData, repaymentAddress, repaymentChainId);
+  return spokePool.interface.encodeFunctionData(method, args);
 }
 
 /**
