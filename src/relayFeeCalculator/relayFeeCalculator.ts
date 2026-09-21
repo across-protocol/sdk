@@ -46,7 +46,7 @@ export interface QueryInterface {
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getNativeGasCost: (deposit: RelayData & { destinationChainId: number }, relayer: Address) => Promise<BigNumber>;
-  getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber;
+  getAuxiliaryNativeTokenCost(deposit: RelayData & { destinationChainId: number }): BigNumber;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];

@@ -204,7 +204,7 @@ export class SvmQuery implements QueryInterface {
    * @throws If deposit.message is malformed (unable to be deserialized into `AcrossPlusMessage`)
    * @returns Native token cost
    */
-  getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
+  getAuxiliaryNativeTokenCost(deposit: RelayData & { destinationChainId: number }): BigNumber {
     return arch.svm.getAuxiliaryNativeTokenCost(deposit);
   }
 

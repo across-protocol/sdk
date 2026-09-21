@@ -1,20 +1,32 @@
 import { arch } from "../..";
-import { RelayData } from "../../interfaces";
-import { BigNumber } from "../../utils";
+import { getV3RelayCalldata } from "../../arch/evm";
+import { RelayData, SpeedUpCommon } from "../../interfaces";
+import { BigNumber, isDefined, isMessageEmpty } from "../../utils";
 import { CustomGasTokenQueries } from "./customGasToken";
+import { getDefaultRelayer } from "../relayFeeCalculator";
 
 /**
- * TVM (TRON) query implementation. Extends `CustomGasTokenQueries` to add bandwidth
- * accounting via `getAuxiliaryNativeTokenCost`, which the base EVM path returns 0 for.
- *
- * Energy (Tron's analogue of gas) is already estimated by `voidSigner.estimateGas`
- * against the EVM-compat RPC and surfaces in `tokenGasCost`. Bandwidth is a separate
- * Tron-native resource that the EVM compatibility layer does not surface, so we
- * estimate it here from the deposit's `message` length and a fixed `fillRelay`
- * calldata footprint.
+ * TVM (TRON) query. Tron bandwidth bills separately from energy, so `getAuxiliaryNativeTokenCost`
+ * (0 on the base EVM path) is measured from the real fill calldata rather than modeled. The
+ * repayment address's value never affects calldata length, so a placeholder is fine here.
  */
 export class TvmQuery extends CustomGasTokenQueries {
-  override getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
-    return arch.tvm.getAuxiliaryNativeTokenCost(deposit);
+  override getAuxiliaryNativeTokenCost(
+    deposit: RelayData & Partial<SpeedUpCommon> & { destinationChainId: number; speedUpSignature?: string }
+  ): BigNumber {
+    // The real ABI encoder rejects "" where this codebase treats it as a no-op: message and
+    // updatedMessage. updatedMessage skips undefined so a malformed partial speed-up still
+    // fails the isDefined assert in resolveV3RelayCall (which also rejects an empty
+    // speedUpSignature outright, so it needs no normalization here).
+    const message = isMessageEmpty(deposit.message) ? "0x" : deposit.message;
+    const updatedMessage =
+      isDefined(deposit.updatedMessage) && isMessageEmpty(deposit.updatedMessage) ? "0x" : deposit.updatedMessage;
+
+    const calldata = getV3RelayCalldata(
+      this.spokePool,
+      { ...deposit, message, updatedMessage },
+      getDefaultRelayer(deposit.destinationChainId)
+    );
+    return arch.tvm.bandwidthCostForCalldata(calldata);
   }
 }
