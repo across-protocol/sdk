@@ -54,3 +54,43 @@ export interface SolanaErrorLike {
 export function isSolanaError(error: unknown): error is SolanaErrorLike {
   return _isSolanaError(error) || is(error, SolanaErrorStruct);
 }
+
+export type SolanaErrorDescription = {
+  name: string;
+  message?: string;
+  code: number;
+  context: SolanaErrorLike["context"];
+  cause?: SolanaErrorDescription | { message: string };
+};
+
+/**
+ * Extract a log-friendly description of a SolanaError. Returns `{}` for non-SolanaError
+ * inputs so callers can spread unconditionally:
+ *   logger.error({ at, message, error: err, ...describeSolanaError(err) });
+ *
+ * Most JSON loggers serialize Errors via `.stack`/`.message`, dropping SolanaError's
+ * `context` (program logs, accounts, unitsConsumed) and `cause` (wrapped TransactionError /
+ * InstructionError). This produces a plain object that survives any standard serializer.
+ */
+export function describeSolanaError(err: unknown): { solanaError?: SolanaErrorDescription } {
+  if (!isSolanaError(err)) {
+    return {};
+  }
+  const solanaError: SolanaErrorDescription = {
+    name: err.name,
+    code: err.context.__code,
+    context: err.context,
+  };
+  if (err instanceof Error) {
+    solanaError.message = err.message;
+  }
+  if (err.cause !== undefined) {
+    const describedCause = describeSolanaError(err.cause);
+    if (describedCause.solanaError) {
+      solanaError.cause = describedCause.solanaError;
+    } else if (err.cause instanceof Error) {
+      solanaError.cause = { message: err.cause.message };
+    }
+  }
+  return { solanaError };
+}
