@@ -1,5 +1,5 @@
 import assert from "assert";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
@@ -11,14 +11,6 @@ import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
 import { TvmQuery } from "./tvmQuery";
-
-/**
- * Some chains have a fixed gas price that is applied to the gas estimates. We should override
- * the gas markup for these chains.
- */
-const fixedGasPrice = {
-  [CHAIN_IDs.BOBA]: 1e9,
-};
 
 export class QueryBase__factory {
   static create(
@@ -49,7 +41,7 @@ export class QueryBase__factory {
           relayerAddress,
           logger,
           coingeckoProApiKey,
-          fixedGasPrice[chainId],
+          undefined, // fixedGasPrice
           "usd",
         ],
         customGasTokenSymbol,
@@ -64,7 +56,7 @@ export class QueryBase__factory {
         relayerAddress,
         logger,
         coingeckoProApiKey,
-        fixedGasPrice[chainId],
+        undefined, // fixedGasPrice
         coingeckoBaseCurrency
       );
     }
@@ -82,7 +74,7 @@ export class QueryBase__factory {
       relayerAddress,
       logger,
       coingeckoProApiKey,
-      fixedGasPrice[chainId],
+      undefined, // fixedGasPrice
       coingeckoBaseCurrency
     );
   }

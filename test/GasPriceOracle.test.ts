@@ -102,7 +102,7 @@ describe("Gas Price Oracle", function () {
         // Arbitrum orbit priority fee should be 1 wei.
         expect(markedUpMaxPriorityFeePerGas).to.equal(1);
       } else if (legacyChainIds.includes(chainId)) {
-        // Scroll and ZkSync use legacy pricing so priority fee should be 0.
+        // ZkSync uses legacy pricing so priority fee should be 0.
         expect(markedUpMaxPriorityFeePerGas).to.equal(0);
         // Legacy gas price = base fee + priority fee and full value is scaled by the base fee multiplier.
         expect(markedUpMaxFeePerGas).to.equal(
