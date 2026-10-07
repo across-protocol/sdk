@@ -46,7 +46,7 @@ export class QueryBase implements QueryInterface {
    * @param simulatedRelayerAddress The address that these queries will reference as the sender. Note: This address must be approved for USDC
    * @param logger A logging utility to report logs
    * @param coingeckoProApiKey An optional CoinGecko API key that links to a PRO account
-   * @param fixedGasPrice Overrides the gas price with a fixed value. Note: primarily used for the Boba blockchain
+   * @param fixedGasPrice Overrides the gas price with a fixed value.
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
