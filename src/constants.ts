@@ -74,38 +74,23 @@ export const BRIDGED_USDC_SYMBOLS = [
 
 export const STABLE_COIN_SYMBOLS = [
   ...BRIDGED_USDC_SYMBOLS,
-  TOKEN_SYMBOLS_MAP.USDB.symbol,
   TOKEN_SYMBOLS_MAP.USDC.symbol,
   TOKEN_SYMBOLS_MAP.USDG.symbol,
   TOKEN_SYMBOLS_MAP.USDT.symbol,
   TOKEN_SYMBOLS_MAP["USDT-BNB"].symbol,
   TOKEN_SYMBOLS_MAP["USDT-SPOT"].symbol,
   TOKEN_SYMBOLS_MAP.DAI.symbol,
-  TOKEN_SYMBOLS_MAP.GHO.symbol,
-  TOKEN_SYMBOLS_MAP.WGHO.symbol,
   TOKEN_SYMBOLS_MAP.pathUSD.symbol,
 ];
 
-const resolveCustomGasTokens = (): { [chainId: number]: string } => {
-  // Lens & Lens Sepolia are exceptional; every other EVM
-  // custom gas token can be inferred from the chain defs.
-  // Keep until Lens is removed from PUBLIC_NETWORKS (e.g. Lens Sepolia's GRASS has no mainnet price).
-  const overrides = {
-    [CHAIN_IDs.LENS]: "GHO",
-    [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
-  };
-
-  return Object.fromEntries(
+const resolveCustomGasTokens = (): { [chainId: number]: string } =>
+  Object.fromEntries(
     Object.keys(PUBLIC_NETWORKS)
       .map(Number)
       .filter((chainId) => PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM)
-      .map((chainId) => {
-        const { nativeToken } = PUBLIC_NETWORKS[chainId];
-        return [chainId, overrides[chainId] ?? nativeToken];
-      })
+      .map((chainId) => [chainId, PUBLIC_NETWORKS[chainId].nativeToken])
       .filter(([, nativeToken]) => nativeToken !== "ETH")
   );
-};
 export const CUSTOM_GAS_TOKENS = resolveCustomGasTokens();
 
 // Blocks where SpokePools were upgraded from v2 to v2.5. This is where the fillStatus mapping
